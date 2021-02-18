@@ -1,4 +1,8 @@
-pub enum Token {
+#[macro_use] extern crate lalrpop_util;
+
+lalrpop_mod!(pub solt);
+
+pub enum OpCode {
     Comma,
     Dot,
     Eq,
@@ -15,8 +19,12 @@ pub enum Token {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn it_works() {
-        assert_eq!(2 + 2, 4);
+
+        let result = solt::SolutionParser::new().parse("AB").unwrap();
+        assert_eq!(result, "AB");
     }
 }

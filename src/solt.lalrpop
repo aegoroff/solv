@@ -1,6 +1,23 @@
+use crate::{OpCode};
 
 grammar;
 
-pub Solution: Box<Solution> = {
-
+pub Solution = {
+    Lines,
 };
+
+Lines = {
+    Line,
+    Lines CrLf Line,
+};
+
+Line = {
+    Identifier,
+};
+
+CrLf: OpCode = {
+    "\r\n" => OpCode::Crlf,
+    "\n" => OpCode::Crlf,
+};
+
+Identifier: String = r"[a-zA-Z]+" => <>.to_string();
