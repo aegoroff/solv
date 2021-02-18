@@ -8,7 +8,7 @@ pub Solution = {
 
 Lines = {
     Line,
-    Lines CrLf Line,
+    <Lines> CrLf Line,
 };
 
 Line = {

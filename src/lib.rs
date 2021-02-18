@@ -24,7 +24,7 @@ mod tests {
     #[test]
     fn it_works() {
 
-        let result = solt::SolutionParser::new().parse("AB").unwrap();
+        let result = solt::SolutionParser::new().parse("AB\nCD").unwrap();
         assert_eq!(result, "AB");
     }
 }
