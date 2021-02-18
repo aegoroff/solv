@@ -2,22 +2,44 @@ use crate::{OpCode};
 
 grammar;
 
-pub Solution = {
-    Lines,
-};
-
-Lines = {
-    Line,
-    <Lines> CrLf Line,
-};
+pub Solution = <Line*>;
 
 Line = {
+    HeaderLine,
+};
+
+HeaderLine = {
+    FirstLine,
+    Version,
+};
+
+FirstLine : OpCode = <Word+> => OpCode::FirstLine;
+
+Version : OpCode = {
+    Identifier Eq Rvalue => OpCode::Version(<>.to_string(), <>.to_string()),
+};
+
+Rvalue : OpCode = {
     Identifier,
+    DigitOrDot,
 };
 
-CrLf: OpCode = {
-    "\r\n" => OpCode::Crlf,
-    "\n" => OpCode::Crlf,
+Word = {
+    Identifier,
+    Comma,
+    DigitOrDot,
 };
 
-Identifier: String = r"[a-zA-Z]+" => <>.to_string();
+Comma: OpCode = {
+    "," => OpCode::Comma,
+};
+
+Eq: OpCode = {
+    "=" => OpCode::Eq,
+};
+
+DigitOrDot: OpCode = {
+    r"[.0-9]+" => OpCode::DigitOrDot(<>.to_string()),
+};
+
+Identifier: OpCode = r"[a-zA-Z]+" => OpCode::Identifier(<>.to_string());
