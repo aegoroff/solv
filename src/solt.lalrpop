@@ -18,16 +18,16 @@ FirstLine : OpCode = <Word> <Word*> <Comma> <Word*> <DigitOrDot> => OpCode::Firs
 
 Version : OpCode = {
     <id:Identifier> Eq <r:Rvalue> => {
-        let mut name = String::new();
-        let mut val = String::new();
-        match id {
-            OpCode::Identifier(s) => name = s,
-            _ => {},
-        }
-        match r {
-            OpCode::DigitOrDot(s) => val = s,
-            _ => {},
-        }
+        let name = match id {
+            OpCode::Identifier(s) => s,
+            _ => String::new(),
+        };
+
+        let val = match r {
+            OpCode::DigitOrDot(s) => s,
+            _ => String::new(),
+        };
+
         OpCode::Version(name, val)
     },
 };
