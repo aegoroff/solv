@@ -35,7 +35,9 @@ Version : Expr = {
 };
 
 ProjectBegin : Expr = {
-    <Identifier> <ProjectType> "=" <Str> "," <Str> "," <Guid> => Expr::ProjectBegin,
+    <i:Identifier> <t:ProjectType> "=" <n:Str> "," <p:Str> "," <id:Str> => {
+        Expr::ProjectBegin(Box::new(t),Box::new(n),Box::new(p),Box::new(id))
+    },
 };
 
 ProjectEnd : Expr = {
@@ -43,9 +45,9 @@ ProjectEnd : Expr = {
 };
 
 ProjectType : Expr = {
-        "(" "\"" <g:Guid> "\"" ")" => {
+        "(" <g:Str> ")" => {
             let val = match g {
-                    Expr::Guid(s) => s,
+                    Expr::Str(s) => s,
                     _ => String::new(),
             };
 

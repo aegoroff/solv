@@ -22,7 +22,7 @@ pub enum Expr {
     BareStr(String),
     Version(String, String),
     FirstLine,
-    ProjectBegin,
+    ProjectBegin(Box<Expr>, Box<Expr>, Box<Expr>, Box<Expr>),
     ProjectEnd,
     ProjectType(String),
 }
