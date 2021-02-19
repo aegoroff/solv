@@ -19,23 +19,9 @@ HeaderLine = {
     <Comment>,
 };
 
-FirstLine : Expr = <Word> <Word*> "," <Word*> <DigitOrDot> => Expr::FirstLine;
+FirstLine : Expr = <Identifier> <Identifier*> "," <Identifier*> <DigitOrDot> => Expr::FirstLine;
 
-Version : Expr = {
-    <id:Identifier> "=" <r:Rvalue> => {
-        let name = match id {
-            Expr::Identifier(s) => s,
-            _ => String::new(),
-        };
-
-        let val = match r {
-            Expr::DigitOrDot(s) => s,
-            _ => String::new(),
-        };
-
-        Expr::Version(name, val)
-    },
-};
+Version : Expr = <id:Identifier> "=" <r:Rvalue> => Expr::Version(Box::new(id),Box::new(r));
 
 ProjectBegin : Expr = {
     "Project" <t:ProjectType> "=" <n:Str> "," <p:Str> "," <id:Str> => {
@@ -64,23 +50,12 @@ ProjectSectionContent : Expr = {
 };
 
 ProjectType : Expr = {
-        "(" <g:Str> ")" => {
-            let val = match g {
-                    Expr::Str(s) => s,
-                    _ => String::new(),
-            };
-
-            Expr::ProjectType(val)
-        },
+    "(" <g:Str> ")" => Expr::ProjectType(Box::new(g)),
 };
 
 Rvalue : Expr = {
     <Identifier>,
     <DigitOrDot>,
-};
-
-Word = {
-    <Identifier>,
 };
 
 Comment : Expr =  r"#[^\n]*" => Expr::Comment(<>.to_string());
