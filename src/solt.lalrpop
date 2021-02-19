@@ -1,60 +1,75 @@
-use crate::{OpCode};
+use crate::{Expr};
 
 grammar;
 
 pub Solution = <Line> <Line*>;
 
 Line = {
-    HeaderLine,
+    <HeaderLine>,
+    <ProjectBegin>,
+    <ProjectEnd>,
 };
 
 HeaderLine = {
-    FirstLine,
-    Version,
-    Comment,
+    <FirstLine>,
+    <Version>,
+    <Comment>,
 };
 
-FirstLine : OpCode = <Word> <Word*> <Comma> <Word*> <DigitOrDot> => OpCode::FirstLine;
+FirstLine : Expr = <Word> <Word*> "," <Word*> <DigitOrDot> => Expr::FirstLine;
 
-Version : OpCode = {
-    <id:Identifier> Eq <r:Rvalue> => {
+Version : Expr = {
+    <id:Identifier> "=" <r:Rvalue> => {
         let name = match id {
-            OpCode::Identifier(s) => s,
+            Expr::Identifier(s) => s,
             _ => String::new(),
         };
 
         let val = match r {
-            OpCode::DigitOrDot(s) => s,
+            Expr::DigitOrDot(s) => s,
             _ => String::new(),
         };
 
-        OpCode::Version(name, val)
+        Expr::Version(name, val)
     },
 };
 
-Rvalue : OpCode = {
-    Identifier,
-    DigitOrDot,
+ProjectBegin : Expr = {
+    <Identifier> <ProjectType> "=" <Str> "," <Str> "," <Guid> => Expr::ProjectBegin,
+};
+
+ProjectEnd : Expr = {
+    "EndProject" => Expr::ProjectEnd,
+};
+
+ProjectType : Expr = {
+        "(" "\"" <g:Guid> "\"" ")" => {
+            let val = match g {
+                    Expr::Guid(s) => s,
+                    _ => String::new(),
+            };
+
+            Expr::ProjectType(val)
+        },
+};
+
+Rvalue : Expr = {
+    <Identifier>,
+    <DigitOrDot>,
 };
 
 Word = {
-    Identifier,
+    <Identifier>,
 };
 
-Comment : OpCode = {
-    r"#[^\n]*" => OpCode::Comment(<>.to_string()),
+Comment : Expr =  r"#[^\n]*" => Expr::Comment(<>.to_string());
+
+DigitOrDot: Expr = r"[.0-9]+" => Expr::DigitOrDot(<>.to_string());
+
+Guid: Expr = {
+    r"\{[a-zA-Z0-9]{8}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{12}\}" => Expr::Guid(<>.to_string()),
 };
 
-Comma: OpCode = {
-    "," => OpCode::Comma,
-};
+Identifier: Expr = r"[a-zA-Z]+" => Expr::Identifier(<>.to_string());
 
-Eq: OpCode = {
-    "=" => OpCode::Eq,
-};
-
-DigitOrDot: OpCode = {
-    r"[.0-9]+" => OpCode::DigitOrDot(<>.to_string()),
-};
-
-Identifier: OpCode = r"[a-zA-Z]+" => OpCode::Identifier(<>.to_string());
+Str: Expr =  r#""[^"]+""# => Expr::Str(<>.to_string());
