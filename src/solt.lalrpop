@@ -8,6 +8,9 @@ Line = {
     <HeaderLine>,
     <ProjectBegin>,
     <ProjectEnd>,
+    <ProjectSectionBegin>,
+    <ProjectSectionContent>,
+    <ProjectSectionEnd>,
 };
 
 HeaderLine = {
@@ -40,8 +43,24 @@ ProjectBegin : Expr = {
     },
 };
 
+ProjectSectionBegin : Expr = {
+    "ProjectSection" "(" <name:Identifier> ")" "=" <stage:Identifier> => {
+        Expr::ProjectSectionBegin(Box::new(name),Box::new(stage))
+    },
+};
+
 ProjectEnd : Expr = {
     "EndProject" => Expr::ProjectEnd,
+};
+
+ProjectSectionEnd : Expr = {
+    "EndProjectSection" => Expr::ProjectSectionEnd,
+};
+
+ProjectSectionContent : Expr = {
+    <k:Guid> "=" <v:Guid> => {
+        Expr::ProjectSectionContent(Box::new(k), Box::new(v))
+    },
 };
 
 ProjectType : Expr = {
@@ -69,7 +88,7 @@ Comment : Expr =  r"#[^\n]*" => Expr::Comment(<>.to_string());
 DigitOrDot: Expr = r"[.0-9]+" => Expr::DigitOrDot(<>.to_string());
 
 Guid: Expr = {
-    r"\{[a-zA-Z0-9]{8}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{12}\}" => Expr::Guid(<>.to_string()),
+   "{" r"[[:alnum:]]{8}-[[:alnum:]]{4}-[[:alnum:]]{4}-[[:alnum:]]{4}-[[:alnum:]]{12}" "}" => Expr::Guid((<>).1.to_string()),
 };
 
 Identifier: Expr = r"[a-zA-Z]+" => Expr::Identifier(<>.to_string());

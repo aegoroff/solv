@@ -25,6 +25,9 @@ pub enum Expr {
     ProjectBegin(Box<Expr>, Box<Expr>, Box<Expr>, Box<Expr>),
     ProjectEnd,
     ProjectType(String),
+    ProjectSectionBegin(Box<Expr>, Box<Expr>),
+    ProjectSectionEnd,
+    ProjectSectionContent(Box<Expr>, Box<Expr>),
 }
 
 #[cfg(test)]
@@ -39,7 +42,16 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2013
 VisualStudioVersion = 12.0.31101.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataVirtualization", "DataVirtualization\DataVirtualization.csproj", "{8102706C-AA37-4250-8889-1240FEB6F92F}"
+Project("{930C7802-8A8C-48F9-8165-68863BCCD9DD}") = "logviewer.install", "logviewer.install\logviewer.install.wixproj", "{27060CA7-FB29-42BC-BA66-7FC80D498354}"
+	ProjectSection(ProjectDependencies) = postProject
+		{405827CB-84E1-46F3-82C9-D889892645AC} = {405827CB-84E1-46F3-82C9-D889892645AC}
+		{CFBAE2FB-6E3F-44CF-9FC9-372D6EA8DD3D} = {CFBAE2FB-6E3F-44CF-9FC9-372D6EA8DD3D}
+	EndProjectSection
+EndProject
+Project("{930C7802-8A8C-48F9-8165-68863BCCD9DD}") = "logviewer.install.bootstrap", "logviewer.install.bootstrap\logviewer.install.bootstrap.wixproj", "{1C0ED62B-D506-4E72-BBC2-A50D3926466E}"
+	ProjectSection(ProjectDependencies) = postProject
+		{27060CA7-FB29-42BC-BA66-7FC80D498354} = {27060CA7-FB29-42BC-BA66-7FC80D498354}
+	EndProjectSection
 EndProject
 "#).unwrap();
         println!("{:#?}", result)
