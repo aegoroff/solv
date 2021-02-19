@@ -2,7 +2,7 @@ use crate::{OpCode};
 
 grammar;
 
-pub Solution = <Line*>;
+pub Solution = <Line> <Line*>;
 
 Line = {
     HeaderLine,
@@ -11,12 +11,25 @@ Line = {
 HeaderLine = {
     FirstLine,
     Version,
+    Comment,
 };
 
-FirstLine : OpCode = <Word+> => OpCode::FirstLine;
+FirstLine : OpCode = <Word> <Word*> <Comma> <Word*> <DigitOrDot> => OpCode::FirstLine;
 
 Version : OpCode = {
-    Identifier Eq Rvalue => OpCode::Version(<>.to_string(), <>.to_string()),
+    <id:Identifier> Eq <r:Rvalue> => {
+        let mut name = String::new();
+        let mut val = String::new();
+        match id {
+            OpCode::Identifier(s) => name = s,
+            _ => {},
+        }
+        match r {
+            OpCode::DigitOrDot(s) => val = s,
+            _ => {},
+        }
+        OpCode::Version(name, val)
+    },
 };
 
 Rvalue : OpCode = {
@@ -26,8 +39,10 @@ Rvalue : OpCode = {
 
 Word = {
     Identifier,
-    Comma,
-    DigitOrDot,
+};
+
+Comment : OpCode = {
+    r"#[^\n]*" => OpCode::Comment(<>.to_string()),
 };
 
 Comma: OpCode = {

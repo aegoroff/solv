@@ -26,7 +26,12 @@ mod tests {
     #[test]
     fn it_works() {
 
-        let result = solt::SolutionParser::new().parse("AB\nCD").unwrap();
+        let result = solt::SolutionParser::new().parse(r#"
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2013
+VisualStudioVersion = 12.0.31101.0
+MinimumVisualStudioVersion = 10.0.40219.1
+"#).unwrap();
         println!("{:#?}", result)
         //assert_eq!(result, "AB");
     }
