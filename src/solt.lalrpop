@@ -11,8 +11,11 @@ Line = {
     <ProjectSectionBegin>,
     <ProjectSectionContent>,
     <ProjectSectionEnd>,
-    <Global>,
-    <GlobalEnd>,
+    // <Global>,
+    // <GlobalEnd>,
+    // <GlobalSectionBegin>,
+    // <GlobalSectionContent>,
+    // <GlobalSectionEnd>,
 };
 
 HeaderLine = {
@@ -35,30 +38,46 @@ ProjectSectionBegin : Expr = {
     PROJECT_SECTION "(" <name:Identifier> ")" "=" <stage:Identifier> => {
         Expr::ProjectSectionBegin(Box::new(name),Box::new(stage))
     },
-    GLOBAL_SECTION "(" <name:Identifier> ")" "=" <stage:Identifier> => {
-        Expr::ProjectSectionBegin(Box::new(name),Box::new(stage))
-    },
 };
 
+// GlobalSectionBegin : Expr = {
+//     GLOBAL_SECTION "(" <name:Identifier> ")" "=" <stage:Identifier> => {
+//         Expr::GlobalSectionBegin(Box::new(name),Box::new(stage))
+//     },
+// };
+
 ProjectEnd : Expr = END_PROJECT => Expr::ProjectEnd;
-Global : Expr = GLOBAL => Expr::Global;
-GlobalEnd : Expr = END_GLOBAL => Expr::GlobalEnd;
+// Global : Expr = GLOBAL => Expr::Global;
+// GlobalEnd : Expr = END_GLOBAL => Expr::GlobalEnd;
 
 ProjectSectionEnd : Expr = {
     PROJECT_SECTION_END => Expr::ProjectSectionEnd,
-    GLOBAL_SECTION_END => Expr::ProjectSectionEnd,
 };
+
+// GlobalSectionEnd : Expr = {
+//     GLOBAL_SECTION_END => Expr::GlobalSectionEnd,
+// };
 
 ProjectSectionContent : Expr = {
     <k:Guid> "=" <v:Guid> => {
         Expr::ProjectSectionContent(Box::new(k), Box::new(v))
     },
-    <k:BareString> => {
-        Expr::ProjectSectionUnaryContent(Box::new(k))
+    <k:Path> "=" <v:Path> => {
+        Expr::ProjectSectionContent(Box::new(k), Box::new(v))
     },
 };
 
+// GlobalSectionContent : Expr = {
+//     <k:ConfigurationPlatform> "=" <v:ConfigurationPlatform> => {
+//         Expr::GlobalSectionContent(Box::new(k), Box::new(v))
+//     },
+// };
+
 ProjectType : Expr = "(" <g:Str> ")" => Expr::ProjectType(Box::new(g));
+
+// ConfigurationPlatform : Expr = {
+//     <c:Identifier> "|" <p:Platform> => Expr::ConfigurationPlatform(Box::new(c), Box::new(p)),
+// };
 
 Rvalue : Expr = {
     <Identifier>,
@@ -73,9 +92,11 @@ Guid: Expr = GUID => Expr::Guid(<>.to_string());
 
 Identifier: Expr = IDENTIFIER => Expr::Identifier(<>.to_string());
 
-BareString: Expr = BARE_STR => Expr::BareString(<>.to_string());
+// Platform: Expr = PLATFORM => Expr::Platform(<>.to_string());
 
 Str: Expr = STR => Expr::Str(<>.to_string());
+
+Path: Expr = PATH => Expr::Path(<>.to_string());
 
 match {
     "Global" => GLOBAL,
@@ -91,7 +112,8 @@ match {
     r"\{[[:alnum:]]{8}-[[:alnum:]]{4}-[[:alnum:]]{4}-[[:alnum:]]{4}-[[:alnum:]]{12}\}" => GUID,
     r"#[^\r\n]*" => COMMENT
 } else {
-    r#"\t[^"=\r\n]\s=\s[^"=\r\n]+"# => BARE_STR,
+    // r"[a-zA-Z ]+" => PLATFORM,
+    r"[a-zA-Z0-9.\\_]+" => PATH,
     r#""[^"]+""# => STR,
     _
 }
