@@ -11,12 +11,14 @@ Line = {
     <ProjectSectionBegin>,
     <ProjectSectionContent>,
     <ProjectSectionEnd>,
+    <Global>,
+    <GlobalEnd>,
 };
 
 HeaderLine = {
     <FirstLine>,
-    <Version>,
     <Comment>,
+    <Version>,
 };
 
 FirstLine : Expr = <Identifier> <Identifier*> "," <Identifier*> <DigitOrDot> => Expr::FirstLine;
@@ -24,56 +26,72 @@ FirstLine : Expr = <Identifier> <Identifier*> "," <Identifier*> <DigitOrDot> => 
 Version : Expr = <id:Identifier> "=" <r:Rvalue> => Expr::Version(Box::new(id),Box::new(r));
 
 ProjectBegin : Expr = {
-    "Project" <t:ProjectType> "=" <n:Str> "," <p:Str> "," <id:Str> => {
+    PROJECT <t:ProjectType> "=" <n:Str> "," <p:Str> "," <id:Str> => {
         Expr::ProjectBegin(Box::new(t),Box::new(n),Box::new(p),Box::new(id))
     },
 };
 
 ProjectSectionBegin : Expr = {
-    "ProjectSection" "(" <name:Identifier> ")" "=" <stage:Identifier> => {
+    PROJECT_SECTION "(" <name:Identifier> ")" "=" <stage:Identifier> => {
+        Expr::ProjectSectionBegin(Box::new(name),Box::new(stage))
+    },
+    GLOBAL_SECTION "(" <name:Identifier> ")" "=" <stage:Identifier> => {
         Expr::ProjectSectionBegin(Box::new(name),Box::new(stage))
     },
 };
 
-ProjectEnd : Expr = {
-    "EndProject" => Expr::ProjectEnd,
-};
+ProjectEnd : Expr = END_PROJECT => Expr::ProjectEnd;
+Global : Expr = GLOBAL => Expr::Global;
+GlobalEnd : Expr = END_GLOBAL => Expr::GlobalEnd;
 
 ProjectSectionEnd : Expr = {
-    "EndProjectSection" => Expr::ProjectSectionEnd,
+    PROJECT_SECTION_END => Expr::ProjectSectionEnd,
+    GLOBAL_SECTION_END => Expr::ProjectSectionEnd,
 };
 
 ProjectSectionContent : Expr = {
     <k:Guid> "=" <v:Guid> => {
         Expr::ProjectSectionContent(Box::new(k), Box::new(v))
     },
+    <k:BareString> => {
+        Expr::ProjectSectionUnaryContent(Box::new(k))
+    },
 };
 
-ProjectType : Expr = {
-    "(" <g:Str> ")" => Expr::ProjectType(Box::new(g)),
-};
+ProjectType : Expr = "(" <g:Str> ")" => Expr::ProjectType(Box::new(g));
 
 Rvalue : Expr = {
     <Identifier>,
     <DigitOrDot>,
 };
 
-Comment : Expr =  COMMENT => Expr::Comment(<>.to_string());
+Comment : Expr = COMMENT => Expr::Comment(<>.to_string());
 
-DigitOrDot: Expr = r"[.0-9]+" => Expr::DigitOrDot(<>.to_string());
+DigitOrDot: Expr = DIGITS_AND_DOTS => Expr::DigitOrDot(<>.to_string());
 
-Guid: Expr = {
-   "{" GUID "}" => Expr::Guid((<>).1.to_string()),
-};
+Guid: Expr = GUID => Expr::Guid(<>.to_string());
 
-Identifier: Expr = r"[a-zA-Z]+" => Expr::Identifier(<>.to_string());
+Identifier: Expr = IDENTIFIER => Expr::Identifier(<>.to_string());
 
-Str: Expr =  STR => Expr::Str(<>.to_string());
+BareString: Expr = BARE_STR => Expr::BareString(<>.to_string());
+
+Str: Expr = STR => Expr::Str(<>.to_string());
 
 match {
-    r"[[:alnum:]]{8}-[[:alnum:]]{4}-[[:alnum:]]{4}-[[:alnum:]]{4}-[[:alnum:]]{12}" => GUID,
+    "Global" => GLOBAL,
+    "EndGlobal" => END_GLOBAL,
+    "Project" => PROJECT,
+    "EndProject" => END_PROJECT,
+    "ProjectSection" => PROJECT_SECTION,
+    "GlobalSection" => GLOBAL_SECTION,
+    "EndProjectSection" => PROJECT_SECTION_END,
+    "EndGlobalSection" => GLOBAL_SECTION_END,
+    r"[a-zA-Z]+" => IDENTIFIER,
+    r"[.0-9]+" => DIGITS_AND_DOTS,
+    r"\{[[:alnum:]]{8}-[[:alnum:]]{4}-[[:alnum:]]{4}-[[:alnum:]]{4}-[[:alnum:]]{12}\}" => GUID,
     r"#[^\r\n]*" => COMMENT
 } else {
+    r#"\t[^"=\r\n]\s=\s[^"=\r\n]+"# => BARE_STR,
     r#""[^"]+""# => STR,
     _
 }
