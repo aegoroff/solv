@@ -63,9 +63,16 @@ Comment : Expr =  r"#[^\n]*" => Expr::Comment(<>.to_string());
 DigitOrDot: Expr = r"[.0-9]+" => Expr::DigitOrDot(<>.to_string());
 
 Guid: Expr = {
-   "{" r"[[:alnum:]]{8}-[[:alnum:]]{4}-[[:alnum:]]{4}-[[:alnum:]]{4}-[[:alnum:]]{12}" "}" => Expr::Guid((<>).1.to_string()),
+   "{" "GUID" "}" => Expr::Guid((<>).1.to_string()),
 };
 
 Identifier: Expr = r"[a-zA-Z]+" => Expr::Identifier(<>.to_string());
 
 Str: Expr =  r#""[^"]+""# => Expr::Str(<>.to_string());
+
+match {
+    r"[[:alnum:]]{8}-[[:alnum:]]{4}-[[:alnum:]]{4}-[[:alnum:]]{4}-[[:alnum:]]{12}" => "GUID"
+} else {
+    r#""[^"]+""#,
+    _
+}
