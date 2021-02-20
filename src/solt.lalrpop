@@ -72,7 +72,7 @@ Str: Expr =  STR => Expr::Str(<>.to_string());
 
 match {
     r"[[:alnum:]]{8}-[[:alnum:]]{4}-[[:alnum:]]{4}-[[:alnum:]]{4}-[[:alnum:]]{12}" => GUID,
-    r"#[^\n]*" => COMMENT
+    r"#[^\r\n]*" => COMMENT
 } else {
     r#""[^"]+""# => STR,
     _
