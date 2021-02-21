@@ -6,7 +6,7 @@ pub enum Expr<'input> {
     Identifier(&'input str),
     Str(&'input str),
     Version(Box<Expr<'input>>, Box<Expr<'input>>),
-    FirstLine,
+    FirstLine(Box<Expr<'input>>),
     Global(Box<Vec<Expr<'input>>>),
     Project(Box<Expr<'input>>, Box<Vec<Expr<'input>>>),
     ProjectBegin(
