@@ -34,8 +34,14 @@ pub fn scan(path: &str) {
                             input = &contents;
                         }
                         let lexer = crate::lex::Lexer::new(input);
-                        let result = solt::SolutionParser::new().parse(input, lexer).is_ok();
-                        println!("result {} file {}", result, full_path);
+
+                        if false {
+                            let result = solt::SolutionParser::new().parse(input, lexer).unwrap();
+                            println!("result {:#?} file {}", result, full_path);
+                        } else {
+                            let result = solt::SolutionParser::new().parse(input, lexer).is_ok();
+                            println!("result {} file {}", result, full_path);
+                        }
                     }
                 }
             }
@@ -368,6 +374,28 @@ Global
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
+EndGlobal
+"#;
+        let lexer = crate::lex::Lexer::new(input);
+        let result = solt::SolutionParser::new().parse(input, lexer).unwrap();
+        println!("{:#?}", result)
+        //assert_eq!(result, "AB");
+    }
+
+    #[test]
+    #[should_panic]
+    fn parser_incorrect() {
+        let input = r#"
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 14
+VisualStudioVersion = 14.0.22528.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Folder1", "Folder1", "{F619A230-72A6-45B8-95FD-75073969017B}"
+EndProject
+Global
+    GlobalSection(SolutionProperties) = preSolution
+        HideSolutionNode = FALSE
+    EndGlobalSection
 EndGlobal
 "#;
         let lexer = crate::lex::Lexer::new(input);
