@@ -16,7 +16,6 @@ pub enum Tok<'input> {
     Eq,
     ParenOpen,
     ParenClose,
-    Pipe,
     Skip,
 }
 
@@ -220,7 +219,6 @@ impl<'input> Lexer<'input> {
             '=' => return self.section_value(i),
             '(' => return Some(Ok((i, Tok::ParenOpen, i + 1))),
             ')' => return Some(Ok((i, Tok::ParenClose, i + 1))),
-            '|' => return Some(Ok((i, Tok::Pipe, i + 1))),
             ',' => return Some(Ok((i, Tok::Comma, i + 1))),
             '.' => return Some(Ok((i, Tok::Dot, i + 1))),
             '0'..='9' => return self.digits_with_dots(i),
