@@ -6,6 +6,8 @@ pub type Spanned<Tok, Loc, Error> = Result<(Loc, Tok, Loc), Error>;
 pub enum Tok<'input> {
     Comment(&'input str),
     Str(&'input str),
+    SectionKey(&'input str),
+    SectionValue(&'input str),
     Guid(&'input str),
     Id(&'input str),
     DigitsAndDots(&'input str),
@@ -22,6 +24,7 @@ pub struct Lexer<'input> {
     chars: std::iter::Peekable<CharIndices<'input>>,
     input: &'input str,
     inside_str: bool,
+    tab_count: u32,
 }
 
 impl<'input> Lexer<'input> {
@@ -30,117 +33,202 @@ impl<'input> Lexer<'input> {
             chars: input.char_indices().peekable(),
             input,
             inside_str: false,
+            tab_count: 0,
+        }
+    }
+
+    fn identifier(&mut self, i: usize) -> Option<Spanned<Tok<'input>, usize, ()>> {
+        loop {
+            match self.chars.peek() {
+                Some((j, c)) => match *c {
+                    'a'..='z' | 'A'..='Z' => {
+                        self.chars.next();
+                    }
+                    _ => return Some(Ok((i, Tok::Id(&self.input[i..*j]), *j))),
+                },
+                None => {
+                    return Some(Ok((i, Tok::Id(&self.input[i..]), self.input.len())));
+                }
+            }
+        }
+    }
+
+    fn comment(&mut self, i: usize) -> Option<Spanned<Tok<'input>, usize, ()>> {
+        loop {
+            match self.chars.peek() {
+                Some((j, '\n')) | Some((j, '\r')) => {
+                    return Some(Ok((i, Tok::Comment(&self.input[i..*j]), *j)));
+                }
+                None => {
+                    return Some(Ok((i, Tok::Comment(&self.input[i..]), self.input.len())));
+                }
+                _ => {
+                    self.chars.next();
+                }
+            }
+        }
+    }
+
+    fn guid(&mut self, i: usize) -> Option<Spanned<Tok<'input>, usize, ()>> {
+        loop {
+            match self.chars.peek() {
+                Some((j, '}')) => {
+                    return Some(Ok((i, Tok::Guid(&self.input[i..*j + 1]), *j)));
+                }
+                None => {
+                    return Some(Ok((i, Tok::Guid(&self.input[i..]), self.input.len())));
+                }
+                _ => {
+                    self.chars.next();
+                }
+            }
+        }
+    }
+
+    fn digits_with_dots(&mut self, i: usize) -> Option<Spanned<Tok<'input>, usize, ()>> {
+        loop {
+            match self.chars.peek() {
+                Some((j, c)) => match *c {
+                    '0'..='9' | '.' => {
+                        self.chars.next();
+                    }
+                    _ => return Some(Ok((i, Tok::DigitsAndDots(&self.input[i..*j]), *j))),
+                },
+                None => {
+                    return Some(Ok((
+                        i,
+                        Tok::DigitsAndDots(&self.input[i..]),
+                        self.input.len(),
+                    )));
+                }
+            }
+        }
+    }
+
+    fn string(&mut self, i: usize) -> Option<Spanned<Tok<'input>, usize, ()>> {
+        if self.inside_str {
+            // Skip trailing
+            self.inside_str = false;
+            return Some(Ok((i, Tok::Skip, i + 1)));
+        } else {
+            self.inside_str = true;
+        }
+        let mut guid = false;
+        loop {
+            match self.chars.peek() {
+                // Guid start
+                Some((_, '{')) => {
+                    guid = true;
+                    self.chars.next();
+                }
+                Some((j, '"')) => {
+                    return if guid {
+                        Some(Ok((i + 1, Tok::Guid(&self.input[i + 1..*j]), *j - 1)))
+                    } else {
+                        Some(Ok((i, Tok::Str(&self.input[i..*j + 1]), *j)))
+                    };
+                }
+                None => {
+                    return Some(Ok((i, Tok::Str(&self.input[i..]), self.input.len())));
+                }
+                _ => {
+                    self.chars.next();
+                }
+            }
+        }
+    }
+
+    fn section_key(&mut self, i: usize) -> Option<Spanned<Tok<'input>, usize, ()>> {
+        self.tab_count += 1;
+
+        loop {
+            // Skip first
+            if self.tab_count == 1 {
+                return Some(Ok((i, Tok::Skip, i + 1)));
+            }
+            let start = i + 1;
+            match self.chars.peek() {
+                Some((j, '=')) => {
+                    let mut finish = *j;
+                    loop {
+                        match &self.input[finish - 1..finish] {
+                            " " | "\t" => finish -= 1,
+                            _ => break,
+                        }
+                    }
+                    return Some(Ok((
+                        start,
+                        Tok::SectionKey(&self.input[start..finish]),
+                        finish,
+                    )));
+                }
+                None => {
+                    return Some(Ok((
+                        start,
+                        Tok::SectionKey(&self.input[start..]),
+                        self.input.len(),
+                    )));
+                }
+                _ => {
+                    self.chars.next();
+                }
+            }
+        }
+    }
+
+    fn section_value(&mut self, i: usize) -> Option<Spanned<Tok<'input>, usize, ()>> {
+        if self.tab_count <= 1 {
+            return Some(Ok((i, Tok::Eq, i + 1)));
+        } else {
+            let mut start = i + 1;
+            loop {
+                match &self.input[start..start + 1] {
+                    " " | "\t" => start += 1,
+                    _ => break,
+                }
+            }
+
+            loop {
+                match self.chars.peek() {
+                    Some((j, '\r')) | Some((j, '\n')) => {
+                        self.tab_count = 0;
+                        let finish = *j;
+                        return Some(Ok((
+                            start,
+                            Tok::SectionValue(&self.input[start..finish]),
+                            finish,
+                        )));
+                    }
+                    None => {
+                        return Some(Ok((
+                            start,
+                            Tok::SectionValue(&self.input[start..]),
+                            self.input.len(),
+                        )));
+                    }
+                    _ => {
+                        self.chars.next();
+                    }
+                }
+            }
         }
     }
 
     fn current(&mut self, i: usize, ch: char) -> Option<Spanned<Tok<'input>, usize, ()>> {
         match ch {
+            '\t' => return self.section_key(i),
+            '=' => return self.section_value(i),
             '(' => return Some(Ok((i, Tok::ParenOpen, i + 1))),
             ')' => return Some(Ok((i, Tok::ParenClose, i + 1))),
             '|' => return Some(Ok((i, Tok::Pipe, i + 1))),
             ',' => return Some(Ok((i, Tok::Comma, i + 1))),
             '.' => return Some(Ok((i, Tok::Dot, i + 1))),
-            '=' => return Some(Ok((i, Tok::Eq, i + 1))),
-            // Digits and dots
-            '0'..='9' => loop {
-                match self.chars.peek() {
-                    Some((j, ' ')) | Some((j, '(')) | Some((j, ')')) | Some((j, '\r'))
-                    | Some((j, '\n')) | Some((j, '\t')) => {
-                        return Some(Ok((i, Tok::DigitsAndDots(&self.input[i..*j]), *j)));
-                    }
-                    None => {
-                        return Some(Ok((
-                            i,
-                            Tok::DigitsAndDots(&self.input[i..]),
-                            self.input.len(),
-                        )));
-                    }
-                    _ => {
-                        self.chars.next();
-                    }
-                }
-            },
-            // Guid
-            '{' => loop {
-                match self.chars.peek() {
-                    Some((j, '}')) => {
-                        return Some(Ok((i, Tok::Guid(&self.input[i..*j + 1]), *j)));
-                    }
-                    None => {
-                        return Some(Ok((i, Tok::Guid(&self.input[i..]), self.input.len())));
-                    }
-                    _ => {
-                        self.chars.next();
-                    }
-                }
-            },
-            // Quoted string
-            '"' => {
-                if self.inside_str {
-                    // Skip trailing
-                    self.inside_str = false;
-                    return Some(Ok((i, Tok::Skip, i + 1)));
-                } else {
-                    self.inside_str = true;
-                }
-                let mut guid = false;
-                loop {
-                    match self.chars.peek() {
-                        // Guid start
-                        Some((j, '{')) => {
-                            guid = true;
-                            self.chars.next();
-                        }
-                        Some((j, '"')) => {
-                            if guid {
-                                return Some(Ok((i+1, Tok::Guid(&self.input[i+1..*j]), *j-1)));
-                            } else {
-                                return Some(Ok((i, Tok::Str(&self.input[i..*j + 1]), *j)));
-                            }
-                        }
-                        None => {
-                            return Some(Ok((i, Tok::Str(&self.input[i..]), self.input.len())));
-                        }
-                        _ => {
-                            self.chars.next();
-                        }
-                    }
-                }
-            }
-            // Comment
-            '#' => loop {
-                match self.chars.peek() {
-                    Some((j, '\n')) | Some((j, '\r')) => {
-                        return Some(Ok((i, Tok::Comment(&self.input[i..*j]), *j)));
-                    }
-                    None => {
-                        return Some(Ok((i, Tok::Comment(&self.input[i..]), self.input.len())));
-                    }
-                    _ => {
-                        self.chars.next();
-                    }
-                }
-            },
-            // Identifier
-            'a'..='z' | 'A'..='Z' => loop {
-                match self.chars.peek() {
-                    Some((j, ' ')) | Some((j, '(')) | Some((j, ')')) | Some((j, '\r'))
-                    | Some((j, '\n')) | Some((j, '\t')) | Some((j, '|')) | Some((j, ',')) => {
-                        return Some(Ok((i, Tok::Id(&self.input[i..*j]), *j)));
-                    }
-                    None => {
-                        return Some(Ok((
-                            i,
-                            Tok::Id(&self.input[i..]),
-                            self.input.len(),
-                        )));
-                    }
-                    _ => {
-                        self.chars.next();
-                    }
-                }
-            },
-            _ => {},
+            '0'..='9' => return self.digits_with_dots(i),
+            '{' => return self.guid(i),
+            '"' => return self.string(i),
+            '#' => return self.comment(i),
+            'a'..='z' | 'A'..='Z' => return self.identifier(i),
+            _ => {}
         }
         None
     }
@@ -151,22 +239,25 @@ impl<'input> Iterator for Lexer<'input> {
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            match self.chars.next() {
-                Some((_, ' ')) | Some((_, '\n')) | Some((_, '\r')) | Some((_, '\t'))
-                | Some((_, '}')) => continue,
-                None => return None, // End of file
-                Some((i, c)) => {
-                    let r = self.current(i, c);
-                    if let Some(r) = r {
-                        if let Ok(t) = r {
-                           if let Tok::Skip = t.1 {
-                               continue;
-                           }
-                        };
-                    };
-                    return r;
-                },
+            let (i, c) = self.chars.next()?;
+
+            match c {
+                ' ' | '\n' | '\r' | '}' => {
+                    self.tab_count = 0;
+                    continue;
+                }
+                _ => {}
             }
+
+            let tok = self.current(i, c)?;
+
+            if let Ok(t) = tok {
+                if let (_, Tok::Skip, _) = t {
+                    continue;
+                }
+            };
+
+            return Some(tok);
         }
     }
 }
