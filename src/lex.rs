@@ -47,7 +47,12 @@ impl<'input> Lexer<'input> {
                         finish = *j;
                         break;
                     },
-                    _ => return Some(Ok((i, Tok::Id(&self.input[i..*j]), *j))),
+                    _ => {
+                        if &self.input[i..i+3] == "End" {
+                            return Some(Ok((i, Tok::CloseElement(&self.input[i..*j]), *j)));
+                        };
+                        return Some(Ok((i, Tok::Id(&self.input[i..*j]), *j)));
+                    },
                 },
                 None => {
                     return Some(Ok((i, Tok::Id(&self.input[i..]), self.input.len())));
