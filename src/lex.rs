@@ -147,13 +147,8 @@ impl<'input> Lexer<'input> {
             let start = i + 1;
             match self.chars.peek() {
                 Some((j, '=')) => {
-                    let mut finish = *j;
-                    loop {
-                        match &self.input[finish - 1..finish] {
-                            " " | "\t" => finish -= 1,
-                            _ => break,
-                        }
-                    }
+                    let finish = Lexer::trim_end(&self.input, *j);
+
                     return Some(Ok((
                         start,
                         Tok::SectionKey(&self.input[start..finish]),
@@ -178,13 +173,7 @@ impl<'input> Lexer<'input> {
         if self.tab_count <= 1 {
             return Some(Ok((i, Tok::Eq, i + 1)));
         } else {
-            let mut start = i + 1;
-            loop {
-                match &self.input[start..start + 1] {
-                    " " | "\t" => start += 1,
-                    _ => break,
-                }
-            }
+            let start = self.trim_start(i + 1);
 
             loop {
                 match self.chars.peek() {
@@ -210,6 +199,26 @@ impl<'input> Lexer<'input> {
                 }
             }
         }
+    }
+
+    fn trim_start(&self, mut i: usize) -> usize {
+        loop {
+            match &self.input[i..i + 1] {
+                " " | "\t" => i += 1,
+                _ => break,
+            }
+        }
+        i
+    }
+
+    fn trim_end(s: &str, mut i: usize) -> usize {
+        loop {
+            match &s[i - 1..i] {
+                " " | "\t" => i -= 1,
+                _ => break,
+            }
+        }
+        i
     }
 
     fn current(&mut self, i: usize, ch: char) -> Option<Spanned<Tok<'input>, usize, ()>> {
