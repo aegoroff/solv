@@ -36,13 +36,17 @@ impl<'input> Lexer<'input> {
     }
 
     fn identifier(&mut self, i: usize) -> Option<Spanned<Tok<'input>, usize, ()>> {
+        let finish;
         loop {
             match self.chars.peek() {
                 Some((j, c)) => match *c {
                     'a'..='z' | 'A'..='Z' => {
                         self.chars.next();
                     }
-                    '(' => return Some(Ok((i, Tok::OpenElement(&self.input[i..*j]), *j))),
+                    '(' => {
+                        finish = *j;
+                        break;
+                    },
                     _ => return Some(Ok((i, Tok::Id(&self.input[i..*j]), *j))),
                 },
                 None => {
@@ -50,6 +54,8 @@ impl<'input> Lexer<'input> {
                 }
             }
         }
+        self.chars.next();
+        Some(Ok((i, Tok::OpenElement(&self.input[i..finish]), finish)))
     }
 
     fn comment(&mut self, i: usize) -> Option<Spanned<Tok<'input>, usize, ()>> {
@@ -227,6 +233,7 @@ impl<'input> Lexer<'input> {
             '\t' => return self.section_key(i),
             '=' => return self.section_value(i),
             ',' => return Some(Ok((i, Tok::Comma, i + 1))),
+            ')' => return Some(Ok((i, Tok::Skip, i + 1))),
             '0'..='9' => return self.digits_with_dots(i),
             '{' => return self.guid(i),
             '"' => return self.string(i),
