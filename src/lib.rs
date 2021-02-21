@@ -179,7 +179,7 @@ EndGlobal
 
     #[test]
     fn parser() {
-        let result = solt::SolutionParser::new().parse(r#"
+        let input = r#"
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.26403.0
@@ -223,7 +223,9 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "logviewer.ui", "logviewer.u
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "logviewer.bench", "logviewer.bench\logviewer.bench.csproj", "{75E0C034-44C8-461B-A677-9A19566FE393}"
 EndProject
-"#).unwrap();
+"#;
+        let lexer = crate::lex::Lexer::new(input);
+        let result = solt::SolutionParser::new().parse(input, lexer).unwrap();
         println!("{:#?}", result)
         //assert_eq!(result, "AB");
     }
