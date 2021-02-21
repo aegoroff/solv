@@ -37,7 +37,7 @@ SectionBegin : Expr<'input> = {
 };
 
 SectionContent : Expr<'input> = {
-    <k:SectionKey> "eq" <v:SectionValue> => {
+    <k:SectionKey> <v:SectionValue> => {
         Expr::SectionContent(Box::new(k), Box::new(v))
     },
 };
