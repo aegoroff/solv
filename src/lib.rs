@@ -26,8 +26,15 @@ pub fn scan(path: &str) {
                         let full_path = full_path.to_str().unwrap().clone();
                         let contents = fs::read_to_string(full_path)
                             .expect("Something went wrong reading the file");
-                        let lexer = crate::lex::Lexer::new(&contents);
-                        let result = solt::SolutionParser::new().parse(&contents, lexer).is_ok();
+                        let input;
+
+                        if contents.as_bytes()[0] == b'\xEF' && contents.as_bytes()[1] == b'\xBB' && contents.as_bytes()[2] == b'\xBF' {
+                            input = &contents[3..];
+                        } else {
+                            input = &contents;
+                        }
+                        let lexer = crate::lex::Lexer::new(input);
+                        let result = solt::SolutionParser::new().parse(input, lexer).is_ok();
                         println!("result {} file {}", result, full_path);
                     }
                 }

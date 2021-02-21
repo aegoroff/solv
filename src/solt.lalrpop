@@ -23,7 +23,7 @@ Version : Expr<'input> = <id:Identifier> "eq" <r:DigitOrDot> => Expr::Version(Bo
 
 Project : Expr<'input> = <b:ProjectBegin> <s:Section*> "close_element" => Expr::Project(Box::new(b), Box::new(s));
 
-Global : Expr<'input> = <id:Identifier> <s:Section+> "close_element" => Expr::Global(Box::new(s));
+Global : Expr<'input> = <id:Identifier> <s:Section*> "close_element" => Expr::Global(Box::new(s));
 
 ProjectBegin : Expr<'input> = {
     "open_element" <t:Guid> "eq" <n:Str> "comma" <p:Str> "comma" <id:Guid> => {
