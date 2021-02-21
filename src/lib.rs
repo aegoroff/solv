@@ -1,10 +1,48 @@
+use jwalk::WalkDir;
+use std::path::Path;
+use std::time::Instant;
+use std::fs;
+
 mod ast;
 mod lex;
 
 #[macro_use]
 extern crate lalrpop_util;
+extern crate humantime;
+extern crate jwalk;
 
 lalrpop_mod!(pub solt);
+
+pub fn scan(path: &str) {
+    let now = Instant::now();
+
+    for entry in WalkDir::new(path).skip_hidden(false).follow_links(false) {
+        if let Ok(e) = entry {
+            if e.file_type().is_file() {
+                let file_name = e.file_name.to_str().unwrap();
+                if let Some(ext) = get_extension_from_filename(file_name) {
+                    if ext == "sln" {
+                        let full_path = e.path();
+                        let full_path = full_path.to_str().unwrap().clone();
+                        let contents = fs::read_to_string(full_path)
+                            .expect("Something went wrong reading the file");
+                        let lexer = crate::lex::Lexer::new(&contents);
+                        let result = solt::SolutionParser::new().parse(&contents, lexer).is_ok();
+                        println!("result {} file {}", result, full_path);
+                    }
+                }
+            }
+        }
+    }
+    println!(
+        "elapsed: {}",
+        humantime::format_duration(now.elapsed()).to_string()
+    );
+}
+
+fn get_extension_from_filename(filename: &str) -> Option<&str> {
+    Path::new(filename).extension()?.to_str()
+}
 
 #[cfg(test)]
 mod tests {
