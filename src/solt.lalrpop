@@ -10,9 +10,9 @@ Line = {
     <HeaderLine>,
     <ProjectBegin>,
     <ProjectEnd>,
-    <ProjectSectionBegin>,
-    <ProjectSectionContent>,
-    <ProjectSectionEnd>,
+    <SectionBegin>,
+    <SectionContent>,
+    <SectionEnd>,
 };
 
 HeaderLine = {
@@ -30,30 +30,25 @@ ProjectBegin : Expr<'input> = {
     },
 };
 
-ProjectSectionBegin : Expr<'input> = {
+ProjectEnd : Expr<'input> = <Identifier> => Expr::ProjectEnd;
+
+SectionBegin : Expr<'input> = {
     <s:Identifier> "(" <name:Identifier> ")" "eq" <stage:Identifier> => {
         Expr::ProjectSectionBegin(Box::new(name),Box::new(stage))
     },
 };
 
-ProjectEnd : Expr<'input> = <Identifier> => Expr::ProjectEnd;
-
-ProjectSectionEnd : Expr<'input> = {
-    <Identifier> => Expr::ProjectSectionEnd,
+SectionEnd : Expr<'input> = {
+    <Identifier> => Expr::SectionEnd,
 };
 
-ProjectSectionContent : Expr<'input> = {
-    <k:Guid> "eq" <v:Guid> => {
-        Expr::ProjectSectionContent(Box::new(k), Box::new(v))
+SectionContent : Expr<'input> = {
+    <k:SectionKey> "eq" <v:SectionValue> => {
+        Expr::SectionContent(Box::new(k), Box::new(v))
     },
 };
 
 ProjectType : Expr<'input> = "(" <g:Str> ")" => Expr::ProjectType(Box::new(g));
-
-Rvalue : Expr<'input> = {
-    <Identifier>,
-    <DigitOrDot>,
-};
 
 Comment : Expr<'input> = "comment" => Expr::Comment(<>);
 
@@ -64,6 +59,10 @@ Guid: Expr<'input> = "guid" => Expr::Guid(<>);
 Identifier: Expr<'input> = "id" => Expr::Identifier(<>);
 
 Str: Expr<'input> = "str" => Expr::Str(<>);
+
+SectionKey: Expr<'input> = "section_key" => Expr::Str(<>);
+
+SectionValue: Expr<'input> = "section_value" => Expr::Str(<>);
 
 extern {
     type Location = usize;
