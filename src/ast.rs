@@ -16,7 +16,7 @@ pub enum Expr<'input> {
         Box<Expr<'input>>,
     ),
     Section(Box<Expr<'input>>, Box<Vec<Expr<'input>>>),
-    SectionBegin(Box<Expr<'input>>, Box<Expr<'input>>),
+    SectionBegin(Box<Vec<Expr<'input>>>, Box<Expr<'input>>),
     SectionContent(Box<Expr<'input>>, Box<Expr<'input>>),
     SectionKey(Box<Expr<'input>>),
     SectionValue(Box<Expr<'input>>),
