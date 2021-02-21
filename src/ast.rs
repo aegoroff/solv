@@ -7,7 +7,12 @@ pub enum Expr<'input> {
     Str(&'input str),
     Version(Box<Expr<'input>>, Box<Expr<'input>>),
     FirstLine,
-    ProjectBegin(Box<Expr<'input>>, Box<Expr<'input>>, Box<Expr<'input>>, Box<Expr<'input>>),
+    ProjectBegin(
+        Box<Expr<'input>>,
+        Box<Expr<'input>>,
+        Box<Expr<'input>>,
+        Box<Expr<'input>>,
+    ),
     ProjectEnd,
     ProjectType(Box<Expr<'input>>),
     SectionBegin(Box<Expr<'input>>, Box<Expr<'input>>),

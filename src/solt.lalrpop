@@ -25,21 +25,21 @@ FirstLine : Expr<'input> = <Identifier> <Identifier*> "comma" <Identifier*> <Dig
 Version : Expr<'input> = <id:Identifier> "eq" <r:DigitOrDot> => Expr::Version(Box::new(id),Box::new(r));
 
 ProjectBegin : Expr<'input> = {
-    <s:Identifier> <t:ProjectType> "eq" <n:Str> "comma" <p:Str> "comma" <id:Str> => {
+    "open_element" <t:ProjectType> "eq" <n:Str> "comma" <p:Str> "comma" <id:Str> => {
         Expr::ProjectBegin(Box::new(t),Box::new(n),Box::new(p),Box::new(id))
     },
 };
 
-ProjectEnd : Expr<'input> = <Identifier> => Expr::ProjectEnd;
+ProjectEnd : Expr<'input> = "close_element" => Expr::ProjectEnd;
 
 SectionBegin : Expr<'input> = {
-    <s:Identifier> "(" <name:Identifier> ")" "eq" <stage:Identifier> => {
+    "open_element" <name:Identifier> "eq" <stage:Identifier> => {
         Expr::ProjectSectionBegin(Box::new(name),Box::new(stage))
     },
 };
 
 SectionEnd : Expr<'input> = {
-    <Identifier> => Expr::SectionEnd,
+    "close_element" => Expr::SectionEnd,
 };
 
 SectionContent : Expr<'input> = {
@@ -48,7 +48,7 @@ SectionContent : Expr<'input> = {
     },
 };
 
-ProjectType : Expr<'input> = "(" <g:Str> ")" => Expr::ProjectType(Box::new(g));
+ProjectType : Expr<'input> = <g:Guid> => Expr::ProjectType(Box::new(g));
 
 Comment : Expr<'input> = "comment" => Expr::Comment(<>);
 
@@ -78,7 +78,7 @@ extern {
         "digit_and_dot" => Tok::DigitsAndDots(<&'input str>),
         "comma" => Tok::Comma,
         "eq" => Tok::Eq,
-        "(" => Tok::ParenOpen,
-        ")" => Tok::ParenClose,
+        "open_element" => Tok::OpenElement(<&'input str>),
+        "close_element" => Tok::CloseElement(<&'input str>),
     }
 }

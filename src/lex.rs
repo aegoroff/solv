@@ -11,10 +11,10 @@ pub enum Tok<'input> {
     Guid(&'input str),
     Id(&'input str),
     DigitsAndDots(&'input str),
+    OpenElement(&'input str),
+    CloseElement(&'input str),
     Comma,
     Eq,
-    ParenOpen,
-    ParenClose,
     Skip,
 }
 
@@ -42,6 +42,7 @@ impl<'input> Lexer<'input> {
                     'a'..='z' | 'A'..='Z' => {
                         self.chars.next();
                     }
+                    '(' => return Some(Ok((i, Tok::OpenElement(&self.input[i..*j]), *j))),
                     _ => return Some(Ok((i, Tok::Id(&self.input[i..*j]), *j))),
                 },
                 None => {
