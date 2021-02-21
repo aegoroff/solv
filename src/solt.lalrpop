@@ -2,7 +2,7 @@ use crate::{Expr};
 
 grammar;
 
-pub Solution = <Line> <Line*>;
+pub Solution = <FirstLine> <Line*>;
 
 Line = {
     <HeaderLine>,
@@ -19,7 +19,6 @@ Line = {
 };
 
 HeaderLine = {
-    <FirstLine>,
     <Comment>,
     <Version>,
 };
