@@ -226,8 +226,6 @@ impl<'input> Lexer<'input> {
         match ch {
             '\t' => return self.section_key(i),
             '=' => return self.section_value(i),
-            '(' => return Some(Ok((i, Tok::ParenOpen, i + 1))),
-            ')' => return Some(Ok((i, Tok::ParenClose, i + 1))),
             ',' => return Some(Ok((i, Tok::Comma, i + 1))),
             '0'..='9' => return self.digits_with_dots(i),
             '{' => return self.guid(i),
