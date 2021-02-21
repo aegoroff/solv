@@ -1,6 +1,8 @@
-use crate::{Expr};
 
-grammar;
+use crate::ast::{Expr};
+use crate::lex::{Tok};
+
+grammar<'input>(input: &'input str);
 
 pub Solution = <FirstLine> <Line*>;
 
@@ -11,11 +13,6 @@ Line = {
     <ProjectSectionBegin>,
     <ProjectSectionContent>,
     <ProjectSectionEnd>,
-    // <Global>,
-    // <GlobalEnd>,
-    // <GlobalSectionBegin>,
-    // <GlobalSectionContent>,
-    // <GlobalSectionEnd>,
 };
 
 HeaderLine = {
@@ -23,96 +20,66 @@ HeaderLine = {
     <Version>,
 };
 
-FirstLine : Expr = <Identifier> <Identifier*> "," <Identifier*> <DigitOrDot> => Expr::FirstLine;
+FirstLine : Expr<'input> = <Identifier> <Identifier*> "comma" <Identifier*> <DigitOrDot> => Expr::FirstLine;
 
-Version : Expr = <id:Identifier> "=" <r:Rvalue> => Expr::Version(Box::new(id),Box::new(r));
+Version : Expr<'input> = <id:Identifier> "eq" <r:DigitOrDot> => Expr::Version(Box::new(id),Box::new(r));
 
-ProjectBegin : Expr = {
-    PROJECT <t:ProjectType> "=" <n:Str> "," <p:Str> "," <id:Str> => {
+ProjectBegin : Expr<'input> = {
+    <s:Identifier> <t:ProjectType> "eq" <n:Str> "comma" <p:Str> "comma" <id:Str> => {
         Expr::ProjectBegin(Box::new(t),Box::new(n),Box::new(p),Box::new(id))
     },
 };
 
-ProjectSectionBegin : Expr = {
-    PROJECT_SECTION "(" <name:Identifier> ")" "=" <stage:Identifier> => {
+ProjectSectionBegin : Expr<'input> = {
+    <s:Identifier> "(" <name:Identifier> ")" "eq" <stage:Identifier> => {
         Expr::ProjectSectionBegin(Box::new(name),Box::new(stage))
     },
 };
 
-// GlobalSectionBegin : Expr = {
-//     GLOBAL_SECTION "(" <name:Identifier> ")" "=" <stage:Identifier> => {
-//         Expr::GlobalSectionBegin(Box::new(name),Box::new(stage))
-//     },
-// };
+ProjectEnd : Expr<'input> = <Identifier> => Expr::ProjectEnd;
 
-ProjectEnd : Expr = END_PROJECT => Expr::ProjectEnd;
-// Global : Expr = GLOBAL => Expr::Global;
-// GlobalEnd : Expr = END_GLOBAL => Expr::GlobalEnd;
-
-ProjectSectionEnd : Expr = {
-    PROJECT_SECTION_END => Expr::ProjectSectionEnd,
+ProjectSectionEnd : Expr<'input> = {
+    <Identifier> => Expr::ProjectSectionEnd,
 };
 
-// GlobalSectionEnd : Expr = {
-//     GLOBAL_SECTION_END => Expr::GlobalSectionEnd,
-// };
-
-ProjectSectionContent : Expr = {
-    <k:Guid> "=" <v:Guid> => {
-        Expr::ProjectSectionContent(Box::new(k), Box::new(v))
-    },
-    <k:Path> "=" <v:Path> => {
+ProjectSectionContent : Expr<'input> = {
+    <k:Guid> "eq" <v:Guid> => {
         Expr::ProjectSectionContent(Box::new(k), Box::new(v))
     },
 };
 
-// GlobalSectionContent : Expr = {
-//     <k:ConfigurationPlatform> "=" <v:ConfigurationPlatform> => {
-//         Expr::GlobalSectionContent(Box::new(k), Box::new(v))
-//     },
-// };
+ProjectType : Expr<'input> = "(" <g:Str> ")" => Expr::ProjectType(Box::new(g));
 
-ProjectType : Expr = "(" <g:Str> ")" => Expr::ProjectType(Box::new(g));
-
-// ConfigurationPlatform : Expr = {
-//     <c:Identifier> "|" <p:Platform> => Expr::ConfigurationPlatform(Box::new(c), Box::new(p)),
-// };
-
-Rvalue : Expr = {
+Rvalue : Expr<'input> = {
     <Identifier>,
     <DigitOrDot>,
 };
 
-Comment : Expr = COMMENT => Expr::Comment(<>.to_string());
+Comment : Expr<'input> = "comment" => Expr::Comment(<>);
 
-DigitOrDot: Expr = DIGITS_AND_DOTS => Expr::DigitOrDot(<>.to_string());
+DigitOrDot: Expr<'input> = "digit_and_dot" => Expr::DigitOrDot(<>);
 
-Guid: Expr = GUID => Expr::Guid(<>.to_string());
+Guid: Expr<'input> = "guid" => Expr::Guid(<>);
 
-Identifier: Expr = IDENTIFIER => Expr::Identifier(<>.to_string());
+Identifier: Expr<'input> = "id" => Expr::Identifier(<>);
 
-// Platform: Expr = PLATFORM => Expr::Platform(<>.to_string());
+Str: Expr<'input> = "str" => Expr::Str(<>);
 
-Str: Expr = STR => Expr::Str(<>.to_string());
+extern {
+    type Location = usize;
+    type Error = ();
 
-Path: Expr = PATH => Expr::Path(<>.to_string());
-
-match {
-    "Global" => GLOBAL,
-    "EndGlobal" => END_GLOBAL,
-    "Project" => PROJECT,
-    "EndProject" => END_PROJECT,
-    "ProjectSection" => PROJECT_SECTION,
-    "GlobalSection" => GLOBAL_SECTION,
-    "EndProjectSection" => PROJECT_SECTION_END,
-    "EndGlobalSection" => GLOBAL_SECTION_END,
-    r"[a-zA-Z]+" => IDENTIFIER,
-    r"[.0-9]+" => DIGITS_AND_DOTS,
-    r"\{[[:alnum:]]{8}-[[:alnum:]]{4}-[[:alnum:]]{4}-[[:alnum:]]{4}-[[:alnum:]]{12}\}" => GUID,
-    r"#[^\r\n]*" => COMMENT
-} else {
-    // r"[a-zA-Z ]+" => PLATFORM,
-    r"[a-zA-Z0-9.\\_]+" => PATH,
-    r#""[^"]+""# => STR,
-    _
+    enum Tok<'input> {
+        "comment" => Tok::Comment(<&'input str>),
+        "str" => Tok::Str(<&'input str>),
+        "section_key" => Tok::SectionKey(<&'input str>),
+        "section_value" => Tok::SectionValue(<&'input str>),
+        "guid" => Tok::Guid(<&'input str>),
+        "id" => Tok::Id(<&'input str>),
+        "digit_and_dot" => Tok::DigitsAndDots(<&'input str>),
+        "comma" => Tok::Comma,
+        "eq" => Tok::Eq,
+        "(" => Tok::ParenOpen,
+        ")" => Tok::ParenClose,
+    }
 }

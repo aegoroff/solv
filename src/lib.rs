@@ -6,33 +6,6 @@ extern crate lalrpop_util;
 
 lalrpop_mod!(pub solt);
 
-#[derive(Debug)]
-pub enum Expr {
-    Comment(String),
-    DigitOrDot(String),
-    Guid(String),
-    Identifier(String),
-    Platform(String),
-    Str(String),
-    Path(String),
-    BareString(String),
-    BareStr(String),
-    Version(Box<Expr>, Box<Expr>),
-    FirstLine,
-    ProjectBegin(Box<Expr>, Box<Expr>, Box<Expr>, Box<Expr>),
-    ProjectEnd,
-    ProjectType(Box<Expr>),
-    ProjectSectionBegin(Box<Expr>, Box<Expr>),
-    GlobalSectionBegin(Box<Expr>, Box<Expr>),
-    ProjectSectionEnd,
-    GlobalSectionEnd,
-    ProjectSectionContent(Box<Expr>, Box<Expr>),
-    GlobalSectionContent(Box<Expr>, Box<Expr>),
-    Global,
-    GlobalEnd,
-    ConfigurationPlatform(Box<Expr>, Box<Expr>),
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
