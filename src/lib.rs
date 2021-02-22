@@ -1,17 +1,22 @@
-use jwalk::WalkDir;
-use std::fs;
 use std::path::Path;
 use std::time::Instant;
 
+use jwalk::WalkDir;
+
 mod ast;
 mod lex;
+pub mod parser;
 
 #[macro_use]
 extern crate lalrpop_util;
 extern crate humantime;
 extern crate jwalk;
 
-lalrpop_mod!(pub solt);
+lalrpop_mod!(
+    #[allow(clippy::all)]
+    #[allow(unused)]
+    pub solt
+);
 
 pub fn scan(path: &str, print_ast: bool) {
     let now = Instant::now();
@@ -24,7 +29,7 @@ pub fn scan(path: &str, print_ast: bool) {
                     if ext == "sln" {
                         let full_path = e.path();
                         let full_path = full_path.to_str().unwrap();
-                        parse(full_path, print_ast);
+                        parser::parse(full_path, print_ast);
                     }
                 }
             }
@@ -40,33 +45,11 @@ fn get_extension_from_filename(filename: &str) -> Option<&str> {
     Path::new(filename).extension()?.to_str()
 }
 
-pub fn parse(path: &str, print_ast: bool) {
-    let contents = fs::read_to_string(path).expect("Something went wrong reading the file");
-    let input;
-
-    let cb = contents.as_bytes();
-    if cb[0] == b'\xEF' && cb[1] == b'\xBB' && cb[2] == b'\xBF' {
-        input = &contents[3..];
-    } else {
-        input = &contents;
-    }
-    let lexer = crate::lex::Lexer::new(input);
-    match solt::SolutionParser::new().parse(input, lexer) {
-        Ok(ast) => {
-            if print_ast {
-                println!("result {:#?} file {}", ast, path);
-            } else {
-                println!("result {} file {}", !print_ast, path);
-            }
-        }
-        Err(e) => println!("error {:#?} file {}", e, path),
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::lex::Lexer;
+
+    use super::*;
 
     #[test]
     fn lexer() {
