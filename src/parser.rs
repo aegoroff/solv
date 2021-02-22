@@ -1,4 +1,11 @@
 use std::fs;
+use crate::ast::Expr;
+use std::ops::Deref;
+use std::collections::BTreeMap;
+use prettytable::format;
+use prettytable::{Table};
+
+const ID_SOLUTION_FOLDER: &str = "{2150E333-8FDC-42A3-9474-1A3956D46DE8}";
 
 pub static PROJECT_TYPES: phf::Map<&'static str, &'static str> = phf::phf_map! {
     "{CC5FD16D-436D-48AD-A40C-5A424C6E3E79}" => "Azure Project",
@@ -81,9 +88,53 @@ pub fn parse(path: &str, print_ast: bool) {
             if print_ast {
                 println!("result {:#?} file {}", ast, path);
             } else {
-                println!("result {} file {}", !print_ast, path);
+                println!("Solution: {}", path);
+                analyze(ast);
             }
         }
         Err(e) => println!("error {:#?} file {}", e, path),
     }
+}
+
+fn analyze(solution: (Expr, Vec<Expr>)) {
+    let (head, lines) = solution;
+    if let Expr::FirstLine(ver) = head {
+        if let Expr::DigitOrDot(ver) = ver.deref() {
+            println!(" Format: {}", *ver)
+        }
+    }
+
+    println!(" Projects:");
+
+    let mut table = Table::new();
+    table.add_row(row![bFb=> "Project type", "Count"]);
+
+    table.set_format(*format::consts::FORMAT_CLEAN);
+
+    let mut projects_by_type = BTreeMap::new();
+    for line in &lines {
+        if let Expr::Project(head, _) = line {
+            if let Expr::ProjectBegin(project_type, _, _, _) = head.deref() {
+                if let Expr::Guid(guid) = project_type.deref() {
+                    if *guid == ID_SOLUTION_FOLDER {
+                        continue;
+                    }
+                    let k;
+                    if let Some(type_name) = PROJECT_TYPES.get(*guid) {
+                        k = *type_name;
+                    } else {
+                        k = *guid;
+                    }
+                    *projects_by_type.entry(k).or_insert(0) += 1;
+                }
+            }
+        }
+    }
+
+    for (key, value) in projects_by_type.iter() {
+        table.add_row(row![*key, bFg->*value]);
+    }
+
+    table.printstd();
+    println!();
 }

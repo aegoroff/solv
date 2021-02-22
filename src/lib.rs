@@ -11,6 +11,8 @@ pub mod parser;
 extern crate lalrpop_util;
 extern crate humantime;
 extern crate jwalk;
+#[macro_use]
+extern crate prettytable;
 
 lalrpop_mod!(
     #[allow(clippy::all)]
