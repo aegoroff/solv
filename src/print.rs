@@ -4,6 +4,9 @@ use crate::parser::Consume;
 use prettytable::format;
 use prettytable::Table;
 use std::collections::BTreeMap;
+use ansi_term::Colour::RGB;
+
+extern crate ansi_term;
 
 pub struct Print {
     path: String,
@@ -27,7 +30,8 @@ impl Consume for Print {
             *projects_by_type.entry(prj.type_descr).or_insert(0) += 1;
         }
 
-        println!(" {}", self.path);
+        let path = RGB(0xE, 0xE, 0xE).paint(&self.path);
+        println!(" {}", path);
 
         let mut table = Table::new();
 
