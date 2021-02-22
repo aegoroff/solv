@@ -53,12 +53,22 @@ pub fn print(path: &str, solution: (String, BTreeMap<String, i32>)) {
     let (ver, projects_by_type) = solution;
     println!("Solution: {}", path);
     println!(" Format: {}", ver);
+    println!();
     println!(" Projects:");
 
     let mut table = Table::new();
-    table.add_row(row![bFb=> "Project type", "Count"]);
 
-    table.set_format(*format::consts::FORMAT_CLEAN);
+    let format = format::FormatBuilder::new()
+        .column_separator(' ')
+        .borders(' ')
+        .separators(
+            &[format::LinePosition::Title],
+            format::LineSeparator::new('-', ' ', ' ', ' '),
+        )
+        .padding(0, 0)
+        .build();
+    table.set_format(format);
+    table.set_titles(row![bF=> "Project type", "Count"]);
 
     for (key, value) in projects_by_type.iter() {
         table.add_row(row![*key, bFg->*value]);
