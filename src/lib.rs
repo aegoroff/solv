@@ -1,7 +1,7 @@
 use jwalk::WalkDir;
+use std::fs;
 use std::path::Path;
 use std::time::Instant;
-use std::fs;
 
 mod ast;
 mod lex;
@@ -41,8 +41,7 @@ fn get_extension_from_filename(filename: &str) -> Option<&str> {
 }
 
 fn parse(path: &str) {
-    let contents = fs::read_to_string(path)
-        .expect("Something went wrong reading the file");
+    let contents = fs::read_to_string(path).expect("Something went wrong reading the file");
     let input;
 
     let cb = contents.as_bytes();
