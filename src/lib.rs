@@ -1,16 +1,15 @@
 use std::path::Path;
 use std::time::Instant;
 
+use crate::print::Print;
 use jwalk::WalkDir;
-use prettytable::format;
-use prettytable::Table;
-use std::collections::BTreeMap;
 use std::option::Option::Some;
 
 mod ast;
 mod lex;
 mod msbuild;
 pub mod parser;
+pub mod print;
 
 #[macro_use]
 extern crate lalrpop_util;
@@ -38,9 +37,8 @@ pub fn scan(path: &str, print_ast: bool) {
                 if ext == "sln" {
                     let full_path = e.path();
                     let full_path = full_path.to_str().unwrap();
-                    if let Some((format, projects)) = parser::parse(full_path, print_ast) {
-                        print(full_path, (format, projects));
-                    }
+                    let prn = Print::new(full_path);
+                    parser::parse(full_path, prn, print_ast);
                 }
             }
         }
@@ -49,36 +47,6 @@ pub fn scan(path: &str, print_ast: bool) {
         "elapsed: {}",
         humantime::format_duration(now.elapsed()).to_string()
     );
-}
-
-pub fn print(path: &str, solution: (String, BTreeMap<String, i32>)) {
-    let (ver, projects_by_type) = solution;
-    println!(" {}", path);
-    println!("  Format: {}", ver);
-    println!();
-    println!("  Projects:");
-
-    let mut table = Table::new();
-
-    let format = format::FormatBuilder::new()
-        .column_separator(' ')
-        .borders(' ')
-        .separators(
-            &[format::LinePosition::Title],
-            format::LineSeparator::new('-', ' ', ' ', ' '),
-        )
-        .indent(3)
-        .padding(0, 0)
-        .build();
-    table.set_format(format);
-    table.set_titles(row![bF=> "Project type", "Count"]);
-
-    for (key, value) in projects_by_type.iter() {
-        table.add_row(row![*key, bFg->*value]);
-    }
-
-    table.printstd();
-    println!();
 }
 
 fn get_extension_from_filename(filename: &str) -> Option<&str> {

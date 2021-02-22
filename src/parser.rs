@@ -1,22 +1,16 @@
 use crate::ast::{Expr, Project, Solution, Version};
-use crate::msbuild;
-use std::collections::BTreeMap;
 use std::fs;
 use std::ops::Deref;
 
-pub fn parse(path: &str, debug: bool) -> Option<(String, BTreeMap<String, i32>)> {
+pub trait Consume {
+    fn consume(&self, solution: &Solution);
+}
+
+pub fn parse<C: Consume>(path: &str, consumer: C, debug: bool) {
     let contents = fs::read_to_string(path).expect("Something went wrong reading the file");
-    let solution = parse_str(&contents, debug)?;
-    let format = String::from(solution.format);
-    let mut projects_by_type: BTreeMap<String, i32> = BTreeMap::new();
-    for prj in &solution.projects {
-        if prj.type_id == msbuild::ID_SOLUTION_FOLDER {
-            continue;
-        }
-        let k = String::from(prj.type_descr);
-        *projects_by_type.entry(k).or_insert(0) += 1;
+    if let Some(solution) = parse_str(&contents, debug) {
+        consumer.consume(&solution);
     }
-    Some((format, projects_by_type))
 }
 
 fn parse_str(contents: &str, debug: bool) -> Option<Solution> {
