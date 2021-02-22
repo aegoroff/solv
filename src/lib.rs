@@ -23,7 +23,7 @@ pub fn scan(path: &str) {
                 if let Some(ext) = get_extension_from_filename(file_name) {
                     if ext == "sln" {
                         let full_path = e.path();
-                        let full_path = full_path.to_str().unwrap().clone();
+                        let full_path = full_path.to_str().unwrap();
                         parse(full_path);
                     }
                 }

@@ -21,9 +21,9 @@ FirstLine : Expr<'input> = <id1:Identifier> <id2:Identifier*> "comma" <id3:Ident
 
 Version : Expr<'input> = <id:Identifier> "eq" <r:DigitOrDot> => Expr::Version(Box::new(id),Box::new(r));
 
-Project : Expr<'input> = <b:ProjectBegin> <s:Section*> "close_element" => Expr::Project(Box::new(b), Box::new(s));
+Project : Expr<'input> = <b:ProjectBegin> <s:Section*> "close_element" => Expr::Project(Box::new(b), s);
 
-Global : Expr<'input> = <id:Identifier> <s:Section*> "close_element" => Expr::Global(Box::new(s));
+Global : Expr<'input> = <id:Identifier> <s:Section*> "close_element" => Expr::Global(s);
 
 ProjectBegin : Expr<'input> = {
     "open_element" <t:Guid> "eq" <n:Str> "comma" <p:Str> "comma" <id:Guid> => {
@@ -31,11 +31,11 @@ ProjectBegin : Expr<'input> = {
     },
 };
 
-Section : Expr<'input> = <b:SectionBegin> <c:SectionContent*> "close_element" => Expr::Section(Box::new(b), Box::new(c));
+Section : Expr<'input> = <b:SectionBegin> <c:SectionContent*> "close_element" => Expr::Section(Box::new(b), c);
 
 SectionBegin : Expr<'input> = {
     "open_element" <name:Identifier+> "eq" <stage:Identifier> => {
-        Expr::SectionBegin(Box::new(name), Box::new(stage))
+        Expr::SectionBegin(name, Box::new(stage))
     },
 };
 
