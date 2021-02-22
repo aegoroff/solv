@@ -79,9 +79,6 @@ impl<'input> Project<'input> {
 
 impl<'input> Version<'input> {
     pub fn new(name: &'input str, ver: &'input str) -> Self {
-        Self {
-            name,
-            ver,
-        }
+        Self { name, ver }
     }
 }
