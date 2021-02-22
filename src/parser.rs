@@ -72,6 +72,10 @@ pub static PROJECT_TYPES: phf::Map<&'static str, &'static str> = phf::phf_map! {
 
 pub fn parse(path: &str, print_ast: bool) -> Option<(String, BTreeMap<String, i32>)> {
     let contents = fs::read_to_string(path).expect("Something went wrong reading the file");
+    parse_str(&contents, print_ast)
+}
+
+fn parse_str(contents: &str, print_ast: bool) -> Option<(String, BTreeMap<String, i32>)> {
     let input;
 
     let cb = contents.as_bytes();
@@ -84,12 +88,12 @@ pub fn parse(path: &str, print_ast: bool) -> Option<(String, BTreeMap<String, i3
     match crate::solt::SolutionParser::new().parse(input, lexer) {
         Ok(ast) => {
             if print_ast {
-                println!("result {:#?} file {}", ast, path);
+                println!("result {:#?}", ast);
             } else {
                 return Some(analyze(ast));
             }
         }
-        Err(e) => eprintln!("error {:#?} file {}", e, path),
+        Err(e) => eprintln!("error {:#?}", e),
     }
     None
 }
@@ -128,8 +132,6 @@ fn analyze(solution: (Expr, Vec<Expr>)) -> (String, BTreeMap<String, i32>) {
 
 #[cfg(test)]
 mod tests {
-    use crate::lex::Lexer;
-
     use super::*;
 
     #[test]
@@ -280,13 +282,10 @@ Global
 	EndGlobalSection
 EndGlobal
 "#;
-        let lexer = crate::lex::Lexer::new(input);
-        let result = solt::SolutionParser::new().parse(input, lexer).unwrap();
-        println!("{:#?}", result)
+        parse_str(input, true);
     }
 
     #[test]
-    #[should_panic]
     fn parser_incorrect() {
         let input = r#"
 Microsoft Visual Studio Solution File, Format Version 12.00
@@ -301,8 +300,6 @@ Global
     EndGlobalSection
 EndGlobal
 "#;
-        let lexer = crate::lex::Lexer::new(input);
-        let result = solt::SolutionParser::new().parse(input, lexer).unwrap();
-        println!("{:#?}", result)
+        parse_str(input, true);
     }
 }
