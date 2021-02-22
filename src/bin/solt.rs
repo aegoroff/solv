@@ -16,7 +16,7 @@ fn main() {
     if let Some(cmd) = matches.subcommand_matches("s") {
         if let Some(path) = cmd.value_of("PATH") {
             if let Some((format, projects)) = solt_rs::parser::parse(path, print_ast) {
-                solt_rs::print(path,(format, projects));
+                solt_rs::print(path, (format, projects));
             }
         }
     }
