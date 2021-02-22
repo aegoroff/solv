@@ -2,8 +2,6 @@ use std::fs;
 use crate::ast::Expr;
 use std::ops::Deref;
 use std::collections::BTreeMap;
-use prettytable::format;
-use prettytable::{Table};
 
 const ID_SOLUTION_FOLDER: &str = "{2150E333-8FDC-42A3-9474-1A3956D46DE8}";
 
@@ -72,7 +70,7 @@ pub static PROJECT_TYPES: phf::Map<&'static str, &'static str> = phf::phf_map! {
     "{CFEE4113-1246-4D54-95CB-156813CB8593}" => "WiX (Windows Installer XML)",
 };
 
-pub fn parse(path: &str, print_ast: bool) {
+pub fn parse(path: &str, print_ast: bool) -> Option<(String, BTreeMap<String, i32>)> {
     let contents = fs::read_to_string(path).expect("Something went wrong reading the file");
     let input;
 
@@ -88,30 +86,24 @@ pub fn parse(path: &str, print_ast: bool) {
             if print_ast {
                 println!("result {:#?} file {}", ast, path);
             } else {
-                println!("Solution: {}", path);
-                analyze(ast);
+                return Some(analyze(ast));
             }
         }
-        Err(e) => println!("error {:#?} file {}", e, path),
+        Err(e) => eprintln!("error {:#?} file {}", e, path),
     }
+    None
 }
 
-fn analyze(solution: (Expr, Vec<Expr>)) {
+fn analyze(solution: (Expr, Vec<Expr>)) -> (String, BTreeMap<String, i32>) {
     let (head, lines) = solution;
+    let mut  version= String::new();
     if let Expr::FirstLine(ver) = head {
         if let Expr::DigitOrDot(ver) = ver.deref() {
-            println!(" Format: {}", *ver)
+            version = String::from(*ver);
         }
     }
 
-    println!(" Projects:");
-
-    let mut table = Table::new();
-    table.add_row(row![bFb=> "Project type", "Count"]);
-
-    table.set_format(*format::consts::FORMAT_CLEAN);
-
-    let mut projects_by_type = BTreeMap::new();
+    let mut projects_by_type: BTreeMap<String, i32> = BTreeMap::new();
     for line in &lines {
         if let Expr::Project(head, _) = line {
             if let Expr::ProjectBegin(project_type, _, _, _) = head.deref() {
@@ -119,11 +111,11 @@ fn analyze(solution: (Expr, Vec<Expr>)) {
                     if *guid == ID_SOLUTION_FOLDER {
                         continue;
                     }
-                    let k;
+                    let k:String;
                     if let Some(type_name) = PROJECT_TYPES.get(*guid) {
-                        k = *type_name;
+                        k = String::from(*type_name);
                     } else {
-                        k = *guid;
+                        k = String::from(*guid);
                     }
                     *projects_by_type.entry(k).or_insert(0) += 1;
                 }
@@ -131,10 +123,5 @@ fn analyze(solution: (Expr, Vec<Expr>)) {
         }
     }
 
-    for (key, value) in projects_by_type.iter() {
-        table.add_row(row![*key, bFg->*value]);
-    }
-
-    table.printstd();
-    println!();
+    (version, projects_by_type)
 }

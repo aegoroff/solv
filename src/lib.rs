@@ -2,6 +2,10 @@ use std::path::Path;
 use std::time::Instant;
 
 use jwalk::WalkDir;
+use std::option::Option::Some;
+use prettytable::format;
+use prettytable::{Table};
+use std::collections::BTreeMap;
 
 mod ast;
 mod lex;
@@ -31,7 +35,9 @@ pub fn scan(path: &str, print_ast: bool) {
                     if ext == "sln" {
                         let full_path = e.path();
                         let full_path = full_path.to_str().unwrap();
-                        parser::parse(full_path, print_ast);
+                        if let Some((format, projects)) = parser::parse(full_path, print_ast) {
+                            print(full_path,(format, projects));
+                        }
                     }
                 }
             }
@@ -41,6 +47,25 @@ pub fn scan(path: &str, print_ast: bool) {
         "elapsed: {}",
         humantime::format_duration(now.elapsed()).to_string()
     );
+}
+
+pub fn print(path: &str, solution: (String, BTreeMap<String, i32>)) {
+    let (ver, projects_by_type) = solution;
+    println!("Solution: {}", path);
+    println!(" Format: {}", ver);
+    println!(" Projects:");
+
+    let mut table = Table::new();
+    table.add_row(row![bFb=> "Project type", "Count"]);
+
+    table.set_format(*format::consts::FORMAT_CLEAN);
+
+    for (key, value) in projects_by_type.iter() {
+        table.add_row(row![*key, bFg->*value]);
+    }
+
+    table.printstd();
+    println!();
 }
 
 fn get_extension_from_filename(filename: &str) -> Option<&str> {
