@@ -28,19 +28,16 @@ pub fn scan(path: &str) {
                             .expect("Something went wrong reading the file");
                         let input;
 
-                        if contents.as_bytes()[0] == b'\xEF' && contents.as_bytes()[1] == b'\xBB' && contents.as_bytes()[2] == b'\xBF' {
+                        let cb = contents.as_bytes();
+                        if cb[0] == b'\xEF' && cb[1] == b'\xBB' && cb[2] == b'\xBF' {
                             input = &contents[3..];
                         } else {
                             input = &contents;
                         }
                         let lexer = crate::lex::Lexer::new(input);
-
-                        if false {
-                            let result = solt::SolutionParser::new().parse(input, lexer).unwrap();
-                            println!("result {:#?} file {}", result, full_path);
-                        } else {
-                            let result = solt::SolutionParser::new().parse(input, lexer).is_ok();
-                            println!("result {} file {}", result, full_path);
+                        match solt::SolutionParser::new().parse(input, lexer) {
+                            Ok(ast) => println!("result {:#?} file {}", ast, full_path),
+                            Err(e) => println!("error {:#?} file {}", e, full_path),
                         }
                     }
                 }
