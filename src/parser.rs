@@ -1,15 +1,25 @@
-use crate::ast::Expr;
-use crate::msbuild;
+use crate::ast::{Expr, Project, Solution};
 use std::collections::BTreeMap;
 use std::fs;
 use std::ops::Deref;
+use crate::msbuild;
 
 pub fn parse(path: &str, debug: bool) -> Option<(String, BTreeMap<String, i32>)> {
     let contents = fs::read_to_string(path).expect("Something went wrong reading the file");
-    parse_str(&contents, debug)
+    let solution = parse_str(&contents, debug)?;
+    let format = String::from(solution.format);
+    let mut projects_by_type: BTreeMap<String, i32> = BTreeMap::new();
+    for prj in &solution.projects {
+        if prj.type_id == msbuild::ID_SOLUTION_FOLDER {
+            continue;
+        }
+        let k = String::from(prj.type_descr);
+        *projects_by_type.entry(k).or_insert(0) += 1;
+    }
+    Some((format, projects_by_type))
 }
 
-fn parse_str(contents: &str, debug: bool) -> Option<(String, BTreeMap<String, i32>)> {
+fn parse_str(contents: &str, debug: bool) -> Option<Solution> {
     let input;
 
     let cb = contents.as_bytes();
@@ -36,36 +46,43 @@ fn parse_str(contents: &str, debug: bool) -> Option<(String, BTreeMap<String, i3
     None
 }
 
-fn analyze(solution: (Expr, Vec<Expr>)) -> (String, BTreeMap<String, i32>) {
+fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'input> {
     let (head, lines) = solution;
-    let mut version = String::new();
+    let mut version = "";
     if let Expr::FirstLine(ver) = head {
         if let Expr::DigitOrDot(ver) = ver.deref() {
-            version = String::from(*ver);
+            version = *ver;
         }
     }
 
-    let mut projects_by_type: BTreeMap<String, i32> = BTreeMap::new();
+    let mut sol = Solution::new();
+    sol.format = version;
+
     for line in &lines {
         if let Expr::Project(head, _) = line {
-            if let Expr::ProjectBegin(project_type, _, _, _) = head.deref() {
+            if let Expr::ProjectBegin(project_type, name, path, id) = head.deref() {
+                let mut type_id = "";
+                let mut pid = "";
                 if let Expr::Guid(guid) = project_type.deref() {
-                    if *guid == msbuild::ID_SOLUTION_FOLDER {
-                        continue;
-                    }
-                    let k: String;
-                    if let Some(type_name) = msbuild::PROJECT_TYPES.get(*guid) {
-                        k = String::from(*type_name);
-                    } else {
-                        k = String::from(*guid);
-                    }
-                    *projects_by_type.entry(k).or_insert(0) += 1;
+                    type_id = guid;
                 }
+                if let Expr::Guid(guid) = id.deref() {
+                    pid = guid;
+                }
+                let mut prj = Project::new(pid, type_id);
+
+                if let Expr::Str(s) = name.deref() {
+                    prj.name = s;
+                }
+                if let Expr::Str(s) = path.deref() {
+                    prj.path = s;
+                }
+                sol.projects.push(prj);
             }
         }
     }
 
-    (version, projects_by_type)
+    sol
 }
 
 #[cfg(test)]

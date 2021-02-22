@@ -1,3 +1,5 @@
+use crate::msbuild;
+
 #[derive(Debug)]
 pub enum Expr<'input> {
     Comment(&'input str),
@@ -20,4 +22,47 @@ pub enum Expr<'input> {
     SectionContent(Box<Expr<'input>>, Box<Expr<'input>>),
     SectionKey(Box<Expr<'input>>),
     SectionValue(Box<Expr<'input>>),
+}
+
+#[derive(Debug, Clone)]
+pub struct Solution<'input> {
+    pub format: &'input str,
+    pub projects: Vec<Project<'input>>,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct Project<'input> {
+    pub type_id: &'input str,
+    pub type_descr: &'input str,
+    pub id: &'input str,
+    pub name: &'input str,
+    pub path: &'input str,
+}
+
+impl<'input> Solution<'input> {
+    pub fn new() -> Self {
+        Self {
+            format: "",
+            projects: Vec::new(),
+        }
+    }
+}
+
+impl<'input> Project<'input> {
+    pub fn new(id: &'input str, type_id: &'input str) -> Self {
+        let type_descr;
+        if let Some(type_name) = msbuild::PROJECT_TYPES.get(type_id) {
+            type_descr = *type_name;
+        } else {
+            type_descr = type_id;
+        }
+
+        Self {
+            id,
+            type_id,
+            type_descr,
+            name: "",
+            path: "",
+        }
+    }
 }
