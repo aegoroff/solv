@@ -28,11 +28,11 @@ fn build_cli() -> App<'static, 'static> {
         .author("egoroff <egoroff@gmail.com>")
         .about("SOLution Tool that analyzes Microsoft Visual Studio solutions")
         .arg(
-            Arg::with_name("ast")
-                .long("ast")
-                .short("a")
+            Arg::with_name("debug")
+                .long("debug")
+                .short("d")
                 .takes_value(false)
-                .help("print AST")
+                .help("debug mode - just printing AST and parsing errors if any")
                 .required(false),
         )
         .subcommand(

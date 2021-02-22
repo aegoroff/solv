@@ -70,12 +70,12 @@ pub static PROJECT_TYPES: phf::Map<&'static str, &'static str> = phf::phf_map! {
     "{CFEE4113-1246-4D54-95CB-156813CB8593}" => "WiX (Windows Installer XML)",
 };
 
-pub fn parse(path: &str, print_ast: bool) -> Option<(String, BTreeMap<String, i32>)> {
+pub fn parse(path: &str, debug: bool) -> Option<(String, BTreeMap<String, i32>)> {
     let contents = fs::read_to_string(path).expect("Something went wrong reading the file");
-    parse_str(&contents, print_ast)
+    parse_str(&contents, debug)
 }
 
-fn parse_str(contents: &str, print_ast: bool) -> Option<(String, BTreeMap<String, i32>)> {
+fn parse_str(contents: &str, debug: bool) -> Option<(String, BTreeMap<String, i32>)> {
     let input;
 
     let cb = contents.as_bytes();
@@ -87,13 +87,17 @@ fn parse_str(contents: &str, print_ast: bool) -> Option<(String, BTreeMap<String
     let lexer = crate::lex::Lexer::new(input);
     match crate::solt::SolutionParser::new().parse(input, lexer) {
         Ok(ast) => {
-            if print_ast {
+            if debug {
                 println!("result {:#?}", ast);
             } else {
                 return Some(analyze(ast));
             }
         }
-        Err(e) => eprintln!("error {:#?}", e),
+        Err(e) => {
+            if debug {
+                eprintln!("error {:#?}", e);
+            }
+        }
     }
     None
 }
