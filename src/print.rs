@@ -1,4 +1,4 @@
-use crate::ast::Solution;
+use crate::ast::{Solution};
 use crate::msbuild;
 use crate::parser::Consume;
 use prettytable::format;
@@ -28,13 +28,31 @@ impl Consume for Print {
         }
 
         println!(" {}", self.path);
-        println!("  Format: {}", solution.format);
+
+        let mut table = Table::new();
+
+        let fmt = format::FormatBuilder::new()
+            .column_separator(' ')
+            .borders(' ')
+            .indent(0)
+            .padding(1, 0)
+            .build();
+        table.set_format(fmt);
+
+        table.add_row(row!["Format", bF->solution.format]);
+        table.add_row(row!["Product", bF->solution.product]);
+
+        for version in &solution.versions {
+            table.add_row(row![version.name, bF->version.ver]);
+        }
+        table.printstd();
+
         println!();
         println!("  Projects:");
 
         let mut table = Table::new();
 
-        let format = format::FormatBuilder::new()
+        let fmt = format::FormatBuilder::new()
             .column_separator(' ')
             .borders(' ')
             .separators(
@@ -44,7 +62,7 @@ impl Consume for Print {
             .indent(3)
             .padding(0, 0)
             .build();
-        table.set_format(format);
+        table.set_format(fmt);
         table.set_titles(row![bF=> "Project type", "Count"]);
 
         for (key, value) in projects_by_type.iter() {
