@@ -214,21 +214,15 @@ impl<'input> Lexer<'input> {
     }
 
     fn trim_start(s: &str, mut i: usize) -> usize {
-        loop {
-            match &s[i..i + 1] {
-                " " | "\t" => i += 1,
-                _ => break,
-            }
+        while let " " | "\t" = &s[i..i + 1] {
+            i += 1;
         }
         i
     }
 
     fn trim_end(s: &str, mut i: usize) -> usize {
-        loop {
-            match &s[i - 1..i] {
-                " " | "\t" => i -= 1,
-                _ => break,
-            }
+        while let " " | "\t" = &s[i - 1..i] {
+            i -= 1;
         }
         i
     }
