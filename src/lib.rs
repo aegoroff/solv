@@ -13,7 +13,7 @@ extern crate jwalk;
 
 lalrpop_mod!(pub solt);
 
-pub fn scan(path: &str) {
+pub fn scan(path: &str, print_ast: bool) {
     let now = Instant::now();
 
     for entry in WalkDir::new(path).skip_hidden(false).follow_links(false) {
@@ -24,7 +24,7 @@ pub fn scan(path: &str) {
                     if ext == "sln" {
                         let full_path = e.path();
                         let full_path = full_path.to_str().unwrap();
-                        parse(full_path);
+                        parse(full_path, print_ast);
                     }
                 }
             }
@@ -40,7 +40,7 @@ fn get_extension_from_filename(filename: &str) -> Option<&str> {
     Path::new(filename).extension()?.to_str()
 }
 
-pub fn parse(path: &str) {
+pub fn parse(path: &str, print_ast: bool) {
     let contents = fs::read_to_string(path).expect("Something went wrong reading the file");
     let input;
 
@@ -52,7 +52,13 @@ pub fn parse(path: &str) {
     }
     let lexer = crate::lex::Lexer::new(input);
     match solt::SolutionParser::new().parse(input, lexer) {
-        Ok(ast) => println!("result {:#?} file {}", ast, path),
+        Ok(ast) => {
+            if print_ast {
+                println!("result {:#?} file {}", ast, path);
+            } else {
+                println!("result {} file {}", !print_ast, path);
+            }
+        },
         Err(e) => println!("error {:#?} file {}", e, path),
     }
 }
