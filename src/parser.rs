@@ -93,6 +93,7 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                 let version = Version::new(n, v);
                 sol.versions.push(version);
             }
+            Expr::Comment(s) => sol.product = *s,
             _ => {}
         }
     }

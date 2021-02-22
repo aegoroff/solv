@@ -27,6 +27,7 @@ pub enum Expr<'input> {
 #[derive(Debug, Clone)]
 pub struct Solution<'input> {
     pub format: &'input str,
+    pub product: &'input str,
     pub projects: Vec<Project<'input>>,
     pub versions: Vec<Version<'input>>,
 }
@@ -50,6 +51,7 @@ impl<'input> Solution<'input> {
     pub fn new() -> Self {
         Self {
             format: "",
+            product: "",
             projects: Vec::new(),
             versions: Vec::new(),
         }
