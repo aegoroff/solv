@@ -30,15 +30,16 @@ pub fn scan(path: &str, print_ast: bool) {
 
     for entry in WalkDir::new(path).skip_hidden(false).follow_links(false) {
         if let Ok(e) = entry {
-            if e.file_type().is_file() {
-                let file_name = e.file_name.to_str().unwrap();
-                if let Some(ext) = get_extension_from_filename(file_name) {
-                    if ext == "sln" {
-                        let full_path = e.path();
-                        let full_path = full_path.to_str().unwrap();
-                        if let Some((format, projects)) = parser::parse(full_path, print_ast) {
-                            print(full_path, (format, projects));
-                        }
+            if !e.file_type().is_file() {
+                continue;
+            }
+            let file_name = e.file_name.to_str().unwrap();
+            if let Some(ext) = get_extension_from_filename(file_name) {
+                if ext == "sln" {
+                    let full_path = e.path();
+                    let full_path = full_path.to_str().unwrap();
+                    if let Some((format, projects)) = parser::parse(full_path, print_ast) {
+                        print(full_path, (format, projects));
                     }
                 }
             }

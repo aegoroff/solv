@@ -1,4 +1,4 @@
-use crate::ast::{Expr, Project, Solution};
+use crate::ast::{Expr, Project, Solution, Version};
 use crate::msbuild;
 use std::collections::BTreeMap;
 use std::fs;
@@ -59,26 +59,41 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
     sol.format = version;
 
     for line in &lines {
-        if let Expr::Project(head, _) = line {
-            if let Expr::ProjectBegin(project_type, name, path, id) = head.deref() {
-                let mut type_id = "";
-                let mut pid = "";
-                if let Expr::Guid(guid) = project_type.deref() {
-                    type_id = guid;
-                }
-                if let Expr::Guid(guid) = id.deref() {
-                    pid = guid;
-                }
-                let mut prj = Project::new(pid, type_id);
+        match line {
+            Expr::Project(head, _) => {
+                if let Expr::ProjectBegin(project_type, name, path, id) = head.deref() {
+                    let mut type_id = "";
+                    let mut pid = "";
+                    if let Expr::Guid(guid) = project_type.deref() {
+                        type_id = guid;
+                    }
+                    if let Expr::Guid(guid) = id.deref() {
+                        pid = guid;
+                    }
+                    let mut prj = Project::new(pid, type_id);
 
-                if let Expr::Str(s) = name.deref() {
-                    prj.name = s;
+                    if let Expr::Str(s) = name.deref() {
+                        prj.name = s;
+                    }
+                    if let Expr::Str(s) = path.deref() {
+                        prj.path = s;
+                    }
+                    sol.projects.push(prj);
                 }
-                if let Expr::Str(s) = path.deref() {
-                    prj.path = s;
-                }
-                sol.projects.push(prj);
             }
+            Expr::Version(name, val) => {
+                let mut n = "";
+                let mut v = "";
+                if let Expr::Identifier(id) = name.deref() {
+                    n = id;
+                }
+                if let Expr::DigitOrDot(s) = val.deref() {
+                    v = s;
+                }
+                let version = Version::new(n, v);
+                sol.versions.push(version);
+            }
+            _ => {}
         }
     }
 

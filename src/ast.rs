@@ -28,6 +28,13 @@ pub enum Expr<'input> {
 pub struct Solution<'input> {
     pub format: &'input str,
     pub projects: Vec<Project<'input>>,
+    pub versions: Vec<Version<'input>>,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct Version<'input> {
+    pub name: &'input str,
+    pub ver: &'input str,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -44,6 +51,7 @@ impl<'input> Solution<'input> {
         Self {
             format: "",
             projects: Vec::new(),
+            versions: Vec::new(),
         }
     }
 }
@@ -63,6 +71,15 @@ impl<'input> Project<'input> {
             type_descr,
             name: "",
             path: "",
+        }
+    }
+}
+
+impl<'input> Version<'input> {
+    pub fn new(name: &'input str, ver: &'input str) -> Self {
+        Self {
+            name,
+            ver,
         }
     }
 }
