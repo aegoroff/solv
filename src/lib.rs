@@ -51,10 +51,10 @@ pub fn scan(path: &str, print_ast: bool) {
 
 pub fn print(path: &str, solution: (String, BTreeMap<String, i32>)) {
     let (ver, projects_by_type) = solution;
-    println!("Solution: {}", path);
-    println!(" Format: {}", ver);
+    println!(" {}", path);
+    println!("  Format: {}", ver);
     println!();
-    println!(" Projects:");
+    println!("  Projects:");
 
     let mut table = Table::new();
 
@@ -65,6 +65,7 @@ pub fn print(path: &str, solution: (String, BTreeMap<String, i32>)) {
             &[format::LinePosition::Title],
             format::LineSeparator::new('-', ' ', ' ', ' '),
         )
+        .indent(3)
         .padding(0, 0)
         .build();
     table.set_format(format);
