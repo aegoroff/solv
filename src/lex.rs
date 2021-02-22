@@ -270,11 +270,11 @@ impl<'input> Iterator for Lexer<'input> {
 
             let tok = self.current(i, c)?;
 
-            if let Ok(t) = tok {
-                if let (_, Tok::Skip, _) = t {
-                    continue;
-                }
-            };
+            match tok {
+                Ok(_x @ (_, Tok::Skip, _)) => continue,
+                Ok(_) => {}
+                Err(_) => {}
+            }
 
             return Some(tok);
         }

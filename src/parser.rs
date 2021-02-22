@@ -1,8 +1,8 @@
 use crate::ast::{Expr, Project, Solution};
+use crate::msbuild;
 use std::collections::BTreeMap;
 use std::fs;
 use std::ops::Deref;
-use crate::msbuild;
 
 pub fn parse(path: &str, debug: bool) -> Option<(String, BTreeMap<String, i32>)> {
     let contents = fs::read_to_string(path).expect("Something went wrong reading the file");
