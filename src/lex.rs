@@ -35,7 +35,7 @@ impl<'input> Lexer<'input> {
         }
     }
 
-    fn identifier(&mut self, i: usize) -> Option<Spanned<Tok<'input>, usize, ()>> {
+    fn identifier(&mut self, i: usize) -> Spanned<Tok<'input>, usize, ()> {
         let finish;
         loop {
             match self.chars.peek() {
@@ -49,18 +49,18 @@ impl<'input> Lexer<'input> {
                     }
                     _ => {
                         if &self.input[i..i + 3] == "End" {
-                            return Some(Ok((i, Tok::CloseElement(&self.input[i..*j]), *j)));
+                            return Ok((i, Tok::CloseElement(&self.input[i..*j]), *j));
                         };
-                        return Some(Ok((i, Tok::Id(&self.input[i..*j]), *j)));
+                        return Ok((i, Tok::Id(&self.input[i..*j]), *j));
                     }
                 },
                 None => {
-                    return Some(Ok((i, Tok::Id(&self.input[i..]), self.input.len())));
+                    return Ok((i, Tok::Id(&self.input[i..]), self.input.len()));
                 }
             }
         }
         self.chars.next();
-        Some(Ok((i, Tok::OpenElement(&self.input[i..finish]), finish)))
+        Ok((i, Tok::OpenElement(&self.input[i..finish]), finish))
     }
 
     fn comment(&mut self, i: usize) -> Option<Spanned<Tok<'input>, usize, ()>> {
@@ -183,9 +183,9 @@ impl<'input> Lexer<'input> {
 
     fn section_value(&mut self, i: usize) -> Option<Spanned<Tok<'input>, usize, ()>> {
         if self.tab_count <= 1 {
-            return Some(Ok((i, Tok::Eq, i + 1)));
+            Some(Ok((i, Tok::Eq, i + 1)))
         } else {
-            let start = self.trim_start(i + 1);
+            let start = Lexer::trim_start(&self.input, i + 1);
 
             loop {
                 match self.chars.peek() {
@@ -213,9 +213,9 @@ impl<'input> Lexer<'input> {
         }
     }
 
-    fn trim_start(&self, mut i: usize) -> usize {
+    fn trim_start(s: &str, mut i: usize) -> usize {
         loop {
-            match &self.input[i..i + 1] {
+            match &s[i..i + 1] {
                 " " | "\t" => i += 1,
                 _ => break,
             }
@@ -243,7 +243,7 @@ impl<'input> Lexer<'input> {
             '{' => return self.guid(i),
             '"' => return self.string(i),
             '#' => return self.comment(i),
-            'a'..='z' | 'A'..='Z' => return self.identifier(i),
+            'a'..='z' | 'A'..='Z' => return Some(self.identifier(i)),
             _ => {}
         }
         None
