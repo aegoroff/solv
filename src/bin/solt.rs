@@ -31,7 +31,8 @@ fn build_cli() -> App<'static, 'static> {
                 .short("a")
                 .takes_value(false)
                 .help("print AST")
-                .required(false))
+                .required(false),
+        )
         .subcommand(
             SubCommand::with_name("d")
                 .aliases(&["dir", "directory"])

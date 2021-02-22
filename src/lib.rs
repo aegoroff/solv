@@ -58,7 +58,7 @@ pub fn parse(path: &str, print_ast: bool) {
             } else {
                 println!("result {} file {}", !print_ast, path);
             }
-        },
+        }
         Err(e) => println!("error {:#?} file {}", e, path),
     }
 }

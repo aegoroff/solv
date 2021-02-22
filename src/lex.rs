@@ -35,7 +35,7 @@ impl<'input> Lexer<'input> {
         }
     }
 
-    fn identifier(&mut self, i: usize) -> Spanned<Tok<'input>, usize, ()> {
+    fn identifier(&mut self, i: usize) -> (Tok<'input>, usize) {
         let finish;
         loop {
             match self.chars.peek() {
@@ -49,18 +49,18 @@ impl<'input> Lexer<'input> {
                     }
                     _ => {
                         if &self.input[i..i + 3] == "End" {
-                            return Ok((i, Tok::CloseElement(&self.input[i..*j]), *j));
+                            return (Tok::CloseElement(&self.input[i..*j]), *j);
                         };
-                        return Ok((i, Tok::Id(&self.input[i..*j]), *j));
+                        return (Tok::Id(&self.input[i..*j]), *j);
                     }
                 },
                 None => {
-                    return Ok((i, Tok::Id(&self.input[i..]), self.input.len()));
+                    return (Tok::Id(&self.input[i..]), self.input.len());
                 }
             }
         }
         self.chars.next();
-        Ok((i, Tok::OpenElement(&self.input[i..finish]), finish))
+        (Tok::OpenElement(&self.input[i..finish]), finish)
     }
 
     fn comment(&mut self, i: usize) -> Option<Spanned<Tok<'input>, usize, ()>> {
@@ -243,7 +243,10 @@ impl<'input> Lexer<'input> {
             '{' => return self.guid(i),
             '"' => return self.string(i),
             '#' => return self.comment(i),
-            'a'..='z' | 'A'..='Z' => return Some(self.identifier(i)),
+            'a'..='z' | 'A'..='Z' => {
+                let (tok, loc) = self.identifier(i);
+                return Some(Ok((i, tok, loc)));
+            }
             _ => {}
         }
         None
