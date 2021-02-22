@@ -1,9 +1,26 @@
-use std::env;
+use clap::{App, Arg};
+
+extern crate clap;
 
 fn main() {
-    let args: Vec<String> = env::args().skip(1).collect();
+    let app = build_cli();
+    let matches = app.get_matches();
 
-    let path = &args[0];
+    match matches.value_of("PATH") {
+        Some(path) => solt_rs::scan(path),
+        None => {}
+    }
+}
 
-    solt_rs::scan(path);
+fn build_cli() -> App<'static, 'static> {
+    return App::new("solt")
+        .version("0.1")
+        .author("egoroff <egoroff@gmail.com>")
+        .about("SOLution Tool that analyzes Microsoft Visual Studio solutions")
+        .arg(
+            Arg::with_name("PATH")
+                .help("Sets directory path to find solutions")
+                .required(true)
+                .index(1),
+        );
 }
