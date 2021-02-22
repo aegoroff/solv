@@ -24,21 +24,7 @@ pub fn scan(path: &str) {
                     if ext == "sln" {
                         let full_path = e.path();
                         let full_path = full_path.to_str().unwrap().clone();
-                        let contents = fs::read_to_string(full_path)
-                            .expect("Something went wrong reading the file");
-                        let input;
-
-                        let cb = contents.as_bytes();
-                        if cb[0] == b'\xEF' && cb[1] == b'\xBB' && cb[2] == b'\xBF' {
-                            input = &contents[3..];
-                        } else {
-                            input = &contents;
-                        }
-                        let lexer = crate::lex::Lexer::new(input);
-                        match solt::SolutionParser::new().parse(input, lexer) {
-                            Ok(ast) => println!("result {:#?} file {}", ast, full_path),
-                            Err(e) => println!("error {:#?} file {}", e, full_path),
-                        }
+                        parse(full_path);
                     }
                 }
             }
@@ -52,6 +38,24 @@ pub fn scan(path: &str) {
 
 fn get_extension_from_filename(filename: &str) -> Option<&str> {
     Path::new(filename).extension()?.to_str()
+}
+
+fn parse(path: &str) {
+    let contents = fs::read_to_string(path)
+        .expect("Something went wrong reading the file");
+    let input;
+
+    let cb = contents.as_bytes();
+    if cb[0] == b'\xEF' && cb[1] == b'\xBB' && cb[2] == b'\xBF' {
+        input = &contents[3..];
+    } else {
+        input = &contents;
+    }
+    let lexer = crate::lex::Lexer::new(input);
+    match solt::SolutionParser::new().parse(input, lexer) {
+        Ok(ast) => println!("result {:#?} file {}", ast, path),
+        Err(e) => println!("error {:#?} file {}", e, path),
+    }
 }
 
 #[cfg(test)]
