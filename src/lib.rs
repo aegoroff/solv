@@ -9,6 +9,7 @@ use std::option::Option::Some;
 
 mod ast;
 mod lex;
+mod msbuild;
 pub mod parser;
 
 #[macro_use]
