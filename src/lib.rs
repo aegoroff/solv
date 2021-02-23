@@ -24,7 +24,7 @@ lalrpop_mod!(
     pub solt
 );
 
-pub fn scan(path: &str, print_ast: bool) {
+pub fn scan(path: &str, debug: bool) {
     let now = Instant::now();
 
     for entry in WalkDir::new(path).skip_hidden(false).follow_links(false) {
@@ -38,7 +38,7 @@ pub fn scan(path: &str, print_ast: bool) {
                     let full_path = e.path();
                     let full_path = full_path.to_str().unwrap();
                     let prn = Print::new(full_path);
-                    parser::parse(full_path, prn, print_ast);
+                    parser::parse(full_path, prn, debug);
                 }
             }
         }

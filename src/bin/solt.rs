@@ -7,17 +7,17 @@ fn main() {
     let app = build_cli();
     let matches = app.get_matches();
 
-    let print_ast = matches.is_present("ast");
+    let debug = matches.is_present("debug");
 
     if let Some(cmd) = matches.subcommand_matches("d") {
         if let Some(path) = cmd.value_of("PATH") {
-            solt_rs::scan(path, print_ast);
+            solt_rs::scan(path, debug);
         }
     }
     if let Some(cmd) = matches.subcommand_matches("s") {
         if let Some(path) = cmd.value_of("PATH") {
             let prn = Print::new(path);
-            solt_rs::parser::parse(path, prn, print_ast);
+            solt_rs::parser::parse(path, prn, debug);
         }
     }
 }
