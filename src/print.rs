@@ -50,8 +50,7 @@ impl Consume for Print {
         let configurations =
             BTreeSet::from_iter(solution.configurations.iter().map(|c| c.configuration));
 
-        let platforms =
-            BTreeSet::from_iter(solution.configurations.iter().map(|c| c.platform));
+        let platforms = BTreeSet::from_iter(solution.configurations.iter().map(|c| c.platform));
 
         let path = RGB(0xAA, 0xAA, 0xAA).paint(&self.path);
         println!(" {}", path);
