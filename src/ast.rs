@@ -106,3 +106,60 @@ impl<'input> Configuration<'input> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn new_configuration_correct() {
+        // Arrange
+        let s = "Release|Any CPU";
+
+        // Act
+        let c = Configuration::new(s);
+
+        // Assert
+        assert_eq!("Release", c.configuration);
+        assert_eq!("Any CPU", c.platform);
+    }
+
+    #[test]
+    fn new_configuration_empty() {
+        // Arrange
+        let s = "";
+
+        // Act
+        let c = Configuration::new(s);
+
+        // Assert
+        assert_eq!("", c.configuration);
+        assert_eq!("", c.platform);
+    }
+
+    #[test]
+    fn new_configuration_incorrect_no_pipe() {
+        // Arrange
+        let s = "Release Any CPU";
+
+        // Act
+        let c = Configuration::new(s);
+
+        // Assert
+        assert_eq!("", c.configuration);
+        assert_eq!("", c.platform);
+    }
+
+    #[test]
+    fn new_configuration_incorrect_many_pipes() {
+        // Arrange
+        let s = "Release|Any CPU|test";
+
+        // Act
+        let c = Configuration::new(s);
+
+        // Assert
+        assert_eq!("", c.configuration);
+        assert_eq!("", c.platform);
+    }
+}
