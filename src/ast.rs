@@ -30,12 +30,19 @@ pub struct Solution<'input> {
     pub product: &'input str,
     pub projects: Vec<Project<'input>>,
     pub versions: Vec<Version<'input>>,
+    pub configurations: Vec<Configuration<'input>>,
 }
 
 #[derive(Debug, Copy, Clone)]
 pub struct Version<'input> {
     pub name: &'input str,
     pub ver: &'input str,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct Configuration<'input> {
+    pub configuration: &'input str,
+    pub platform: &'input str,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -54,6 +61,7 @@ impl<'input> Solution<'input> {
             product: "",
             projects: Vec::new(),
             versions: Vec::new(),
+            configurations: Vec::new(),
         }
     }
 }
@@ -80,5 +88,21 @@ impl<'input> Project<'input> {
 impl<'input> Version<'input> {
     pub fn new(name: &'input str, ver: &'input str) -> Self {
         Self { name, ver }
+    }
+}
+
+impl<'input> Configuration<'input> {
+    pub fn new(s: &'input str) -> Self {
+        let parts: Vec<&str> = s.split("|").collect();
+        let mut configuration = "";
+        let mut platform = "";
+        if parts.len() == 2 {
+            configuration = parts[0];
+            platform = parts[1];
+        }
+        Self {
+            configuration,
+            platform,
+        }
     }
 }

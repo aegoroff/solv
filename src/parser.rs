@@ -1,4 +1,4 @@
-use crate::ast::{Expr, Project, Solution, Version};
+use crate::ast::{Configuration, Expr, Project, Solution, Version};
 use std::ops::Deref;
 
 pub fn parse_str(contents: &str, debug: bool) -> Option<Solution> {
@@ -74,6 +74,30 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                 }
                 let version = Version::new(n, v);
                 sol.versions.push(version);
+            }
+            Expr::Global(sections) => {
+                for section in sections {
+                    if let Expr::Section(begin, content) = section {
+                        if let Expr::SectionBegin(names, _) = begin.deref() {
+                            if names.len() > 1 {
+                                continue;
+                            }
+                            if let Expr::Identifier(s) = names[0] {
+                                if s != "SolutionConfigurationPlatforms" {
+                                    continue;
+                                }
+                                for cl in content {
+                                    if let Expr::SectionContent(left, _) = cl.deref() {
+                                        if let Expr::Str(s) = left.deref() {
+                                            let conf = Configuration::new(s);
+                                            sol.configurations.push(conf);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
             Expr::Comment(s) => sol.product = *s,
             _ => {}
