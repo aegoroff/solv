@@ -30,7 +30,7 @@ impl Consume for Print {
             *projects_by_type.entry(prj.type_descr).or_insert(0) += 1;
         }
 
-        let path = RGB(0xE, 0xE, 0xE).paint(&self.path);
+        let path = RGB(0xAA, 0xAA, 0xAA).paint(&self.path);
         println!(" {}", path);
 
         let mut table = Table::new();
