@@ -26,14 +26,19 @@ lalrpop_mod!(
 
 /// Consume provides parsed solution consumer
 pub trait Consume {
-    fn consume(&self, solution: &Solution);
+    fn ok(&self, solution: &Solution);
+    fn err(&self);
 }
 
 /// parse parses single solution file specified by path.
 pub fn parse<C: Consume>(path: &str, consumer: C, debug: bool) {
     let contents = fs::read_to_string(path).expect("Something went wrong reading the file");
     if let Some(solution) = parser::parse_str(&contents, debug) {
-        consumer.consume(&solution);
+        consumer.ok(&solution);
+    } else {
+        if !debug {
+            consumer.err();
+        }
     }
 }
 

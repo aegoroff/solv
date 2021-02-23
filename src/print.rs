@@ -1,7 +1,7 @@
 use crate::ast::Solution;
 use crate::msbuild;
 use crate::Consume;
-use ansi_term::Colour::RGB;
+use ansi_term::Colour::{RGB, Red};
 use prettytable::format;
 use prettytable::format::TableFormat;
 use prettytable::Table;
@@ -37,6 +37,9 @@ impl Print {
     }
 
     fn print_one_column_table(head: &str, set: BTreeSet<&str>) {
+        if set.is_empty() {
+            return;
+        }
         let mut table = Table::new();
 
         let fmt = Print::new_format();
@@ -53,7 +56,7 @@ impl Print {
 }
 
 impl Consume for Print {
-    fn consume(&self, solution: &Solution) {
+    fn ok(&self, solution: &Solution) {
         let mut projects_by_type: BTreeMap<&str, i32> = BTreeMap::new();
         for prj in &solution.projects {
             if prj.type_id == msbuild::ID_SOLUTION_FOLDER {
@@ -105,5 +108,10 @@ impl Consume for Print {
 
         Print::print_one_column_table("Configuration", configurations);
         Print::print_one_column_table("Platform", platforms);
+    }
+
+    fn err(&self) {
+        let path = Red.paint(&self.path);
+        eprintln!("Error parsing {} solution", path);
     }
 }
