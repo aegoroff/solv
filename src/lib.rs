@@ -1,6 +1,7 @@
+use std::fs;
 use std::path::Path;
-use std::time::Instant;
 
+use crate::ast::Solution;
 use crate::print::Print;
 use jwalk::WalkDir;
 use std::option::Option::Some;
@@ -8,12 +9,11 @@ use std::option::Option::Some;
 mod ast;
 mod lex;
 mod msbuild;
-pub mod parser;
+mod parser;
 pub mod print;
 
 #[macro_use]
 extern crate lalrpop_util;
-extern crate humantime;
 extern crate jwalk;
 #[macro_use]
 extern crate prettytable;
@@ -24,9 +24,22 @@ lalrpop_mod!(
     pub solt
 );
 
-pub fn scan(path: &str, debug: bool) {
-    let now = Instant::now();
+/// Consume provides parsed solution consumer
+pub trait Consume {
+    fn consume(&self, solution: &Solution);
+}
 
+/// parse parses single solution file specified by path.
+pub fn parse<C: Consume>(path: &str, consumer: C, debug: bool) {
+    let contents = fs::read_to_string(path).expect("Something went wrong reading the file");
+    if let Some(solution) = parser::parse_str(&contents, debug) {
+        consumer.consume(&solution);
+    }
+}
+
+/// scan parses directory specified by path. recursively
+/// it finds all files with sln extension and parses them.
+pub fn scan(path: &str, debug: bool) {
     for entry in WalkDir::new(path).skip_hidden(false).follow_links(false) {
         if let Ok(e) = entry {
             if !e.file_type().is_file() {
@@ -38,15 +51,11 @@ pub fn scan(path: &str, debug: bool) {
                     let full_path = e.path();
                     let full_path = full_path.to_str().unwrap();
                     let prn = Print::new(full_path);
-                    parser::parse(full_path, prn, debug);
+                    parse(full_path, prn, debug);
                 }
             }
         }
     }
-    println!(
-        "elapsed: {}",
-        humantime::format_duration(now.elapsed()).to_string()
-    );
 }
 
 fn get_extension_from_filename(filename: &str) -> Option<&str> {

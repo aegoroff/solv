@@ -1,7 +1,9 @@
 use clap::{App, Arg, SubCommand};
 use solt_rs::print::Print;
+use std::time::Instant;
 
 extern crate clap;
+extern crate humantime;
 
 fn main() {
     let app = build_cli();
@@ -11,13 +13,18 @@ fn main() {
 
     if let Some(cmd) = matches.subcommand_matches("d") {
         if let Some(path) = cmd.value_of("PATH") {
+            let now = Instant::now();
             solt_rs::scan(path, debug);
+            println!(
+                "elapsed: {}",
+                humantime::format_duration(now.elapsed()).to_string()
+            );
         }
     }
     if let Some(cmd) = matches.subcommand_matches("s") {
         if let Some(path) = cmd.value_of("PATH") {
             let prn = Print::new(path);
-            solt_rs::parser::parse(path, prn, debug);
+            solt_rs::parse(path, prn, debug);
         }
     }
 }

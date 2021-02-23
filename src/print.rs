@@ -1,10 +1,10 @@
-use crate::ast::{Solution};
+use crate::ast::Solution;
 use crate::msbuild;
-use crate::parser::Consume;
+use crate::Consume;
+use ansi_term::Colour::RGB;
 use prettytable::format;
 use prettytable::Table;
 use std::collections::BTreeMap;
-use ansi_term::Colour::RGB;
 
 extern crate ansi_term;
 

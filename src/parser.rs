@@ -1,19 +1,7 @@
 use crate::ast::{Expr, Project, Solution, Version};
-use std::fs;
 use std::ops::Deref;
 
-pub trait Consume {
-    fn consume(&self, solution: &Solution);
-}
-
-pub fn parse<C: Consume>(path: &str, consumer: C, debug: bool) {
-    let contents = fs::read_to_string(path).expect("Something went wrong reading the file");
-    if let Some(solution) = parse_str(&contents, debug) {
-        consumer.consume(&solution);
-    }
-}
-
-fn parse_str(contents: &str, debug: bool) -> Option<Solution> {
+pub fn parse_str(contents: &str, debug: bool) -> Option<Solution> {
     let input;
 
     let cb = contents.as_bytes();
