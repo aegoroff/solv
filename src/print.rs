@@ -1,7 +1,7 @@
 use crate::ast::Solution;
 use crate::msbuild;
 use crate::Consume;
-use ansi_term::Colour::{RGB, Red};
+use ansi_term::Colour::{Red, RGB};
 use prettytable::format;
 use prettytable::format::TableFormat;
 use prettytable::Table;
