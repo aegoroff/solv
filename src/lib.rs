@@ -4,6 +4,8 @@ use std::path::Path;
 use crate::ast::Solution;
 use crate::print::Print;
 use jwalk::WalkDir;
+use std::collections::BTreeSet;
+use std::iter::FromIterator;
 use std::option::Option::Some;
 
 mod ast;
@@ -45,21 +47,30 @@ pub fn parse<C: Consume>(path: &str, consumer: C, debug: bool) {
 /// scan parses directory specified by path. recursively
 /// it finds all files with sln extension and parses them.
 pub fn scan(path: &str, debug: bool) {
-    for entry in WalkDir::new(path).skip_hidden(false).follow_links(false) {
-        if let Ok(e) = entry {
-            if !e.file_type().is_file() {
-                continue;
-            }
-            let file_name = e.file_name.to_str().unwrap();
+    let iter = WalkDir::new(path).skip_hidden(false).follow_links(false);
+
+    let it = iter
+        .into_iter()
+        .map(|entry| entry)
+        .filter(|r| r.is_ok())
+        .map(|r| r.unwrap())
+        .filter(|f| f.file_type().is_file())
+        .filter(|f| {
+            let file_name = f.file_name.to_str().unwrap();
             if let Some(ext) = get_extension_from_filename(file_name) {
                 if ext == "sln" {
-                    let full_path = e.path();
-                    let full_path = full_path.to_str().unwrap();
-                    let prn = Print::new(full_path);
-                    parse(full_path, prn, debug);
+                    return true;
                 }
             }
-        }
+            false
+        })
+        .map(|f| String::from(f.path().to_str().unwrap()));
+
+    let solutions = BTreeSet::from_iter(it);
+
+    for full_path in solutions {
+        let prn = Print::new(&full_path);
+        parse(&full_path, prn, debug);
     }
 }
 
