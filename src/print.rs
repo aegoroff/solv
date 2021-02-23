@@ -35,6 +35,21 @@ impl Print {
             .build();
         fmt
     }
+
+    fn print_one_column_table(head: &str, set: BTreeSet<&str>) {
+        let mut table = Table::new();
+
+        let fmt = Print::new_format();
+        table.set_format(fmt);
+        table.set_titles(row![bF=> head]);
+
+        for item in set.iter() {
+            table.add_row(row![*item]);
+        }
+
+        table.printstd();
+        println!();
+    }
 }
 
 impl Consume for Print {
@@ -46,11 +61,6 @@ impl Consume for Print {
             }
             *projects_by_type.entry(prj.type_descr).or_insert(0) += 1;
         }
-
-        let configurations =
-            BTreeSet::from_iter(solution.configurations.iter().map(|c| c.configuration));
-
-        let platforms = BTreeSet::from_iter(solution.configurations.iter().map(|c| c.platform));
 
         let path = RGB(0xAA, 0xAA, 0xAA).paint(&self.path);
         println!(" {}", path);
@@ -88,30 +98,12 @@ impl Consume for Print {
         table.printstd();
         println!();
 
-        let mut table = Table::new();
+        let configurations =
+            BTreeSet::from_iter(solution.configurations.iter().map(|c| c.configuration));
 
-        let fmt = Print::new_format();
-        table.set_format(fmt);
-        table.set_titles(row![bF=> "Configuration"]);
+        let platforms = BTreeSet::from_iter(solution.configurations.iter().map(|c| c.platform));
 
-        for item in configurations.iter() {
-            table.add_row(row![*item]);
-        }
-
-        table.printstd();
-        println!();
-
-        let mut table = Table::new();
-
-        let fmt = Print::new_format();
-        table.set_format(fmt);
-        table.set_titles(row![bF=> "Platform"]);
-
-        for item in platforms.iter() {
-            table.add_row(row![*item]);
-        }
-
-        table.printstd();
-        println!();
+        Print::print_one_column_table("Configuration", configurations);
+        Print::print_one_column_table("Platform", platforms);
     }
 }
