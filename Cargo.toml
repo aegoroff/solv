@@ -13,8 +13,15 @@ lalrpop = "0.19.4"
 lalrpop-util = "0.19.4"
 regex = "1"
 jwalk = "0.5"
-humantime = "2.1"
-clap = "2"
+humantime = { version = "2.1", optional = true }
+clap = { version = "2", optional = true }
 prettytable-rs = "^0.8"
 phf = { version = "0.8", features = ["macros"] }
 ansi_term = "0.12"
+
+[features]
+build-binary = ["humantime", "clap"]
+
+[[bin]]
+name = "solt"
+required-features = ["build-binary"]
