@@ -21,7 +21,7 @@ extern crate prettytable;
 lalrpop_mod!(
     #[allow(clippy::all)]
     #[allow(unused)]
-    pub solt
+    pub solv
 );
 
 /// Consume provides parsed solution consumer

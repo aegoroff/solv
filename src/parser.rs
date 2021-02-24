@@ -12,7 +12,7 @@ pub fn parse_str(contents: &str, debug: bool) -> Option<Solution> {
         input = &contents;
     }
     let lexer = crate::lex::Lexer::new(input);
-    match crate::solt::SolutionParser::new().parse(input, lexer) {
+    match crate::solv::SolutionParser::new().parse(input, lexer) {
         Ok(ast) => {
             if debug {
                 println!("result {:#?}", ast);
