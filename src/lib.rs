@@ -49,7 +49,6 @@ pub fn scan(path: &str, debug: bool) {
 
     let it = iter
         .into_iter()
-        .map(|entry| entry)
         .filter(|r| r.is_ok())
         .map(|r| r.unwrap())
         .filter(|f| f.file_type().is_file())
