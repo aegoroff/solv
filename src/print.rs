@@ -152,7 +152,7 @@ impl Consume for DanglingSearch {
             .map(|pc| pc.project_id)
             .collect::<BTreeSet<&str>>();
         if dangling_configurations.is_empty() {
-            println!(" {}", Green.paint("  No probles found in solution."));
+            println!(" {}", Green.paint("  No problems found in solution."));
             println!();
         } else {
             println!(" {}", Yellow.paint("  Solution contains dangling project configurations that can be safely removed:"));
