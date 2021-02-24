@@ -84,11 +84,51 @@ impl<'input> Project<'input> {
             path: "",
         }
     }
+
+    pub fn from_begin(head: &Expr<'input>) -> Option<Self> {
+        if let Expr::ProjectBegin(project_type, name, path, id) = head {
+            let prj = Project::from(project_type, name, path, id);
+            return Some(prj);
+        }
+        None
+    }
+
+    pub fn from(project_type: &Expr<'input>, name: &Expr<'input>, path: &Expr<'input>, id: &Expr<'input>) -> Self {
+        let mut type_id = "";
+        let mut pid = "";
+        if let Expr::Guid(guid) = project_type {
+            type_id = guid;
+        }
+        if let Expr::Guid(guid) = id {
+            pid = guid;
+        }
+        let mut prj = Project::new(pid, type_id);
+
+        if let Expr::Str(s) = name {
+            prj.name = s;
+        }
+        if let Expr::Str(s) = path {
+            prj.path = s;
+        }
+        prj
+    }
 }
 
 impl<'input> Version<'input> {
     pub fn new(name: &'input str, ver: &'input str) -> Self {
         Self { name, ver }
+    }
+
+    pub fn from(name: &Expr<'input>, val: &Expr<'input>) -> Self {
+        let mut n = "";
+        let mut v = "";
+        if let Expr::Identifier(id) = name {
+            n = id;
+        }
+        if let Expr::DigitOrDot(s) = val {
+            v = s;
+        }
+        Version::new(n, v)
     }
 }
 

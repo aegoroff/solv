@@ -1,5 +1,6 @@
 use crate::ast::{Configuration, Expr, Project, Solution, Version};
 use std::ops::Deref;
+use std::option::Option::Some;
 
 pub fn parse_str(contents: &str, debug: bool) -> Option<Solution> {
     let input;
@@ -43,36 +44,12 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
     for line in &lines {
         match line {
             Expr::Project(head, _) => {
-                if let Expr::ProjectBegin(project_type, name, path, id) = head.deref() {
-                    let mut type_id = "";
-                    let mut pid = "";
-                    if let Expr::Guid(guid) = project_type.deref() {
-                        type_id = guid;
-                    }
-                    if let Expr::Guid(guid) = id.deref() {
-                        pid = guid;
-                    }
-                    let mut prj = Project::new(pid, type_id);
-
-                    if let Expr::Str(s) = name.deref() {
-                        prj.name = s;
-                    }
-                    if let Expr::Str(s) = path.deref() {
-                        prj.path = s;
-                    }
-                    sol.projects.push(prj);
+                if let Some(p) = Project::from_begin(head) {
+                    sol.projects.push(p);
                 }
             }
             Expr::Version(name, val) => {
-                let mut n = "";
-                let mut v = "";
-                if let Expr::Identifier(id) = name.deref() {
-                    n = id;
-                }
-                if let Expr::DigitOrDot(s) = val.deref() {
-                    v = s;
-                }
-                let version = Version::new(n, v);
+                let version = Version::from(name, val);
                 sol.versions.push(version);
             }
             Expr::Global(sections) => {
