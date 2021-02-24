@@ -49,8 +49,8 @@ pub fn scan(path: &str, debug: bool) {
 
     let it = iter
         .into_iter()
-        .filter(|r| r.is_ok())
-        .map(|r| r.unwrap())
+        .filter(Result::is_ok)
+        .map(Result::unwrap)
         .filter(|f| f.file_type().is_file())
         .filter_map(|f| {
             let ext = f.file_name.to_str().unwrap_or("");
