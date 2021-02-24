@@ -116,9 +116,12 @@ impl Consume for Print {
             .iter()
             .filter(|pc| !projects.contains(pc.project_id))
             .map(|pc| pc.project_id)
-            .collect::<Vec<&str>>();
+            .collect::<BTreeSet<&str>>();
         if !dangling_configurations.is_empty() {
-            println!(" {}", Yellow.paint("  Solution contains dangling project configurations that can be safely removed"));
+            println!(" {}", Yellow.paint("  Solution contains dangling project configurations that can be safely removed:"));
+            println!();
+            Print::print_one_column_table("Project ID", dangling_configurations);
+            println!();
         }
     }
 
