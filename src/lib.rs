@@ -4,8 +4,6 @@ use std::path::Path;
 use crate::ast::Solution;
 use crate::print::Print;
 use jwalk::WalkDir;
-use std::collections::BTreeSet;
-use std::iter::FromIterator;
 use std::option::Option::Some;
 
 mod ast;
@@ -64,9 +62,7 @@ pub fn scan(path: &str, debug: bool) {
             None
         });
 
-    let solutions = BTreeSet::from_iter(it);
-
-    for full_path in solutions {
+    for full_path in it {
         let prn = Print::new(&full_path);
         parse(&full_path, prn, debug);
     }
