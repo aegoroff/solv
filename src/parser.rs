@@ -76,27 +76,36 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                 sol.versions.push(version);
             }
             Expr::Global(sections) => {
-                for section in sections {
-                    if let Expr::Section(begin, content) = section {
+                let configurations = sections.into_iter().filter_map(|sect| {
+                    if let Expr::Section(begin, content) = sect {
                         if let Expr::SectionBegin(names, _) = begin.deref() {
                             if names.len() > 1 {
-                                continue;
+                                return None;
                             }
                             if let Expr::Identifier(s) = names[0] {
                                 if s != "SolutionConfigurationPlatforms" {
-                                    continue;
-                                }
-                                for cl in content {
-                                    if let Expr::SectionContent(left, _) = cl.deref() {
-                                        if let Expr::Str(s) = left.deref() {
-                                            let conf = Configuration::new(s);
-                                            sol.configurations.push(conf);
-                                        }
-                                    }
+                                    return None;
                                 }
                             }
                         }
+                        return Some(content);
                     }
+                    None
+                }).map(|content| {
+                    let conf_it = content.into_iter().filter_map(|c| {
+                        if let Expr::SectionContent(left, _) = c.deref() {
+                            if let Expr::Str(s) = left.deref() {
+                                let conf = Configuration::new(*s);
+                                return Some(conf);
+                            }
+                        }
+                        None
+                    });
+                    conf_it.collect::<Vec<Configuration<'input>>>()
+                });
+
+                for configuration in configurations {
+                    sol.configurations.extend(configuration);
                 }
             }
             Expr::Comment(s) => sol.product = *s,
