@@ -80,25 +80,15 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                     .into_iter()
                     .filter_map(|sect| {
                         if let Expr::Section(begin, content) = sect {
-                            if let Expr::SectionBegin(names, _) = begin.deref() {
-                                if !contains_id(names, "SolutionConfigurationPlatforms") {
-                                    return None;
-                                }
+                            if section_has_name(begin, "SolutionConfigurationPlatforms") {
+                                return Some(content);
                             }
-                            return Some(content);
+                            return None;
                         }
                         None
                     })
                     .map(|content| {
-                        let conf_it = content.into_iter().filter_map(|c| {
-                            if let Expr::SectionContent(left, _) = c.deref() {
-                                if let Expr::Str(s) = left.deref() {
-                                    let conf = Configuration::new(*s);
-                                    return Some(conf);
-                                }
-                            }
-                            None
-                        });
+                        let conf_it = content.into_iter().filter_map(|c| create_configuration(c));
                         conf_it.collect::<Vec<Configuration<'input>>>()
                     });
 
@@ -114,16 +104,29 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
     sol
 }
 
-fn contains_id(names: &Vec<Expr>, name: &str) -> bool {
-    let found = names.into_iter().any(|n| {
-        if let Expr::Identifier(s) = n {
-            if *s == name {
-                return true;
-            }
+fn create_configuration<'input>(expr: &Expr<'input>) -> Option<Configuration<'input>> {
+    if let Expr::SectionContent(left, _) = expr.deref() {
+        if let Expr::Str(s) = left.deref() {
+            let conf = Configuration::new(*s);
+            return Some(conf);
         }
-        false
-    });
-    found
+    }
+
+    None
+}
+
+fn section_has_name(expr: &Expr, name: &str) -> bool {
+    if let Expr::SectionBegin(names, _) = expr {
+        let found = names.into_iter().any(|n| {
+            if let Expr::Identifier(s) = n {
+                return *s == name;
+            }
+            false
+        });
+        return found;
+    }
+
+    false
 }
 
 #[cfg(test)]
