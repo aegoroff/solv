@@ -64,11 +64,7 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                         }
                         None
                     })
-                    .map(|content| {
-                        content
-                            .into_iter()
-                            .filter_map(|c| Configuration::from(c))
-                    });
+                    .map(|content| content.into_iter().filter_map(|c| Configuration::from(c)));
 
                 for configuration in configurations {
                     sol.configurations.extend(configuration);

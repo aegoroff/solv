@@ -93,7 +93,12 @@ impl<'input> Project<'input> {
         None
     }
 
-    pub fn from(project_type: &Expr<'input>, name: &Expr<'input>, path: &Expr<'input>, id: &Expr<'input>) -> Self {
+    pub fn from(
+        project_type: &Expr<'input>,
+        name: &Expr<'input>,
+        path: &Expr<'input>,
+        id: &Expr<'input>,
+    ) -> Self {
         let mut type_id = "";
         let mut pid = "";
         if let Expr::Guid(guid) = project_type {
