@@ -1,4 +1,5 @@
 use crate::msbuild;
+use std::ops::Deref;
 
 #[derive(Debug)]
 pub enum Expr<'input> {
@@ -104,6 +105,17 @@ impl<'input> Configuration<'input> {
             configuration,
             platform,
         }
+    }
+
+    pub fn from(expr: &Expr<'input>) -> Option<Self> {
+        if let Expr::SectionContent(left, _) = expr.deref() {
+            if let Expr::Str(s) = left.deref() {
+                let conf = Configuration::new(*s);
+                return Some(conf);
+            }
+        }
+
+        None
     }
 }
 

@@ -88,8 +88,10 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                         None
                     })
                     .map(|content| {
-                        let conf_it = content.into_iter().filter_map(|c| create_configuration(c));
-                        conf_it.collect::<Vec<Configuration<'input>>>()
+                        content
+                            .into_iter()
+                            .filter_map(|c| Configuration::from(c))
+                            .collect::<Vec<Configuration<'input>>>()
                     });
 
                 for configuration in configurations {
@@ -102,17 +104,6 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
     }
 
     sol
-}
-
-fn create_configuration<'input>(expr: &Expr<'input>) -> Option<Configuration<'input>> {
-    if let Expr::SectionContent(left, _) = expr.deref() {
-        if let Expr::Str(s) = left.deref() {
-            let conf = Configuration::new(*s);
-            return Some(conf);
-        }
-    }
-
-    None
 }
 
 fn section_has_name(expr: &Expr, name: &str) -> bool {
