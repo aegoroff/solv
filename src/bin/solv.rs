@@ -1,5 +1,5 @@
 use clap::{App, Arg, SubCommand};
-use solv::print::{Validate, Info};
+use solv::print::{Info, Validate};
 use solv::Consume;
 use std::time::Instant;
 
