@@ -149,13 +149,13 @@ impl Consume for DanglingSearch {
         let projects = solution
             .projects
             .iter()
-            .map(|c| c.id)
-            .collect::<HashSet<&str>>();
+            .map(|c| c.id.to_uppercase())
+            .collect::<HashSet<String>>();
 
         let dangling_configurations = solution
             .project_configurations
             .iter()
-            .filter(|pc| !projects.contains(pc.project_id))
+            .filter(|pc| !projects.contains(&pc.project_id.to_uppercase()))
             .map(|pc| pc.project_id)
             .collect::<BTreeSet<&str>>();
 
