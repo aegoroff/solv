@@ -32,12 +32,19 @@ pub struct Solution<'input> {
     pub projects: Vec<Project<'input>>,
     pub versions: Vec<Version<'input>>,
     pub configurations: Vec<Configuration<'input>>,
+    pub project_configurations: Vec<ProjectConfigurations<'input>>,
 }
 
 #[derive(Debug, Copy, Clone)]
 pub struct Version<'input> {
     pub name: &'input str,
     pub ver: &'input str,
+}
+
+#[derive(Debug, Clone)]
+pub struct ProjectConfigurations<'input> {
+    pub project_id: &'input str,
+    pub configurations: Vec<Configuration<'input>>,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -63,6 +70,7 @@ impl<'input> Solution<'input> {
             projects: Vec::new(),
             versions: Vec::new(),
             configurations: Vec::new(),
+            project_configurations: Vec::new(),
         }
     }
 }
@@ -156,6 +164,46 @@ impl<'input> Configuration<'input> {
         if let Expr::SectionContent(left, _) = expr {
             if let Expr::Str(s) = left.deref() {
                 let conf = Configuration::new(*s);
+                return Some(conf);
+            }
+        }
+
+        None
+    }
+}
+
+impl<'input> ProjectConfigurations<'input> {
+    pub fn new(s: &'input str) -> Self {
+        let parts: Vec<&str> = s.split(".").collect();
+        let mut project_id = "";
+        let mut config_and_platform = "";
+        if parts.len() >= 2 {
+            project_id = parts[0];
+            config_and_platform = parts[1];
+        }
+        let mut configurations = Vec::new();
+        let configuration = Configuration::new(config_and_platform);
+        configurations.push(configuration);
+        Self {
+            project_id,
+            configurations,
+        }
+    }
+
+    pub fn from_id_and_configurations(
+        project_id: &'input str,
+        configurations: Vec<Configuration<'input>>,
+    ) -> Self {
+        Self {
+            project_id,
+            configurations,
+        }
+    }
+
+    pub fn from(expr: &Expr<'input>) -> Option<Self> {
+        if let Expr::SectionContent(left, _) = expr {
+            if let Expr::Str(s) = left.deref() {
+                let conf = ProjectConfigurations::new(*s);
                 return Some(conf);
             }
         }

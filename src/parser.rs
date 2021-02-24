@@ -1,4 +1,5 @@
-use crate::ast::{Configuration, Expr, Project, Solution, Version};
+use crate::ast::{Configuration, Expr, Project, ProjectConfigurations, Solution, Version};
+use std::collections::BTreeMap;
 use std::ops::Deref;
 use std::option::Option::Some;
 
@@ -66,8 +67,41 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                     })
                     .map(|content| content.into_iter().filter_map(|c| Configuration::from(c)));
 
+                let project_configurations = sections
+                    .into_iter()
+                    .filter_map(|sect| {
+                        if let Expr::Section(begin, content) = sect {
+                            if section_has_name(begin, "ProjectConfigurationPlatforms") {
+                                return Some(content);
+                            }
+                            return None;
+                        }
+                        None
+                    })
+                    .map(|content| {
+                        content
+                            .into_iter()
+                            .filter_map(|c| ProjectConfigurations::from(c))
+                    });
+
                 for configuration in configurations {
                     sol.configurations.extend(configuration);
+                }
+
+                for pc in project_configurations {
+                    let mut projects: BTreeMap<&str, Vec<Configuration<'input>>> = BTreeMap::new();
+
+                    for item in pc {
+                        projects
+                            .entry(item.project_id)
+                            .or_insert(Vec::new())
+                            .extend(item.configurations);
+                    }
+
+                    let it = projects.into_iter().map(|(id, conf)| {
+                        ProjectConfigurations::from_id_and_configurations(id, conf)
+                    });
+                    sol.project_configurations.extend(it);
                 }
             }
             Expr::Comment(s) => sol.product = *s,
