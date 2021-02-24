@@ -2,7 +2,6 @@ use std::fs;
 use std::path::Path;
 
 use crate::ast::Solution;
-use crate::print::{DanglingSearch, Print};
 use jwalk::WalkDir;
 use std::option::Option::Some;
 
@@ -26,25 +25,24 @@ lalrpop_mod!(
 
 /// Consume provides parsed solution consumer
 pub trait Consume {
-    fn ok(&self, solution: &Solution);
-    fn err(&self);
+    fn ok(&self, path: &str, solution: &Solution);
+    fn err(&self, path: &str);
+    fn is_debug(&self) -> bool;
 }
 
 /// parse parses single solution file specified by path.
-pub fn parse<C: Consume>(path: &str, consumer: C, debug: bool) {
+pub fn parse(path: &str, consumer: &Box<dyn Consume>) {
     let contents = fs::read_to_string(path).expect("Something went wrong reading the file");
-    if let Some(solution) = parser::parse_str(&contents, debug) {
-        consumer.ok(&solution);
+    if let Some(solution) = parser::parse_str(&contents, consumer.is_debug()) {
+        consumer.ok(path, &solution);
     } else {
-        if !debug {
-            consumer.err();
-        }
+        consumer.err(path);
     }
 }
 
 /// scan parses directory specified by path. recursively
 /// it finds all files with sln extension and parses them.
-pub fn scan(path: &str, only_validate: bool, debug: bool) {
+pub fn scan(path: &str, consumer: &Box<dyn Consume>) {
     let iter = WalkDir::new(path).skip_hidden(false).follow_links(false);
 
     let it = iter
@@ -62,13 +60,7 @@ pub fn scan(path: &str, only_validate: bool, debug: bool) {
         });
 
     for full_path in it {
-        if only_validate {
-            let prn = DanglingSearch::new(&full_path);
-            parse(&full_path, prn, debug);
-        } else {
-            let prn = Print::new(&full_path);
-            parse(&full_path, prn, debug);
-        }
+        parse(&full_path, consumer);
     }
 }
 

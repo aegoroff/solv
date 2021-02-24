@@ -5,24 +5,22 @@ use ansi_term::Colour::{Green, Red, Yellow, RGB};
 use prettytable::format;
 use prettytable::format::TableFormat;
 use prettytable::Table;
-use std::collections::{BTreeMap, HashSet};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 extern crate ansi_term;
 
 pub struct Print {
-    path: String,
+    debug: bool,
 }
 
 pub struct DanglingSearch {
-    path: String,
+    show_only_problems: bool,
+    debug: bool,
 }
 
 impl Print {
-    pub fn new(path: &str) -> Self {
-        Self {
-            path: String::from(path),
-        }
+    pub fn new(debug: bool) -> Box<dyn Consume> {
+        Box::new(Self { debug })
     }
 
     fn new_format() -> TableFormat {
@@ -56,18 +54,27 @@ impl Print {
         table.printstd();
         println!();
     }
+
+    fn err(debug: bool, path: &str) {
+        if debug {
+            return;
+        }
+        let path = Red.paint(path);
+        eprintln!("Error parsing {} solution", path);
+    }
 }
 
 impl DanglingSearch {
-    pub fn new(path: &str) -> Self {
-        Self {
-            path: String::from(path),
-        }
+    pub fn new(debug: bool, show_only_problems: bool) -> Box<dyn Consume> {
+        Box::new(Self {
+            debug,
+            show_only_problems,
+        })
     }
 }
 
 impl Consume for Print {
-    fn ok(&self, solution: &Solution) {
+    fn ok(&self, path: &str, solution: &Solution) {
         let mut projects_by_type: BTreeMap<&str, i32> = BTreeMap::new();
         for prj in &solution.projects {
             if prj.type_id == msbuild::ID_SOLUTION_FOLDER {
@@ -76,7 +83,7 @@ impl Consume for Print {
             *projects_by_type.entry(prj.type_descr).or_insert(0) += 1;
         }
 
-        let path = RGB(0xAA, 0xAA, 0xAA).paint(&self.path);
+        let path = RGB(0xAA, 0xAA, 0xAA).paint(path);
         println!(" {}", path);
 
         let mut table = Table::new();
@@ -128,17 +135,17 @@ impl Consume for Print {
         Print::print_one_column_table("Platform", platforms);
     }
 
-    fn err(&self) {
-        let path = Red.paint(&self.path);
-        eprintln!("Error parsing {} solution", path);
+    fn err(&self, path: &str) {
+        Print::err(self.debug, path);
+    }
+
+    fn is_debug(&self) -> bool {
+        self.debug
     }
 }
 
 impl Consume for DanglingSearch {
-    fn ok(&self, solution: &Solution) {
-        let path = RGB(0xAA, 0xAA, 0xAA).paint(&self.path);
-        println!(" {}", path);
-
+    fn ok(&self, path: &str, solution: &Solution) {
         let projects = solution
             .projects
             .iter()
@@ -151,19 +158,26 @@ impl Consume for DanglingSearch {
             .filter(|pc| !projects.contains(pc.project_id))
             .map(|pc| pc.project_id)
             .collect::<BTreeSet<&str>>();
-        if dangling_configurations.is_empty() {
-            println!(" {}", Green.paint("  No problems found in solution."));
-            println!();
-        } else {
+
+        let path = RGB(0xAA, 0xAA, 0xAA).paint(path);
+
+        if !(dangling_configurations.is_empty()) {
+            println!(" {}", path);
             println!(" {}", Yellow.paint("  Solution contains dangling project configurations that can be safely removed:"));
             println!();
             Print::print_one_column_table("Project ID", dangling_configurations);
+        } else if !self.show_only_problems {
+            println!(" {}", path);
+            println!(" {}", Green.paint("  No problems found in solution."));
             println!();
         }
     }
 
-    fn err(&self) {
-        let path = Red.paint(&self.path);
-        eprintln!("Error parsing {} solution", path);
+    fn err(&self, path: &str) {
+        Print::err(self.debug, path);
+    }
+
+    fn is_debug(&self) -> bool {
+        self.debug
     }
 }
