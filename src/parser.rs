@@ -79,13 +79,17 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                 let configurations = sections.into_iter().filter_map(|sect| {
                     if let Expr::Section(begin, content) = sect {
                         if let Expr::SectionBegin(names, _) = begin.deref() {
-                            if names.len() > 1 {
-                                return None;
-                            }
-                            if let Expr::Identifier(s) = names[0] {
-                                if s != "SolutionConfigurationPlatforms" {
-                                    return None;
+                            let found = names.into_iter().any(|n| {
+                                if let Expr::Identifier(s) = n {
+                                    if *s == "SolutionConfigurationPlatforms" {
+                                        return true;
+                                    }
                                 }
+                                false
+                            });
+
+                            if !found {
+                                return None;
                             }
                         }
                         return Some(content);
