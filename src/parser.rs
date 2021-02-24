@@ -81,16 +81,7 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                     .filter_map(|sect| {
                         if let Expr::Section(begin, content) = sect {
                             if let Expr::SectionBegin(names, _) = begin.deref() {
-                                let found = names.into_iter().any(|n| {
-                                    if let Expr::Identifier(s) = n {
-                                        if *s == "SolutionConfigurationPlatforms" {
-                                            return true;
-                                        }
-                                    }
-                                    false
-                                });
-
-                                if !found {
+                                if !contains_id(names, "SolutionConfigurationPlatforms") {
                                     return None;
                                 }
                             }
@@ -121,6 +112,18 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
     }
 
     sol
+}
+
+fn contains_id(names: &Vec<Expr>, name: &str) -> bool {
+    let found = names.into_iter().any(|n| {
+        if let Expr::Identifier(s) = n {
+            if *s == name {
+                return true;
+            }
+        }
+        false
+    });
+    found
 }
 
 #[cfg(test)]
