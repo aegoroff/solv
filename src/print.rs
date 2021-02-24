@@ -1,17 +1,20 @@
 use crate::ast::Solution;
 use crate::msbuild;
 use crate::Consume;
-use ansi_term::Colour::{Red, RGB, Yellow};
+use ansi_term::Colour::{Green, Red, Yellow, RGB};
 use prettytable::format;
 use prettytable::format::TableFormat;
 use prettytable::Table;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
-use std::iter::FromIterator;
 
 extern crate ansi_term;
 
 pub struct Print {
+    path: String,
+}
+
+pub struct DanglingSearch {
     path: String,
 }
 
@@ -55,12 +58,18 @@ impl Print {
     }
 }
 
+impl DanglingSearch {
+    pub fn new(path: &str) -> Self {
+        Self {
+            path: String::from(path),
+        }
+    }
+}
+
 impl Consume for Print {
     fn ok(&self, solution: &Solution) {
         let mut projects_by_type: BTreeMap<&str, i32> = BTreeMap::new();
-        let mut projects = BTreeSet::new();
         for prj in &solution.projects {
-            projects.insert(prj.id);
             if prj.type_id == msbuild::ID_SOLUTION_FOLDER {
                 continue;
             }
@@ -103,13 +112,38 @@ impl Consume for Print {
         table.printstd();
         println!();
 
-        let configurations =
-            BTreeSet::from_iter(solution.configurations.iter().map(|c| c.configuration));
+        let configurations = solution
+            .configurations
+            .iter()
+            .map(|c| c.configuration)
+            .collect::<BTreeSet<&str>>();
 
-        let platforms = BTreeSet::from_iter(solution.configurations.iter().map(|c| c.platform));
+        let platforms = solution
+            .configurations
+            .iter()
+            .map(|c| c.platform)
+            .collect::<BTreeSet<&str>>();
 
         Print::print_one_column_table("Configuration", configurations);
         Print::print_one_column_table("Platform", platforms);
+    }
+
+    fn err(&self) {
+        let path = Red.paint(&self.path);
+        eprintln!("Error parsing {} solution", path);
+    }
+}
+
+impl Consume for DanglingSearch {
+    fn ok(&self, solution: &Solution) {
+        let path = RGB(0xAA, 0xAA, 0xAA).paint(&self.path);
+        println!(" {}", path);
+
+        let projects = solution
+            .projects
+            .iter()
+            .map(|c| c.id)
+            .collect::<BTreeSet<&str>>();
 
         let dangling_configurations = solution
             .project_configurations
@@ -117,7 +151,10 @@ impl Consume for Print {
             .filter(|pc| !projects.contains(pc.project_id))
             .map(|pc| pc.project_id)
             .collect::<BTreeSet<&str>>();
-        if !dangling_configurations.is_empty() {
+        if dangling_configurations.is_empty() {
+            println!(" {}", Green.paint("  No probles found in solution."));
+            println!();
+        } else {
             println!(" {}", Yellow.paint("  Solution contains dangling project configurations that can be safely removed:"));
             println!();
             Print::print_one_column_table("Project ID", dangling_configurations);

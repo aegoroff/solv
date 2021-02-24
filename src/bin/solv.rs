@@ -1,5 +1,5 @@
 use clap::{App, Arg, SubCommand};
-use solv::print::Print;
+use solv::print::{DanglingSearch, Print};
 use std::time::Instant;
 
 extern crate clap;
@@ -10,11 +10,12 @@ fn main() {
     let matches = app.get_matches();
 
     let debug = matches.is_present("debug");
+    let only_validate = matches.is_present("validate");
 
     if let Some(cmd) = matches.subcommand_matches("d") {
         if let Some(path) = cmd.value_of("PATH") {
             let now = Instant::now();
-            solv::scan(path, debug);
+            solv::scan(path, only_validate, debug);
             println!(
                 "elapsed: {}",
                 humantime::format_duration(now.elapsed()).to_string()
@@ -23,8 +24,13 @@ fn main() {
     }
     if let Some(cmd) = matches.subcommand_matches("s") {
         if let Some(path) = cmd.value_of("PATH") {
-            let prn = Print::new(path);
-            solv::parse(path, prn, debug);
+            if only_validate {
+                let prn = DanglingSearch::new(path);
+                solv::parse(path, prn, debug);
+            } else {
+                let prn = Print::new(path);
+                solv::parse(path, prn, debug);
+            }
         }
     }
 }
@@ -40,6 +46,14 @@ fn build_cli() -> App<'static, 'static> {
                 .short("d")
                 .takes_value(false)
                 .help("debug mode - just printing AST and parsing errors if any")
+                .required(false),
+        )
+        .arg(
+            Arg::with_name("validate")
+                .long("onlyvalidate")
+                .short("v")
+                .takes_value(false)
+                .help("only validate solution without printing info")
                 .required(false),
         )
         .subcommand(

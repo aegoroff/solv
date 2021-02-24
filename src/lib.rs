@@ -2,7 +2,7 @@ use std::fs;
 use std::path::Path;
 
 use crate::ast::Solution;
-use crate::print::Print;
+use crate::print::{DanglingSearch, Print};
 use jwalk::WalkDir;
 use std::option::Option::Some;
 
@@ -44,7 +44,7 @@ pub fn parse<C: Consume>(path: &str, consumer: C, debug: bool) {
 
 /// scan parses directory specified by path. recursively
 /// it finds all files with sln extension and parses them.
-pub fn scan(path: &str, debug: bool) {
+pub fn scan(path: &str, only_validate: bool, debug: bool) {
     let iter = WalkDir::new(path).skip_hidden(false).follow_links(false);
 
     let it = iter
@@ -62,8 +62,13 @@ pub fn scan(path: &str, debug: bool) {
         });
 
     for full_path in it {
-        let prn = Print::new(&full_path);
-        parse(&full_path, prn, debug);
+        if only_validate {
+            let prn = DanglingSearch::new(&full_path);
+            parse(&full_path, prn, debug);
+        } else {
+            let prn = Print::new(&full_path);
+            parse(&full_path, prn, debug);
+        }
     }
 }
 
