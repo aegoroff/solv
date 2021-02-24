@@ -1,5 +1,5 @@
 [package]
-name = "solt-rs"
+name = "solv"
 version = "0.1.0"
 authors = ["egoroff <egoroff@gmail.com>"]
 edition = "2018"
@@ -23,5 +23,5 @@ clap = { version = "2", optional = true }
 build-binary = ["humantime", "clap"]
 
 [[bin]]
-name = "solt"
+name = "solv"
 required-features = ["build-binary"]

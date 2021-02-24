@@ -1,5 +1,5 @@
 use clap::{App, Arg, SubCommand};
-use solt_rs::print::Print;
+use solv::print::Print;
 use std::time::Instant;
 
 extern crate clap;
@@ -14,7 +14,7 @@ fn main() {
     if let Some(cmd) = matches.subcommand_matches("d") {
         if let Some(path) = cmd.value_of("PATH") {
             let now = Instant::now();
-            solt_rs::scan(path, debug);
+            solv::scan(path, debug);
             println!(
                 "elapsed: {}",
                 humantime::format_duration(now.elapsed()).to_string()
@@ -24,16 +24,16 @@ fn main() {
     if let Some(cmd) = matches.subcommand_matches("s") {
         if let Some(path) = cmd.value_of("PATH") {
             let prn = Print::new(path);
-            solt_rs::parse(path, prn, debug);
+            solv::parse(path, prn, debug);
         }
     }
 }
 
 fn build_cli() -> App<'static, 'static> {
-    return App::new("solt")
+    return App::new("solv")
         .version("0.1")
         .author("egoroff <egoroff@gmail.com>")
-        .about("SOLution Tool that analyzes Microsoft Visual Studio solutions")
+        .about("SOLution Validation tool that analyzes Microsoft Visual Studio solutions")
         .arg(
             Arg::with_name("debug")
                 .long("debug")
