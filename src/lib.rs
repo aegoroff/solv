@@ -55,16 +55,14 @@ pub fn scan(path: &str, debug: bool) {
         .filter(|r| r.is_ok())
         .map(|r| r.unwrap())
         .filter(|f| f.file_type().is_file())
-        .filter(|f| {
-            let file_name = f.file_name.to_str().unwrap();
-            if let Some(ext) = get_extension_from_filename(file_name) {
-                if ext == "sln" {
-                    return true;
-                }
+        .filter_map(|f| {
+            let ext = f.file_name.to_str().unwrap_or("");
+            let ext = get_extension_from_filename(ext)?;
+            if ext == "sln" {
+                return Some(f.path().to_str().unwrap_or("").to_string());
             }
-            false
-        })
-        .map(|f| String::from(f.path().to_str().unwrap()));
+            None
+        });
 
     let solutions = BTreeSet::from_iter(it);
 
