@@ -13,7 +13,7 @@ pub struct Info {
     debug: bool,
 }
 
-pub struct DanglingSearch {
+pub struct Validate {
     show_only_problems: bool,
     debug: bool,
 }
@@ -64,7 +64,7 @@ impl Info {
     }
 }
 
-impl DanglingSearch {
+impl Validate {
     pub fn new(debug: bool, show_only_problems: bool) -> Box<dyn Consume> {
         Box::new(Self {
             debug,
@@ -144,7 +144,7 @@ impl Consume for Info {
     }
 }
 
-impl Consume for DanglingSearch {
+impl Consume for Validate {
     fn ok(&self, path: &str, solution: &Solution) {
         let projects = solution
             .projects
