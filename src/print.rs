@@ -1,7 +1,7 @@
 use crate::ast::Solution;
 use crate::msbuild;
 use crate::Consume;
-use ansi_term::Colour::{Red, RGB};
+use ansi_term::Colour::{Red, RGB, Yellow};
 use prettytable::format;
 use prettytable::format::TableFormat;
 use prettytable::Table;
@@ -58,7 +58,9 @@ impl Print {
 impl Consume for Print {
     fn ok(&self, solution: &Solution) {
         let mut projects_by_type: BTreeMap<&str, i32> = BTreeMap::new();
+        let mut projects = BTreeSet::new();
         for prj in &solution.projects {
+            projects.insert(prj.id);
             if prj.type_id == msbuild::ID_SOLUTION_FOLDER {
                 continue;
             }
@@ -108,6 +110,16 @@ impl Consume for Print {
 
         Print::print_one_column_table("Configuration", configurations);
         Print::print_one_column_table("Platform", platforms);
+
+        let dangling_configurations = solution
+            .project_configurations
+            .iter()
+            .filter(|pc| !projects.contains(pc.project_id))
+            .map(|pc| pc.project_id)
+            .collect::<Vec<&str>>();
+        if !dangling_configurations.is_empty() {
+            println!(" {}", Yellow.paint("  Solution contains dangling project configurations that can be safely removed"));
+        }
     }
 
     fn err(&self) {
