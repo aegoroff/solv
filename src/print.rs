@@ -5,7 +5,7 @@ use ansi_term::Colour::{Green, Red, Yellow, RGB};
 use prettytable::format;
 use prettytable::format::TableFormat;
 use prettytable::Table;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::collections::BTreeSet;
 
 extern crate ansi_term;
@@ -143,7 +143,7 @@ impl Consume for DanglingSearch {
             .projects
             .iter()
             .map(|c| c.id)
-            .collect::<BTreeSet<&str>>();
+            .collect::<HashSet<&str>>();
 
         let dangling_configurations = solution
             .project_configurations
