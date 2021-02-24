@@ -76,37 +76,40 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                 sol.versions.push(version);
             }
             Expr::Global(sections) => {
-                let configurations = sections.into_iter().filter_map(|sect| {
-                    if let Expr::Section(begin, content) = sect {
-                        if let Expr::SectionBegin(names, _) = begin.deref() {
-                            let found = names.into_iter().any(|n| {
-                                if let Expr::Identifier(s) = n {
-                                    if *s == "SolutionConfigurationPlatforms" {
-                                        return true;
+                let configurations = sections
+                    .into_iter()
+                    .filter_map(|sect| {
+                        if let Expr::Section(begin, content) = sect {
+                            if let Expr::SectionBegin(names, _) = begin.deref() {
+                                let found = names.into_iter().any(|n| {
+                                    if let Expr::Identifier(s) = n {
+                                        if *s == "SolutionConfigurationPlatforms" {
+                                            return true;
+                                        }
                                     }
-                                }
-                                false
-                            });
+                                    false
+                                });
 
-                            if !found {
-                                return None;
+                                if !found {
+                                    return None;
+                                }
                             }
-                        }
-                        return Some(content);
-                    }
-                    None
-                }).map(|content| {
-                    let conf_it = content.into_iter().filter_map(|c| {
-                        if let Expr::SectionContent(left, _) = c.deref() {
-                            if let Expr::Str(s) = left.deref() {
-                                let conf = Configuration::new(*s);
-                                return Some(conf);
-                            }
+                            return Some(content);
                         }
                         None
+                    })
+                    .map(|content| {
+                        let conf_it = content.into_iter().filter_map(|c| {
+                            if let Expr::SectionContent(left, _) = c.deref() {
+                                if let Expr::Str(s) = left.deref() {
+                                    let conf = Configuration::new(*s);
+                                    return Some(conf);
+                                }
+                            }
+                            None
+                        });
+                        conf_it.collect::<Vec<Configuration<'input>>>()
                     });
-                    conf_it.collect::<Vec<Configuration<'input>>>()
-                });
 
                 for configuration in configurations {
                     sol.configurations.extend(configuration);
