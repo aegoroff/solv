@@ -18,7 +18,8 @@ pub fn parse_str(contents: &str, debug: bool) -> Option<Solution> {
             if debug {
                 println!("result {:#?}", ast);
             } else {
-                return Some(analyze(ast));
+                let analyzer = Analyzer::new(ast);
+                return Some(analyzer.analyze());
             }
         }
         Err(e) => {
@@ -30,100 +31,122 @@ pub fn parse_str(contents: &str, debug: bool) -> Option<Solution> {
     None
 }
 
-fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'input> {
-    let (head, lines) = solution;
-    let mut version = "";
-    if let Expr::FirstLine(ver) = head {
-        if let Expr::DigitOrDot(ver) = ver.deref() {
-            version = *ver;
-        }
-    }
-
-    let mut sol = Solution::new();
-    sol.format = version;
-
-    for line in &lines {
-        match line {
-            Expr::Project(head, _) => {
-                if let Some(p) = Project::from_begin(head) {
-                    sol.projects.push(p);
-                }
-            }
-            Expr::Version(name, val) => {
-                let version = Version::from(name, val);
-                sol.versions.push(version);
-            }
-            Expr::Global(sections) => {
-                let configurations = sections
-                    .into_iter()
-                    .filter_map(|sect| {
-                        if let Expr::Section(begin, content) = sect {
-                            if section_has_name(begin, "SolutionConfigurationPlatforms") {
-                                return Some(content);
-                            }
-                            return None;
-                        }
-                        None
-                    })
-                    .map(|content| content.into_iter().filter_map(|c| Configuration::from(c)));
-
-                let project_configurations = sections
-                    .into_iter()
-                    .filter_map(|sect| {
-                        if let Expr::Section(begin, content) = sect {
-                            if section_has_name(begin, "ProjectConfigurationPlatforms") {
-                                return Some(content);
-                            }
-                            return None;
-                        }
-                        None
-                    })
-                    .map(|content| {
-                        content
-                            .into_iter()
-                            .filter_map(|c| ProjectConfigurations::from(c))
-                    });
-
-                for configuration in configurations {
-                    sol.configurations.extend(configuration);
-                }
-
-                for pc in project_configurations {
-                    let mut projects: BTreeMap<&str, Vec<Configuration<'input>>> = BTreeMap::new();
-
-                    for item in pc {
-                        projects
-                            .entry(item.project_id)
-                            .or_insert(Vec::new())
-                            .extend(item.configurations);
-                    }
-
-                    let it = projects.into_iter().map(|(id, conf)| {
-                        ProjectConfigurations::from_id_and_configurations(id, conf)
-                    });
-                    sol.project_configurations.extend(it);
-                }
-            }
-            Expr::Comment(s) => sol.product = *s,
-            _ => {}
-        }
-    }
-
-    sol
+struct Analyzer<'input> {
+    head: Expr<'input>,
+    lines: Vec<Expr<'input>>,
 }
 
-fn section_has_name(expr: &Expr, name: &str) -> bool {
-    if let Expr::SectionBegin(names, _) = expr {
-        let found = names.into_iter().any(|n| {
-            if let Expr::Identifier(s) = n {
-                return *s == name;
-            }
-            false
-        });
-        return found;
+impl<'input> Analyzer<'input> {
+    pub fn new(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Self {
+        let (head, lines) = solution;
+        Self { head, lines }
     }
 
-    false
+    fn analyze(&self) -> Solution<'input> {
+        let mut version = "";
+        if let Expr::FirstLine(ver) = &self.head {
+            if let Expr::DigitOrDot(ver) = ver.deref() {
+                version = *ver;
+            }
+        }
+
+        let mut sol = Solution::new();
+        sol.format = version;
+
+        for line in &self.lines {
+            match line {
+                Expr::Project(head, _) => {
+                    if let Some(p) = Project::from_begin(head) {
+                        sol.projects.push(p);
+                    }
+                }
+                Expr::Version(name, val) => {
+                    let version = Version::from(name, val);
+                    sol.versions.push(version);
+                }
+                Expr::Global(sections) => {
+                    let configurations = sections
+                        .into_iter()
+                        .filter_map(|sect| {
+                            if let Expr::Section(begin, content) = sect {
+                                if self.section_has_name(begin, "SolutionConfigurationPlatforms") {
+                                    return Some(content);
+                                }
+                                return None;
+                            }
+                            None
+                        })
+                        .map(|content| content.into_iter().filter_map(|c| Configuration::from(c)));
+
+                    let project_configurations = sections
+                        .into_iter()
+                        .filter_map(|sect| {
+                            if let Expr::Section(begin, content) = sect {
+                                if self.section_has_name(begin, "ProjectConfigurationPlatforms") {
+                                    return Some(content);
+                                }
+                                return None;
+                            }
+                            None
+                        })
+                        .map(|content| {
+                            content
+                                .into_iter()
+                                .filter_map(|c| ProjectConfigurations::from(c))
+                        });
+
+                    for configuration in configurations {
+                        sol.configurations.extend(configuration);
+                    }
+
+                    for pc in project_configurations {
+                        let mut projects: BTreeMap<&str, Vec<Configuration<'input>>> =
+                            BTreeMap::new();
+
+                        for item in pc {
+                            projects
+                                .entry(item.project_id)
+                                .or_insert(Vec::new())
+                                .extend(item.configurations);
+                        }
+
+                        let it = projects.into_iter().map(|(id, conf)| {
+                            ProjectConfigurations::from_id_and_configurations(id, conf)
+                        });
+                        sol.project_configurations.extend(it);
+                    }
+                }
+                Expr::Comment(s) => sol.product = *s,
+                _ => {}
+            }
+        }
+
+        sol
+    }
+
+    fn section_content(&self, sect: &'input Expr, name: &str) -> Option<&Vec<Expr>> {
+        if let Expr::Section(begin, content) = sect {
+            if self.section_has_name(begin, name) {
+                return Some(content);
+            }
+            return None;
+        }
+        None
+    }
+
+    fn section_has_name(&self, expr: &Expr, name: &str) -> bool {
+        if let Expr::SectionBegin(names, _) = expr {
+            let found = names.into_iter().any(|n| {
+                if let Expr::Identifier(s) = n {
+                    return *s == name;
+                }
+                false
+            });
+            return found;
+        }
+
+        false
+    }
 }
 
 #[cfg(test)]
