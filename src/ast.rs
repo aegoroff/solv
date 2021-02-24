@@ -153,7 +153,7 @@ impl<'input> Configuration<'input> {
     }
 
     pub fn from(expr: &Expr<'input>) -> Option<Self> {
-        if let Expr::SectionContent(left, _) = expr.deref() {
+        if let Expr::SectionContent(left, _) = expr {
             if let Expr::Str(s) = left.deref() {
                 let conf = Configuration::new(*s);
                 return Some(conf);
