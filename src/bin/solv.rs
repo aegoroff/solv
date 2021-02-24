@@ -1,5 +1,5 @@
 use clap::{App, Arg, SubCommand};
-use solv::print::{DanglingSearch, Print};
+use solv::print::{DanglingSearch, Info};
 use solv::Consume;
 use std::time::Instant;
 
@@ -39,7 +39,7 @@ fn new_consumer(debug: bool, only_validate: bool, only_problems: bool) -> Box<dy
     return if only_validate {
         DanglingSearch::new(debug, only_problems)
     } else {
-        Print::new(debug)
+        Info::new(debug)
     };
 }
 

@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 extern crate ansi_term;
 
-pub struct Print {
+pub struct Info {
     debug: bool,
 }
 
@@ -18,7 +18,7 @@ pub struct DanglingSearch {
     debug: bool,
 }
 
-impl Print {
+impl Info {
     pub fn new(debug: bool) -> Box<dyn Consume> {
         Box::new(Self { debug })
     }
@@ -43,7 +43,7 @@ impl Print {
         }
         let mut table = Table::new();
 
-        let fmt = Print::new_format();
+        let fmt = Info::new_format();
         table.set_format(fmt);
         table.set_titles(row![bF=> head]);
 
@@ -73,7 +73,7 @@ impl DanglingSearch {
     }
 }
 
-impl Consume for Print {
+impl Consume for Info {
     fn ok(&self, path: &str, solution: &Solution) {
         let mut projects_by_type: BTreeMap<&str, i32> = BTreeMap::new();
         for prj in &solution.projects {
@@ -108,7 +108,7 @@ impl Consume for Print {
 
         let mut table = Table::new();
 
-        let fmt = Print::new_format();
+        let fmt = Info::new_format();
         table.set_format(fmt);
         table.set_titles(row![bF=> "Project type", "Count"]);
 
@@ -131,12 +131,12 @@ impl Consume for Print {
             .map(|c| c.platform)
             .collect::<BTreeSet<&str>>();
 
-        Print::print_one_column_table("Configuration", configurations);
-        Print::print_one_column_table("Platform", platforms);
+        Info::print_one_column_table("Configuration", configurations);
+        Info::print_one_column_table("Platform", platforms);
     }
 
     fn err(&self, path: &str) {
-        Print::err(self.debug, path);
+        Info::err(self.debug, path);
     }
 
     fn is_debug(&self) -> bool {
@@ -165,7 +165,7 @@ impl Consume for DanglingSearch {
             println!(" {}", path);
             println!(" {}", Yellow.paint("  Solution contains dangling project configurations that can be safely removed:"));
             println!();
-            Print::print_one_column_table("Project ID", dangling_configurations);
+            Info::print_one_column_table("Project ID", dangling_configurations);
         } else if !self.show_only_problems {
             println!(" {}", path);
             println!(" {}", Green.paint("  No problems found in solution."));
@@ -174,7 +174,7 @@ impl Consume for DanglingSearch {
     }
 
     fn err(&self, path: &str) {
-        Print::err(self.debug, path);
+        Info::err(self.debug, path);
     }
 
     fn is_debug(&self) -> bool {
