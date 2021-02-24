@@ -91,7 +91,6 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                         content
                             .into_iter()
                             .filter_map(|c| Configuration::from(c))
-                            .collect::<Vec<Configuration<'input>>>()
                     });
 
                 for configuration in configurations {
