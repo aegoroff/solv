@@ -257,7 +257,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn new_configuration_correct() {
+    fn parse_configuration_correct() {
         // Arrange
         let s = "Release|Any CPU";
 
@@ -270,7 +270,7 @@ mod tests {
     }
 
     #[test]
-    fn new_configuration_empty() {
+    fn parse_configuration_empty() {
         // Arrange
         let s = "";
 
@@ -283,7 +283,7 @@ mod tests {
     }
 
     #[test]
-    fn new_configuration_incorrect_no_pipe() {
+    fn parse_configuration_incorrect_no_pipe() {
         // Arrange
         let s = "Release Any CPU";
 
@@ -296,7 +296,7 @@ mod tests {
     }
 
     #[test]
-    fn new_configuration_incorrect_many_pipes() {
+    fn parse_configuration_incorrect_many_pipes() {
         // Arrange
         let s = "Release|Any CPU|test";
 
@@ -306,5 +306,35 @@ mod tests {
         // Assert
         assert_eq!("", c.configuration);
         assert_eq!("", c.platform);
+    }
+
+    #[test]
+    fn new_project_configurations_correct() {
+        // Arrange
+        let s = "{27060CA7-FB29-42BC-BA66-7FC80D498354}.Debug|Any CPU.ActiveCfg";
+
+        // Act
+        let c = ProjectConfigurations::new(s);
+
+        // Assert
+        assert_eq!("{27060CA7-FB29-42BC-BA66-7FC80D498354}", c.project_id);
+        assert_eq!(1, c.configurations.len());
+        assert_eq!("Debug", c.configurations[0].configuration);
+        assert_eq!("Any CPU", c.configurations[0].platform);
+    }
+
+    #[test]
+    fn new_project_configurations_config_with_dot() {
+        // Arrange
+        let s = "{27060CA7-FB29-42BC-BA66-7FC80D498354}.Debug .NET 4.0|Any CPU.ActiveCfg";
+
+        // Act
+        let c = ProjectConfigurations::new(s);
+
+        // Assert
+        assert_eq!("{27060CA7-FB29-42BC-BA66-7FC80D498354}", c.project_id);
+        assert_eq!(1, c.configurations.len());
+        assert_eq!("Debug .NET 4.0", c.configurations[0].configuration);
+        assert_eq!("Any CPU", c.configurations[0].platform);
     }
 }
