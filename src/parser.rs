@@ -39,8 +39,10 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
         version = ver.digit_or_dot();
     }
 
-    let mut sol = Solution::new();
-    sol.format = version;
+    let mut sol = Solution {
+        format: version,
+        ..Default::default()
+    };
 
     for line in &lines {
         match line {
@@ -65,7 +67,7 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                         }
                         None
                     })
-                    .map(|content| content.iter().filter_map(|c| Configuration::from(c)))
+                    .map(|content| content.iter().filter_map(|c| Configuration::from_expr(c)))
                     .flatten();
 
                 sol.configurations.extend(configurations);
@@ -81,11 +83,7 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                         }
                         None
                     })
-                    .map(|content| {
-                        content
-                            .iter()
-                            .filter_map(|c| ProjectConfigurations::from(c))
-                    })
+                    .map(|content| content.iter().filter_map(|c| ProjectConfigurations::new(c)))
                     .flatten()
                     .group_by(|x| x.project_id)
                     .into_iter()

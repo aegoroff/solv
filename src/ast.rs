@@ -110,8 +110,8 @@ pub struct Project<'input> {
     pub path: &'input str,
 }
 
-impl<'input> Solution<'input> {
-    pub fn new() -> Self {
+impl<'input> Default for Solution<'input> {
+    fn default() -> Self {
         Self {
             format: "",
             product: "",
@@ -178,15 +178,8 @@ impl<'input> Version<'input> {
     }
 }
 
-impl<'input> Configuration<'input> {
-    pub fn new(configuration: &'input str, platform: &'input str) -> Self {
-        Self {
-            configuration,
-            platform,
-        }
-    }
-
-    pub fn parse(s: &'input str) -> Self {
+impl<'input> From<&'input str> for Configuration<'input> {
+    fn from(s: &'input str) -> Self {
         let parts: Vec<&str> = s.split('|').collect();
         let mut configuration = "";
         let mut platform = "";
@@ -199,10 +192,19 @@ impl<'input> Configuration<'input> {
             platform,
         }
     }
+}
 
-    pub fn from(expr: &Expr<'input>) -> Option<Self> {
+impl<'input> Configuration<'input> {
+    pub fn new(configuration: &'input str, platform: &'input str) -> Self {
+        Self {
+            configuration,
+            platform,
+        }
+    }
+
+    pub fn from_expr(expr: &Expr<'input>) -> Option<Self> {
         if let Expr::SectionContent(left, _) = expr {
-            let conf = Configuration::parse(left.string());
+            let conf = Configuration::from(left.string());
             return Some(conf);
         }
 
@@ -210,8 +212,8 @@ impl<'input> Configuration<'input> {
     }
 }
 
-impl<'input> ProjectConfigurations<'input> {
-    pub fn new(s: &'input str) -> Self {
+impl<'input> From<&'input str> for ProjectConfigurations<'input> {
+    fn from(s: &'input str) -> Self {
         let mut it = s.split('.');
         let project_id = it.next().unwrap_or("");
 
@@ -229,7 +231,9 @@ impl<'input> ProjectConfigurations<'input> {
             configurations,
         }
     }
+}
 
+impl<'input> ProjectConfigurations<'input> {
     pub fn from_id_and_configurations(
         project_id: &'input str,
         configs: Vec<Configuration<'input>>,
@@ -242,9 +246,9 @@ impl<'input> ProjectConfigurations<'input> {
         }
     }
 
-    pub fn from(expr: &Expr<'input>) -> Option<Self> {
+    pub fn new(expr: &Expr<'input>) -> Option<Self> {
         if let Expr::SectionContent(left, _) = expr {
-            let conf = ProjectConfigurations::new(left.string());
+            let conf = ProjectConfigurations::from(left.string());
             return Some(conf);
         }
 
@@ -257,12 +261,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parse_configuration_correct() {
+    fn from_configuration_correct() {
         // Arrange
         let s = "Release|Any CPU";
 
         // Act
-        let c = Configuration::parse(s);
+        let c = Configuration::from(s);
 
         // Assert
         assert_eq!("Release", c.configuration);
@@ -270,12 +274,12 @@ mod tests {
     }
 
     #[test]
-    fn parse_configuration_empty() {
+    fn from_configuration_empty() {
         // Arrange
         let s = "";
 
         // Act
-        let c = Configuration::parse(s);
+        let c = Configuration::from(s);
 
         // Assert
         assert_eq!("", c.configuration);
@@ -283,12 +287,12 @@ mod tests {
     }
 
     #[test]
-    fn parse_configuration_incorrect_no_pipe() {
+    fn from_configuration_incorrect_no_pipe() {
         // Arrange
         let s = "Release Any CPU";
 
         // Act
-        let c = Configuration::parse(s);
+        let c = Configuration::from(s);
 
         // Assert
         assert_eq!("", c.configuration);
@@ -296,12 +300,12 @@ mod tests {
     }
 
     #[test]
-    fn parse_configuration_incorrect_many_pipes() {
+    fn from_configuration_incorrect_many_pipes() {
         // Arrange
         let s = "Release|Any CPU|test";
 
         // Act
-        let c = Configuration::parse(s);
+        let c = Configuration::from(s);
 
         // Assert
         assert_eq!("", c.configuration);
@@ -309,12 +313,12 @@ mod tests {
     }
 
     #[test]
-    fn new_project_configurations_correct() {
+    fn from_project_configurations_correct() {
         // Arrange
         let s = "{27060CA7-FB29-42BC-BA66-7FC80D498354}.Debug|Any CPU.ActiveCfg";
 
         // Act
-        let c = ProjectConfigurations::new(s);
+        let c = ProjectConfigurations::from(s);
 
         // Assert
         assert_eq!("{27060CA7-FB29-42BC-BA66-7FC80D498354}", c.project_id);
@@ -324,12 +328,12 @@ mod tests {
     }
 
     #[test]
-    fn new_project_configurations_config_with_dot() {
+    fn from_project_configurations_config_with_dot() {
         // Arrange
         let s = "{27060CA7-FB29-42BC-BA66-7FC80D498354}.Debug .NET 4.0|Any CPU.ActiveCfg";
 
         // Act
-        let c = ProjectConfigurations::new(s);
+        let c = ProjectConfigurations::from(s);
 
         // Assert
         assert_eq!("{27060CA7-FB29-42BC-BA66-7FC80D498354}", c.project_id);
