@@ -159,14 +159,50 @@ impl Consume for Validate {
             .map(|pc| pc.project_id)
             .collect::<BTreeSet<&str>>();
 
+        let solution_platforms = solution
+            .configurations
+            .iter()
+            .map(|c| c.platform)
+            .collect::<HashSet<&str>>();
+
+        let solution_configurations = solution
+            .configurations
+            .iter()
+            .map(|c| c.configuration)
+            .collect::<HashSet<&str>>();
+
+        let problem_project_configurations = solution
+            .project_configurations
+            .iter()
+            .filter(|pc| {
+                pc.configurations.iter().any(|c| {
+                    !solution_platforms.contains(c.platform)
+                        || !solution_configurations.contains(c.configuration)
+                })
+            })
+            .map(|c| c.project_id)
+            .collect::<BTreeSet<&str>>();
+
         let path = RGB(0xAA, 0xAA, 0xAA).paint(path);
 
+        let mut no_problems = true;
         if !(dangling_configurations.is_empty()) {
             println!(" {}", path);
             println!(" {}", Yellow.paint("  Solution contains dangling project configurations that can be safely removed:"));
             println!();
             Info::print_one_column_table("Project ID", dangling_configurations);
-        } else if !self.show_only_problems {
+            no_problems = false;
+        }
+
+        if !(problem_project_configurations.is_empty()) {
+            println!(" {}", path);
+            println!(" {}", Yellow.paint("  Solution contains project configurations that are outside solution's configuration|platform list:"));
+            println!();
+            Info::print_one_column_table("Project ID", problem_project_configurations);
+            no_problems = false;
+        }
+
+        if !self.show_only_problems && no_problems {
             println!(" {}", path);
             println!(" {}", Green.paint("  No problems found in solution."));
             println!();
