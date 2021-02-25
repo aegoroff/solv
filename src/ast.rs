@@ -212,8 +212,10 @@ impl<'input> ProjectConfigurations<'input> {
 
     pub fn from_id_and_configurations(
         project_id: &'input str,
-        configurations: Vec<Configuration<'input>>,
+        configs: &Vec<Configuration<'input>>,
     ) -> Self {
+        let mut configurations = Vec::new();
+        configurations.extend(configs);
         Self {
             project_id,
             configurations,

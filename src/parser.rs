@@ -63,7 +63,7 @@ impl<'input> Analyzer<'input> {
                 }
                 Expr::Global(sections) => {
                     let configurations = sections
-                        .into_iter()
+                        .iter()
                         .filter_map(|sect| {
                             if let Expr::Section(begin, content) = sect {
                                 if begin.is_section("SolutionConfigurationPlatforms") {
@@ -73,10 +73,10 @@ impl<'input> Analyzer<'input> {
                             }
                             None
                         })
-                        .map(|content| content.into_iter().filter_map(|c| Configuration::from(c)));
+                        .map(|content| content.iter().filter_map(|c| Configuration::from(c)));
 
                     let project_configurations = sections
-                        .into_iter()
+                        .iter()
                         .filter_map(|sect| {
                             if let Expr::Section(begin, content) = sect {
                                 if begin.is_section("ProjectConfigurationPlatforms") {
@@ -88,7 +88,7 @@ impl<'input> Analyzer<'input> {
                         })
                         .map(|content| {
                             content
-                                .into_iter()
+                                .iter()
                                 .filter_map(|c| ProjectConfigurations::from(c))
                         });
 
@@ -107,7 +107,7 @@ impl<'input> Analyzer<'input> {
                                 .extend(item.configurations);
                         }
 
-                        let it = projects.into_iter().map(|(id, conf)| {
+                        let it = projects.iter().map(|(id, conf)| {
                             ProjectConfigurations::from_id_and_configurations(id, conf)
                         });
                         sol.project_configurations.extend(it);
