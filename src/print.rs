@@ -24,7 +24,7 @@ impl Info {
     }
 
     fn new_format() -> TableFormat {
-        let fmt = format::FormatBuilder::new()
+        format::FormatBuilder::new()
             .column_separator(' ')
             .borders(' ')
             .separators(
@@ -33,8 +33,7 @@ impl Info {
             )
             .indent(3)
             .padding(0, 0)
-            .build();
-        fmt
+            .build()
     }
 
     fn print_one_column_table(head: &str, set: BTreeSet<&str>) {
