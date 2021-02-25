@@ -1,6 +1,8 @@
 use crate::ast::{Configuration, Expr, Project, ProjectConfigurations, Solution, Version};
-use std::collections::BTreeMap;
+use itertools::Itertools;
 use std::option::Option::Some;
+
+extern crate itertools;
 
 pub fn parse_str(contents: &str, debug: bool) -> Option<Solution> {
     let input;
@@ -63,9 +65,10 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                         }
                         None
                     })
-                    .map(|content| content.iter().filter_map(|c| Configuration::from(c)));
+                    .map(|content| content.iter().filter_map(|c| Configuration::from(c)))
+                    .flatten();
 
-                sol.configurations.extend(configurations.flatten());
+                sol.configurations.extend(configurations);
 
                 let project_configurations = sections
                     .iter()
@@ -82,24 +85,17 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                         content
                             .iter()
                             .filter_map(|c| ProjectConfigurations::from(c))
-                    });
+                    })
+                    .flatten()
+                    .group_by(|x| x.project_id)
+                    .into_iter()
+                    .map(|(pid, configurations)| {
+                        let c = configurations.map(|c| c.configurations).flatten().collect();
+                        ProjectConfigurations::from_id_and_configurations(pid, c)
+                    })
+                    .collect::<Vec<ProjectConfigurations<'input>>>();
 
-                for pc in project_configurations {
-                    let mut projects: BTreeMap<&str, Vec<Configuration<'input>>> =
-                        BTreeMap::new();
-
-                    for item in pc {
-                        projects
-                            .entry(item.project_id)
-                            .or_insert(Vec::new())
-                            .extend(item.configurations);
-                    }
-
-                    let it = projects.iter().map(|(id, conf)| {
-                        ProjectConfigurations::from_id_and_configurations(id, conf)
-                    });
-                    sol.project_configurations.extend(it);
-                }
+                sol.project_configurations.extend(project_configurations);
             }
             Expr::Comment(s) => sol.product = *s,
             _ => {}
@@ -108,7 +104,6 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
 
     sol
 }
-
 
 #[cfg(test)]
 mod tests {
