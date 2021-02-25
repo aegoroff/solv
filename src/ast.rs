@@ -55,7 +55,7 @@ impl<'input> Expr<'input> {
 
     pub fn is_section(&self, name: &str) -> bool {
         if let Expr::SectionBegin(names, _) = self {
-            return names.into_iter().any(|n| n.identifier() == name);
+            return names.iter().any(|n| n.identifier() == name);
         }
 
         false
@@ -187,7 +187,7 @@ impl<'input> Configuration<'input> {
     }
 
     pub fn parse(s: &'input str) -> Self {
-        let parts: Vec<&str> = s.split("|").collect();
+        let parts: Vec<&str> = s.split('|').collect();
         let mut configuration = "";
         let mut platform = "";
         if parts.len() == 2 {
@@ -212,13 +212,13 @@ impl<'input> Configuration<'input> {
 
 impl<'input> ProjectConfigurations<'input> {
     pub fn new(s: &'input str) -> Self {
-        let mut it = s.split(".");
+        let mut it = s.split('.');
         let project_id = it.next().unwrap_or("");
 
-        let mut it = s[project_id.len() + 1..].split("|");
+        let mut it = s[project_id.len() + 1..].split('|');
         let config = it.next().unwrap_or("");
 
-        let mut it = s[project_id.len() + config.len() + 2..].split(".");
+        let mut it = s[project_id.len() + config.len() + 2..].split('.');
         let platform = it.next().unwrap_or("");
 
         let mut configurations = Vec::new();
