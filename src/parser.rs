@@ -17,8 +17,7 @@ pub fn parse_str(contents: &str, debug: bool) -> Option<Solution> {
             if debug {
                 println!("result {:#?}", ast);
             } else {
-                let analyzer = Analyzer::new(ast);
-                return Some(analyzer.analyze());
+                return Some(analyze(ast));
             }
         }
         Err(e) => {
@@ -30,97 +29,86 @@ pub fn parse_str(contents: &str, debug: bool) -> Option<Solution> {
     None
 }
 
-struct Analyzer<'input> {
-    head: Expr<'input>,
-    lines: Vec<Expr<'input>>,
-}
+fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'input> {
+    let (head, lines) = solution;
 
-impl<'input> Analyzer<'input> {
-    pub fn new(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Self {
-        let (head, lines) = solution;
-        Self { head, lines }
+    let mut version = "";
+    if let Expr::FirstLine(ver) = head {
+        version = ver.digit_or_dot();
     }
 
-    fn analyze(&self) -> Solution<'input> {
-        let mut version = "";
-        if let Expr::FirstLine(ver) = &self.head {
-            version = ver.digit_or_dot();
-        }
+    let mut sol = Solution::new();
+    sol.format = version;
 
-        let mut sol = Solution::new();
-        sol.format = version;
-
-        for line in &self.lines {
-            match line {
-                Expr::Project(head, _) => {
-                    if let Some(p) = Project::from_begin(head) {
-                        sol.projects.push(p);
-                    }
+    for line in &lines {
+        match line {
+            Expr::Project(head, _) => {
+                if let Some(p) = Project::from_begin(head) {
+                    sol.projects.push(p);
                 }
-                Expr::Version(name, val) => {
-                    let version = Version::from(name, val);
-                    sol.versions.push(version);
-                }
-                Expr::Global(sections) => {
-                    let configurations = sections
-                        .iter()
-                        .filter_map(|sect| {
-                            if let Expr::Section(begin, content) = sect {
-                                if begin.is_section("SolutionConfigurationPlatforms") {
-                                    return Some(content);
-                                }
-                                return None;
-                            }
-                            None
-                        })
-                        .map(|content| content.iter().filter_map(|c| Configuration::from(c)));
-
-                    let project_configurations = sections
-                        .iter()
-                        .filter_map(|sect| {
-                            if let Expr::Section(begin, content) = sect {
-                                if begin.is_section("ProjectConfigurationPlatforms") {
-                                    return Some(content);
-                                }
-                                return None;
-                            }
-                            None
-                        })
-                        .map(|content| {
-                            content
-                                .iter()
-                                .filter_map(|c| ProjectConfigurations::from(c))
-                        });
-
-                    for configuration in configurations {
-                        sol.configurations.extend(configuration);
-                    }
-
-                    for pc in project_configurations {
-                        let mut projects: BTreeMap<&str, Vec<Configuration<'input>>> =
-                            BTreeMap::new();
-
-                        for item in pc {
-                            projects
-                                .entry(item.project_id)
-                                .or_insert(Vec::new())
-                                .extend(item.configurations);
-                        }
-
-                        let it = projects.iter().map(|(id, conf)| {
-                            ProjectConfigurations::from_id_and_configurations(id, conf)
-                        });
-                        sol.project_configurations.extend(it);
-                    }
-                }
-                Expr::Comment(s) => sol.product = *s,
-                _ => {}
             }
-        }
+            Expr::Version(name, val) => {
+                let version = Version::from(name, val);
+                sol.versions.push(version);
+            }
+            Expr::Global(sections) => {
+                let configurations = sections
+                    .iter()
+                    .filter_map(|sect| {
+                        if let Expr::Section(begin, content) = sect {
+                            if begin.is_section("SolutionConfigurationPlatforms") {
+                                return Some(content);
+                            }
+                            return None;
+                        }
+                        None
+                    })
+                    .map(|content| content.iter().filter_map(|c| Configuration::from(c)));
 
-        sol
+                sol.configurations.extend(configurations.flatten());
+
+                let project_configurations = sections
+                    .iter()
+                    .filter_map(|sect| {
+                        if let Expr::Section(begin, content) = sect {
+                            if begin.is_section("ProjectConfigurationPlatforms") {
+                                return Some(content);
+                            }
+                            return None;
+                        }
+                        None
+                    })
+                    .map(|content| {
+                        content
+                            .iter()
+                            .filter_map(|c| ProjectConfigurations::from(c))
+                    });
+
+                for pc in project_configurations {
+                    let mut projects: BTreeMap<&str, Vec<Configuration<'input>>> =
+                        BTreeMap::new();
+
+                    for item in pc {
+                        projects
+                            .entry(item.project_id)
+                            .or_insert(Vec::new())
+                            .extend(item.configurations);
+                    }
+
+                    let it = projects.iter().map(|(id, conf)| {
+                        ProjectConfigurations::from_id_and_configurations(id, conf)
+                    });
+                    sol.project_configurations.extend(it);
+                }
+            }
+            Expr::Comment(s) => sol.product = *s,
+            _ => {}
+        }
     }
+
+    sol
 }
+
 
 #[cfg(test)]
 mod tests {
