@@ -215,10 +215,10 @@ impl<'input> ProjectConfigurations<'input> {
         let mut it = s.split(".");
         let project_id = it.next().unwrap_or("");
 
-        let mut it = s[project_id.len()+1..].split("|");
+        let mut it = s[project_id.len() + 1..].split("|");
         let config = it.next().unwrap_or("");
 
-        let mut it = s[project_id.len()+config.len()+2..].split(".");
+        let mut it = s[project_id.len() + config.len() + 2..].split(".");
         let platform = it.next().unwrap_or("");
 
         let mut configurations = Vec::new();
