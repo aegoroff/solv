@@ -179,7 +179,14 @@ impl<'input> Version<'input> {
 }
 
 impl<'input> Configuration<'input> {
-    pub fn new(s: &'input str) -> Self {
+    pub fn new(configuration: &'input str, platform: &'input str) -> Self {
+        Self {
+            configuration,
+            platform,
+        }
+    }
+
+    pub fn parse(s: &'input str) -> Self {
         let parts: Vec<&str> = s.split("|").collect();
         let mut configuration = "";
         let mut platform = "";
@@ -195,7 +202,7 @@ impl<'input> Configuration<'input> {
 
     pub fn from(expr: &Expr<'input>) -> Option<Self> {
         if let Expr::SectionContent(left, _) = expr {
-            let conf = Configuration::new(left.string());
+            let conf = Configuration::parse(left.string());
             return Some(conf);
         }
 
@@ -205,15 +212,17 @@ impl<'input> Configuration<'input> {
 
 impl<'input> ProjectConfigurations<'input> {
     pub fn new(s: &'input str) -> Self {
-        let parts: Vec<&str> = s.split(".").collect();
-        let mut project_id = "";
-        let mut config_and_platform = "";
-        if parts.len() >= 2 {
-            project_id = parts[0];
-            config_and_platform = parts[1];
-        }
+        let mut it = s.split(".");
+        let project_id = it.next().unwrap_or("");
+
+        let mut it = s[project_id.len()+1..].split("|");
+        let config = it.next().unwrap_or("");
+
+        let mut it = s[project_id.len()+config.len()+2..].split(".");
+        let platform = it.next().unwrap_or("");
+
         let mut configurations = Vec::new();
-        let configuration = Configuration::new(config_and_platform);
+        let configuration = Configuration::new(config, platform);
         configurations.push(configuration);
         Self {
             project_id,
@@ -253,7 +262,7 @@ mod tests {
         let s = "Release|Any CPU";
 
         // Act
-        let c = Configuration::new(s);
+        let c = Configuration::parse(s);
 
         // Assert
         assert_eq!("Release", c.configuration);
@@ -266,7 +275,7 @@ mod tests {
         let s = "";
 
         // Act
-        let c = Configuration::new(s);
+        let c = Configuration::parse(s);
 
         // Assert
         assert_eq!("", c.configuration);
@@ -279,7 +288,7 @@ mod tests {
         let s = "Release Any CPU";
 
         // Act
-        let c = Configuration::new(s);
+        let c = Configuration::parse(s);
 
         // Assert
         assert_eq!("", c.configuration);
@@ -292,7 +301,7 @@ mod tests {
         let s = "Release|Any CPU|test";
 
         // Act
-        let c = Configuration::new(s);
+        let c = Configuration::parse(s);
 
         // Assert
         assert_eq!("", c.configuration);
