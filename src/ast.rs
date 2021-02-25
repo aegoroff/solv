@@ -60,6 +60,17 @@ impl<'input> Expr<'input> {
 
         false
     }
+
+    pub fn section_content(&self, name: &str) -> Option<&'input Vec<Expr>> {
+        if let Expr::Section(begin, content) = self {
+            if begin.is_section(name) {
+                return Some(content);
+            }
+            return None;
+        }
+
+        None
+    }
 }
 
 #[derive(Debug, Clone)]
