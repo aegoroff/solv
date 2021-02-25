@@ -1,6 +1,5 @@
 use crate::ast::{Configuration, Expr, Project, ProjectConfigurations, Solution, Version};
 use std::collections::BTreeMap;
-use std::ops::Deref;
 use std::option::Option::Some;
 
 pub fn parse_str(contents: &str, debug: bool) -> Option<Solution> {
@@ -45,9 +44,7 @@ impl<'input> Analyzer<'input> {
     fn analyze(&self) -> Solution<'input> {
         let mut version = "";
         if let Expr::FirstLine(ver) = &self.head {
-            if let Expr::DigitOrDot(ver) = ver.deref() {
-                version = *ver;
-            }
+            version = ver.digit_or_dot();
         }
 
         let mut sol = Solution::new();
@@ -69,7 +66,7 @@ impl<'input> Analyzer<'input> {
                         .into_iter()
                         .filter_map(|sect| {
                             if let Expr::Section(begin, content) = sect {
-                                if self.section_has_name(begin, "SolutionConfigurationPlatforms") {
+                                if begin.is_section("SolutionConfigurationPlatforms") {
                                     return Some(content);
                                 }
                                 return None;
@@ -82,7 +79,7 @@ impl<'input> Analyzer<'input> {
                         .into_iter()
                         .filter_map(|sect| {
                             if let Expr::Section(begin, content) = sect {
-                                if self.section_has_name(begin, "ProjectConfigurationPlatforms") {
+                                if begin.is_section("ProjectConfigurationPlatforms") {
                                     return Some(content);
                                 }
                                 return None;
@@ -122,30 +119,6 @@ impl<'input> Analyzer<'input> {
         }
 
         sol
-    }
-
-    fn section_content(&self, sect: &'input Expr, name: &str) -> Option<&Vec<Expr>> {
-        if let Expr::Section(begin, content) = sect {
-            if self.section_has_name(begin, name) {
-                return Some(content);
-            }
-            return None;
-        }
-        None
-    }
-
-    fn section_has_name(&self, expr: &Expr, name: &str) -> bool {
-        if let Expr::SectionBegin(names, _) = expr {
-            let found = names.into_iter().any(|n| {
-                if let Expr::Identifier(s) = n {
-                    return *s == name;
-                }
-                false
-            });
-            return found;
-        }
-
-        false
     }
 }
 

@@ -1,5 +1,4 @@
 use crate::msbuild;
-use std::ops::Deref;
 
 #[derive(Debug)]
 pub enum Expr<'input> {
@@ -23,6 +22,44 @@ pub enum Expr<'input> {
     SectionContent(Box<Expr<'input>>, Box<Expr<'input>>),
     SectionKey(Box<Expr<'input>>),
     SectionValue(Box<Expr<'input>>),
+}
+
+impl<'input> Expr<'input> {
+    pub fn identifier(&self) -> &'input str {
+        if let Expr::Identifier(s) = self {
+            return *s;
+        }
+        ""
+    }
+
+    pub fn digit_or_dot(&self) -> &'input str {
+        if let Expr::DigitOrDot(s) = self {
+            return *s;
+        }
+        ""
+    }
+
+    pub fn string(&self) -> &'input str {
+        if let Expr::Str(s) = self {
+            return *s;
+        }
+        ""
+    }
+
+    pub fn guid(&self) -> &'input str {
+        if let Expr::Guid(s) = self {
+            return *s;
+        }
+        ""
+    }
+
+    pub fn is_section(&self, name: &str) -> bool {
+        if let Expr::SectionBegin(names, _) = self {
+            return names.into_iter().any(|n| n.identifier() == name);
+        }
+
+        false
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -107,22 +144,13 @@ impl<'input> Project<'input> {
         path: &Expr<'input>,
         id: &Expr<'input>,
     ) -> Self {
-        let mut type_id = "";
-        let mut pid = "";
-        if let Expr::Guid(guid) = project_type {
-            type_id = guid;
-        }
-        if let Expr::Guid(guid) = id {
-            pid = guid;
-        }
-        let mut prj = Project::new(pid, type_id);
+        let type_id = project_type.guid();
+        let pid = id.guid();
 
-        if let Expr::Str(s) = name {
-            prj.name = s;
-        }
-        if let Expr::Str(s) = path {
-            prj.path = s;
-        }
+        let mut prj = Project::new(pid, type_id);
+        prj.name = name.string();
+        prj.path = path.string();
+
         prj
     }
 }
@@ -133,14 +161,8 @@ impl<'input> Version<'input> {
     }
 
     pub fn from(name: &Expr<'input>, val: &Expr<'input>) -> Self {
-        let mut n = "";
-        let mut v = "";
-        if let Expr::Identifier(id) = name {
-            n = id;
-        }
-        if let Expr::DigitOrDot(s) = val {
-            v = s;
-        }
+        let n = name.identifier();
+        let v = val.digit_or_dot();
         Version::new(n, v)
     }
 }
@@ -162,10 +184,8 @@ impl<'input> Configuration<'input> {
 
     pub fn from(expr: &Expr<'input>) -> Option<Self> {
         if let Expr::SectionContent(left, _) = expr {
-            if let Expr::Str(s) = left.deref() {
-                let conf = Configuration::new(*s);
-                return Some(conf);
-            }
+            let conf = Configuration::new(left.string());
+            return Some(conf);
         }
 
         None
@@ -202,10 +222,8 @@ impl<'input> ProjectConfigurations<'input> {
 
     pub fn from(expr: &Expr<'input>) -> Option<Self> {
         if let Expr::SectionContent(left, _) = expr {
-            if let Expr::Str(s) = left.deref() {
-                let conf = ProjectConfigurations::new(*s);
-                return Some(conf);
-            }
+            let conf = ProjectConfigurations::new(left.string());
+            return Some(conf);
         }
 
         None
