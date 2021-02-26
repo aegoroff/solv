@@ -2,7 +2,6 @@ use clap::{App, Arg, SubCommand};
 use solv::print::{Info, Validate};
 use solv::Consume;
 use std::time::Instant;
-use std::ops::Deref;
 
 extern crate clap;
 extern crate humantime;
@@ -19,8 +18,8 @@ fn main() {
             let now = Instant::now();
             let only_problems = cmd.is_present("problems");
 
-            let consumer: Box<dyn Consume> = new_consumer(debug, only_validate, only_problems);
-            solv::scan(path, consumer.deref());
+            let consumer = new_consumer(debug, only_validate, only_problems);
+            solv::scan(path, &*consumer);
 
             println!(
                 "elapsed: {}",
@@ -30,8 +29,8 @@ fn main() {
     }
     if let Some(cmd) = matches.subcommand_matches("s") {
         if let Some(path) = cmd.value_of("PATH") {
-            let consumer: Box<dyn Consume> = new_consumer(debug, only_validate, false);
-            solv::parse(path, consumer.deref());
+            let consumer = new_consumer(debug, only_validate, false);
+            solv::parse(path, &*consumer);
         }
     }
 }
