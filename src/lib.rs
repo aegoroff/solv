@@ -31,7 +31,7 @@ pub trait Consume {
 }
 
 /// parse parses single solution file specified by path.
-pub fn parse(path: &str, consumer: &Box<dyn Consume>) {
+pub fn parse(path: &str, consumer: &dyn Consume) {
     let contents = fs::read_to_string(path).expect("Something went wrong reading the file");
     if let Some(solution) = parser::parse_str(&contents, consumer.is_debug()) {
         consumer.ok(path, &solution);
@@ -42,7 +42,7 @@ pub fn parse(path: &str, consumer: &Box<dyn Consume>) {
 
 /// scan parses directory specified by path. recursively
 /// it finds all files with sln extension and parses them.
-pub fn scan(path: &str, consumer: &Box<dyn Consume>) {
+pub fn scan(path: &str, consumer: &dyn Consume) {
     let iter = WalkDir::new(path).skip_hidden(false).follow_links(false);
 
     let it = iter

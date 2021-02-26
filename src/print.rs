@@ -19,7 +19,7 @@ pub struct Validate {
 }
 
 impl Info {
-    pub fn new(debug: bool) -> Box<dyn Consume> {
+    pub fn new_box(debug: bool) -> Box<dyn Consume> {
         Box::new(Self { debug })
     }
 
@@ -64,7 +64,7 @@ impl Info {
 }
 
 impl Validate {
-    pub fn new(debug: bool, show_only_problems: bool) -> Box<dyn Consume> {
+    pub fn new_box(debug: bool, show_only_problems: bool) -> Box<dyn Consume> {
         Box::new(Self {
             debug,
             show_only_problems,
