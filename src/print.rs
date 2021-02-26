@@ -1,4 +1,4 @@
-use crate::ast::Solution;
+use crate::ast::{Solution, Configuration};
 use crate::msbuild;
 use crate::Consume;
 use ansi_term::Colour::{Green, Red, Yellow, RGB};
@@ -173,14 +173,17 @@ impl Consume for Validate {
         let problem_project_configurations = solution
             .project_configurations
             .iter()
-            .filter(|pc| {
-                pc.configurations.iter().any(|c| {
+            .filter_map(|pc| {
+                let missing = pc.configurations.iter().filter(|c| {
                     !solution_platforms.contains(c.platform)
                         || !solution_configurations.contains(c.configuration)
-                })
+                }).collect::<Vec<&Configuration>>();
+                if !missing.is_empty() {
+                    return Some((pc.project_id, missing))
+                }
+                None
             })
-            .map(|c| c.project_id)
-            .collect::<BTreeSet<&str>>();
+            .collect::<Vec<(&str, Vec<&Configuration>)>>();
 
         let path = RGB(0xAA, 0xAA, 0xAA).paint(path);
 
@@ -197,7 +200,22 @@ impl Consume for Validate {
             println!(" {}", path);
             println!(" {}", Yellow.paint("  Solution contains project configurations that are outside solution's configuration|platform list:"));
             println!();
-            Info::print_one_column_table("Project ID", problem_project_configurations);
+
+            let mut table = Table::new();
+
+            let fmt = Info::new_format();
+            table.set_format(fmt);
+            table.set_titles(row![bF=> "Project ID", "Configuration|Platform"]);
+
+            for (id, configs) in problem_project_configurations.iter() {
+                for config in configs.iter() {
+                    table.add_row(row![*id, format!("{}|{}", config.configuration, config.platform)]);
+                }
+            }
+
+            table.printstd();
+            println!();
+
             no_problems = false;
         }
 

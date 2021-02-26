@@ -220,8 +220,23 @@ impl<'input> From<&'input str> for ProjectConfigurations<'input> {
         let mut it = s[project_id.len() + 1..].split('|');
         let config = it.next().unwrap_or("");
 
-        let mut it = s[project_id.len() + config.len() + 2..].split('.');
-        let platform = it.next().unwrap_or("");
+        let trail = &s[project_id.len() + config.len() + 2..];
+        let mut it = trail.split(".ActiveCfg");
+        let mut platform = it.next().unwrap_or("");
+        if platform.len() == trail.len() {
+            let mut it = trail.chars().rev();
+            let mut dot_count = 0;
+            let mut cut_count = 0;
+            while dot_count < 2 {
+                cut_count += 1;
+                match it.next() {
+                    Some('.') => dot_count += 1,
+                    None => break,
+                    _ => {}
+                }
+            }
+            platform = &trail[..trail.len() - cut_count];
+        }
 
         let mut configurations = Vec::new();
         let configuration = Configuration::new(config, platform);
@@ -340,5 +355,35 @@ mod tests {
         assert_eq!(1, c.configurations.len());
         assert_eq!("Debug .NET 4.0", c.configurations[0].configuration);
         assert_eq!("Any CPU", c.configurations[0].platform);
+    }
+
+    #[test]
+    fn from_project_configurations_platform_with_dot_active() {
+        // Arrange
+        let s = "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.ActiveCfg";
+
+        // Act
+        let c = ProjectConfigurations::from(s);
+
+        // Assert
+        assert_eq!("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", c.project_id);
+        assert_eq!(1, c.configurations.len());
+        assert_eq!("Release", c.configurations[0].configuration);
+        assert_eq!(".NET", c.configurations[0].platform);
+    }
+
+    #[test]
+    fn from_project_configurations_platform_with_dot_build() {
+        // Arrange
+        let s = "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.Build.0";
+
+        // Act
+        let c = ProjectConfigurations::from(s);
+
+        // Assert
+        assert_eq!("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", c.project_id);
+        assert_eq!(1, c.configurations.len());
+        assert_eq!("Release", c.configurations[0].configuration);
+        assert_eq!(".NET", c.configurations[0].platform);
     }
 }
