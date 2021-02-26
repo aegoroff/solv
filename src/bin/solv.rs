@@ -11,14 +11,14 @@ fn main() {
     let matches = app.get_matches();
 
     let debug = matches.is_present("debug");
-    let only_validate = matches.is_present("validate");
 
     if let Some(cmd) = matches.subcommand_matches("d") {
         if let Some(path) = cmd.value_of("PATH") {
             let now = Instant::now();
             let only_problems = cmd.is_present("problems");
 
-            let consumer = new_consumer(debug, only_validate, only_problems);
+            let is_info = cmd.is_present("info");
+            let consumer = new_consumer(debug, !is_info, only_problems);
             solv::scan(path, &*consumer);
 
             println!(
@@ -29,7 +29,8 @@ fn main() {
     }
     if let Some(cmd) = matches.subcommand_matches("s") {
         if let Some(path) = cmd.value_of("PATH") {
-            let consumer = new_consumer(debug, only_validate, false);
+            let is_info = cmd.is_present("info");
+            let consumer = new_consumer(debug, !is_info, false);
             solv::parse(path, &*consumer);
         }
     }
@@ -56,14 +57,6 @@ fn build_cli() -> App<'static, 'static> {
                 .help("debug mode - just printing AST and parsing errors if any")
                 .required(false),
         )
-        .arg(
-            Arg::with_name("validate")
-                .long("onlyvalidate")
-                .short("v")
-                .takes_value(false)
-                .help("only validate solution without printing info")
-                .required(false),
-        )
         .subcommand(
             SubCommand::with_name("d")
                 .aliases(&["dir", "directory"])
@@ -73,6 +66,14 @@ fn build_cli() -> App<'static, 'static> {
                         .help("Sets directory path to find solutions")
                         .required(true)
                         .index(1),
+                )
+                .arg(
+                    Arg::with_name("info")
+                        .long("info")
+                        .short("i")
+                        .takes_value(false)
+                        .help("show solutions info without validation")
+                        .required(false),
                 )
                 .arg(
                     Arg::with_name("problems")
@@ -87,6 +88,14 @@ fn build_cli() -> App<'static, 'static> {
             SubCommand::with_name("s")
                 .aliases(&["solution", "single"])
                 .about("Analyse solution specified")
+                .arg(
+                    Arg::with_name("info")
+                        .long("info")
+                        .short("i")
+                        .takes_value(false)
+                        .help("show solution info without validation")
+                        .required(false),
+                )
                 .arg(
                     Arg::with_name("PATH")
                         .help("Sets solution path to analyze")
