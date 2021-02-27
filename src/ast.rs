@@ -223,13 +223,13 @@ impl<'input> From<&'input str> for ProjectConfigs<'input> {
         if platform.len() == trail.len() {
             let it = trail.chars().rev();
             let mut dot_count = 0;
-            const SKIP_DOTS: usize = 2;
+            const SKIP_DOTS: usize = 1;
 
             let break_fn = |ch: &char| -> bool {
                 if *ch == '.' {
                     dot_count += 1;
                 }
-                dot_count < SKIP_DOTS
+                dot_count <= SKIP_DOTS
             };
 
             let cut_count = it.take_while(break_fn).count() + 1; // Last dot
