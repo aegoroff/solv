@@ -1,4 +1,4 @@
-use crate::msbuild;
+use crate::{cut_from_back_until, msbuild};
 
 #[derive(Debug)]
 pub enum Expr<'input> {
@@ -221,20 +221,7 @@ impl<'input> From<&'input str> for ProjectConfigs<'input> {
         let mut it = trail.split(".ActiveCfg");
         let mut platform = it.next().unwrap_or("");
         if platform.len() == trail.len() {
-            let it = trail.chars().rev();
-            let mut dot_count = 0;
-            const SKIP_DOTS: usize = 1;
-
-            let break_fn = |ch: &char| -> bool {
-                if *ch == '.' {
-                    dot_count += 1;
-                }
-                dot_count <= SKIP_DOTS
-            };
-
-            let cut_count = it.take_while(break_fn).count() + 1; // Last dot
-
-            platform = &trail[..trail.len() - cut_count];
+            platform = cut_from_back_until(trail, '.', 1);
         }
 
         let mut configs = Vec::new();

@@ -67,3 +67,20 @@ pub fn scan(path: &str, consumer: &dyn Consume) {
 fn get_extension_from_filename(filename: &str) -> Option<&str> {
     Path::new(filename).extension()?.to_str()
 }
+
+fn cut_from_back_until(s: &str, ch: char, skip: usize) -> &str {
+    let it = s.chars().rev();
+    let mut counter = 0;
+
+    let cut_count = it
+        .take_while(|c| {
+            if *c == ch {
+                counter += 1;
+            }
+            counter <= skip
+        })
+        .count()
+        + 1; // Last
+
+    &s[..s.len() - cut_count]
+}
