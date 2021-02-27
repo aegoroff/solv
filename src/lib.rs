@@ -123,6 +123,54 @@ mod tests {
     }
 
     #[test]
+    fn cut_from_back_until_necessary_chars_to_skip_following_each_other() {
+        // Arrange
+        let s = "a..b.c";
+
+        // Act
+        let c = cut_from_back_until(s, '.', 1);
+
+        // Assert
+        assert_eq!("a.", c);
+    }
+
+    #[test]
+    fn cut_from_back_until_only_necessary_chars() {
+        // Arrange
+        let s = "...";
+
+        // Act
+        let c = cut_from_back_until(s, '.', 1);
+
+        // Assert
+        assert_eq!(".", c);
+    }
+
+    #[test]
+    fn cut_from_back_until_only_necessary_chars_eq_skip_plus_one() {
+        // Arrange
+        let s = "..";
+
+        // Act
+        let c = cut_from_back_until(s, '.', 1);
+
+        // Assert
+        assert_eq!("", c);
+    }
+
+    #[test]
+    fn cut_from_back_until_only_necessary_chars_eq_skip() {
+        // Arrange
+        let s = ".";
+
+        // Act
+        let c = cut_from_back_until(s, '.', 1);
+
+        // Assert
+        assert_eq!("", c);
+    }
+
+    #[test]
     fn cut_from_back_until_chars_to_skip_not_enough() {
         // Arrange
         let s = "a.b";
