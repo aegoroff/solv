@@ -44,15 +44,15 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
         ..Default::default()
     };
 
-    for line in &lines {
+    for line in lines {
         match line {
             Expr::Project(head, _) => {
-                if let Some(p) = Project::from_begin(head) {
+                if let Some(p) = Project::from_begin(&head) {
                     sol.projects.push(p);
                 }
             }
             Expr::Version(name, val) => {
-                let version = Version::from(name, val);
+                let version = Version::from(&name, &val);
                 sol.versions.push(version);
             }
             Expr::Global(sections) => {
@@ -95,7 +95,7 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
 
                 sol.project_configs.extend(project_configs);
             }
-            Expr::Comment(s) => sol.product = *s,
+            Expr::Comment(s) => sol.product = s,
             _ => {}
         }
     }
