@@ -87,11 +87,11 @@ fn cut_count(s: &str, ch: char, skip: usize) -> usize {
         })
         .count();
 
-    return if count == s.len() {
+    if count == s.len() {
         s.len()
     } else {
         count + 1 // Last ch
-    };
+    }
 }
 
 #[cfg(test)]
