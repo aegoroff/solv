@@ -225,15 +225,14 @@ impl<'input> From<&'input str> for ProjectConfigs<'input> {
             let mut dot_count = 0;
             const SKIP_DOTS: usize = 2;
 
-            let cut_count = it
-                .take_while(|ch| {
-                    if *ch == '.' {
-                        dot_count += 1;
-                    }
-                    dot_count < SKIP_DOTS
-                })
-                .count()
-                + 1; // Last dot
+            let break_fn = |ch: &char| -> bool {
+                if *ch == '.' {
+                    dot_count += 1;
+                }
+                dot_count < SKIP_DOTS
+            };
+
+            let cut_count = it.take_while(break_fn).count() + 1; // Last dot
 
             platform = &trail[..trail.len() - cut_count];
         }
