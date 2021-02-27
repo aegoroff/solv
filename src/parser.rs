@@ -87,8 +87,8 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                     .flatten()
                     .group_by(|x| x.project_id)
                     .into_iter()
-                    .map(|(pid, configurations)| {
-                        let c = configurations.map(|c| c.configs).flatten().collect();
+                    .map(|(pid, project_configs)| {
+                        let c = project_configs.map(|c| c.configs).flatten().collect();
                         ProjectConfigs::from_id_and_configs(pid, c)
                     })
                     .collect::<Vec<ProjectConfigs<'input>>>();
