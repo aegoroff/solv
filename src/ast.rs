@@ -229,7 +229,7 @@ impl<'input> From<&'input str> for ProjectConfigs<'input> {
         configs.push(config);
         Self {
             project_id,
-            configs: configs,
+            configs,
         }
     }
 }
