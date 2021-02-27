@@ -1,4 +1,4 @@
-use crate::ast::{Configuration, Expr, Project, ProjectConfigurations, Solution, Version};
+use crate::ast::{Conf, Expr, Project, ProjectConfigs, Solution, Version};
 use itertools::Itertools;
 use std::option::Option::Some;
 
@@ -56,7 +56,7 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                 sol.versions.push(version);
             }
             Expr::Global(sections) => {
-                let configurations = sections
+                let solution_configs = sections
                     .iter()
                     .filter_map(|sect| {
                         if let Expr::Section(begin, content) = sect {
@@ -67,12 +67,12 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                         }
                         None
                     })
-                    .map(|content| content.iter().filter_map(|c| Configuration::from_expr(c)))
+                    .map(|content| content.iter().filter_map(|c| Conf::from_expr(c)))
                     .flatten();
 
-                sol.configurations.extend(configurations);
+                sol.solution_configs.extend(solution_configs);
 
-                let project_configurations = sections
+                let project_configs = sections
                     .iter()
                     .filter_map(|sect| {
                         if let Expr::Section(begin, content) = sect {
@@ -83,17 +83,17 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                         }
                         None
                     })
-                    .map(|content| content.iter().filter_map(|c| ProjectConfigurations::new(c)))
+                    .map(|content| content.iter().filter_map(|c| ProjectConfigs::new(c)))
                     .flatten()
                     .group_by(|x| x.project_id)
                     .into_iter()
                     .map(|(pid, configurations)| {
-                        let c = configurations.map(|c| c.configurations).flatten().collect();
-                        ProjectConfigurations::from_id_and_configurations(pid, c)
+                        let c = configurations.map(|c| c.configs).flatten().collect();
+                        ProjectConfigs::from_id_and_configs(pid, c)
                     })
-                    .collect::<Vec<ProjectConfigurations<'input>>>();
+                    .collect::<Vec<ProjectConfigs<'input>>>();
 
-                sol.project_configurations.extend(project_configurations);
+                sol.project_configs.extend(project_configs);
             }
             Expr::Comment(s) => sol.product = *s,
             _ => {}

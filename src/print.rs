@@ -1,4 +1,4 @@
-use crate::ast::{Configuration, Solution};
+use crate::ast::{Conf, Solution};
 use crate::msbuild;
 use crate::Consume;
 use ansi_term::Colour::{Green, Red, Yellow, RGB};
@@ -119,13 +119,13 @@ impl Consume for Info {
         println!();
 
         let configurations = solution
-            .configurations
+            .solution_configs
             .iter()
-            .map(|c| c.configuration)
+            .map(|c| c.config)
             .collect::<BTreeSet<&str>>();
 
         let platforms = solution
-            .configurations
+            .solution_configs
             .iter()
             .map(|c| c.platform)
             .collect::<BTreeSet<&str>>();
@@ -152,42 +152,42 @@ impl Consume for Validate {
             .collect::<HashSet<String>>();
 
         let dangling_configurations = solution
-            .project_configurations
+            .project_configs
             .iter()
             .filter(|pc| !projects.contains(&pc.project_id.to_uppercase()))
             .map(|pc| pc.project_id)
             .collect::<BTreeSet<&str>>();
 
         let solution_platforms = solution
-            .configurations
+            .solution_configs
             .iter()
             .map(|c| c.platform)
             .collect::<HashSet<&str>>();
 
         let solution_configurations = solution
-            .configurations
+            .solution_configs
             .iter()
-            .map(|c| c.configuration)
+            .map(|c| c.config)
             .collect::<HashSet<&str>>();
 
         let problem_project_configurations = solution
-            .project_configurations
+            .project_configs
             .iter()
             .filter_map(|pc| {
                 let missing = pc
-                    .configurations
+                    .configs
                     .iter()
                     .filter(|c| {
                         !solution_platforms.contains(c.platform)
-                            || !solution_configurations.contains(c.configuration)
+                            || !solution_configurations.contains(c.config)
                     })
-                    .collect::<Vec<&Configuration>>();
+                    .collect::<Vec<&Conf>>();
                 if !missing.is_empty() {
                     return Some((pc.project_id, missing));
                 }
                 None
             })
-            .collect::<Vec<(&str, Vec<&Configuration>)>>();
+            .collect::<Vec<(&str, Vec<&Conf>)>>();
 
         let path = RGB(0xAA, 0xAA, 0xAA).paint(path);
 
@@ -213,10 +213,7 @@ impl Consume for Validate {
 
             for (id, configs) in problem_project_configurations.iter() {
                 for config in configs.iter() {
-                    table.add_row(row![
-                        *id,
-                        format!("{}|{}", config.configuration, config.platform)
-                    ]);
+                    table.add_row(row![*id, format!("{}|{}", config.config, config.platform)]);
                 }
             }
 

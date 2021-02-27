@@ -79,8 +79,8 @@ pub struct Solution<'input> {
     pub product: &'input str,
     pub projects: Vec<Project<'input>>,
     pub versions: Vec<Version<'input>>,
-    pub configurations: Vec<Configuration<'input>>,
-    pub project_configurations: Vec<ProjectConfigurations<'input>>,
+    pub solution_configs: Vec<Conf<'input>>,
+    pub project_configs: Vec<ProjectConfigs<'input>>,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -90,14 +90,14 @@ pub struct Version<'input> {
 }
 
 #[derive(Debug, Clone)]
-pub struct ProjectConfigurations<'input> {
+pub struct ProjectConfigs<'input> {
     pub project_id: &'input str,
-    pub configurations: Vec<Configuration<'input>>,
+    pub configs: Vec<Conf<'input>>,
 }
 
 #[derive(Debug, Copy, Clone)]
-pub struct Configuration<'input> {
-    pub configuration: &'input str,
+pub struct Conf<'input> {
+    pub config: &'input str,
     pub platform: &'input str,
 }
 
@@ -117,8 +117,8 @@ impl<'input> Default for Solution<'input> {
             product: "",
             projects: Vec::new(),
             versions: Vec::new(),
-            configurations: Vec::new(),
-            project_configurations: Vec::new(),
+            solution_configs: Vec::new(),
+            project_configs: Vec::new(),
         }
     }
 }
@@ -178,33 +178,30 @@ impl<'input> Version<'input> {
     }
 }
 
-impl<'input> From<&'input str> for Configuration<'input> {
+impl<'input> From<&'input str> for Conf<'input> {
     fn from(s: &'input str) -> Self {
         let parts: Vec<&str> = s.split('|').collect();
-        let mut configuration = "";
+        let mut config = "";
         let mut platform = "";
         if parts.len() == 2 {
-            configuration = parts[0];
+            config = parts[0];
             platform = parts[1];
         }
-        Self {
-            configuration,
-            platform,
-        }
+        Self { config, platform }
     }
 }
 
-impl<'input> Configuration<'input> {
+impl<'input> Conf<'input> {
     pub fn new(configuration: &'input str, platform: &'input str) -> Self {
         Self {
-            configuration,
+            config: configuration,
             platform,
         }
     }
 
     pub fn from_expr(expr: &Expr<'input>) -> Option<Self> {
         if let Expr::SectionContent(left, _) = expr {
-            let conf = Configuration::from(left.string());
+            let conf = Conf::from(left.string());
             return Some(conf);
         }
 
@@ -212,7 +209,7 @@ impl<'input> Configuration<'input> {
     }
 }
 
-impl<'input> From<&'input str> for ProjectConfigurations<'input> {
+impl<'input> From<&'input str> for ProjectConfigs<'input> {
     fn from(s: &'input str) -> Self {
         let mut it = s.split('.');
         let project_id = it.next().unwrap_or("");
@@ -238,32 +235,29 @@ impl<'input> From<&'input str> for ProjectConfigurations<'input> {
             platform = &trail[..trail.len() - cut_count];
         }
 
-        let mut configurations = Vec::new();
-        let configuration = Configuration::new(config, platform);
-        configurations.push(configuration);
+        let mut configs = Vec::new();
+        let config = Conf::new(config, platform);
+        configs.push(config);
         Self {
             project_id,
-            configurations,
+            configs: configs,
         }
     }
 }
 
-impl<'input> ProjectConfigurations<'input> {
-    pub fn from_id_and_configurations(
-        project_id: &'input str,
-        configs: Vec<Configuration<'input>>,
-    ) -> Self {
+impl<'input> ProjectConfigs<'input> {
+    pub fn from_id_and_configs(project_id: &'input str, configs: Vec<Conf<'input>>) -> Self {
         let mut configurations = Vec::new();
         configurations.extend(configs);
         Self {
             project_id,
-            configurations,
+            configs: configurations,
         }
     }
 
     pub fn new(expr: &Expr<'input>) -> Option<Self> {
         if let Expr::SectionContent(left, _) = expr {
-            let conf = ProjectConfigurations::from(left.string());
+            let conf = ProjectConfigs::from(left.string());
             return Some(conf);
         }
 
@@ -281,10 +275,10 @@ mod tests {
         let s = "Release|Any CPU";
 
         // Act
-        let c = Configuration::from(s);
+        let c = Conf::from(s);
 
         // Assert
-        assert_eq!("Release", c.configuration);
+        assert_eq!("Release", c.config);
         assert_eq!("Any CPU", c.platform);
     }
 
@@ -294,10 +288,10 @@ mod tests {
         let s = "";
 
         // Act
-        let c = Configuration::from(s);
+        let c = Conf::from(s);
 
         // Assert
-        assert_eq!("", c.configuration);
+        assert_eq!("", c.config);
         assert_eq!("", c.platform);
     }
 
@@ -307,10 +301,10 @@ mod tests {
         let s = "Release Any CPU";
 
         // Act
-        let c = Configuration::from(s);
+        let c = Conf::from(s);
 
         // Assert
-        assert_eq!("", c.configuration);
+        assert_eq!("", c.config);
         assert_eq!("", c.platform);
     }
 
@@ -320,10 +314,10 @@ mod tests {
         let s = "Release|Any CPU|test";
 
         // Act
-        let c = Configuration::from(s);
+        let c = Conf::from(s);
 
         // Assert
-        assert_eq!("", c.configuration);
+        assert_eq!("", c.config);
         assert_eq!("", c.platform);
     }
 
@@ -333,13 +327,13 @@ mod tests {
         let s = "{27060CA7-FB29-42BC-BA66-7FC80D498354}.Debug|Any CPU.ActiveCfg";
 
         // Act
-        let c = ProjectConfigurations::from(s);
+        let c = ProjectConfigs::from(s);
 
         // Assert
         assert_eq!("{27060CA7-FB29-42BC-BA66-7FC80D498354}", c.project_id);
-        assert_eq!(1, c.configurations.len());
-        assert_eq!("Debug", c.configurations[0].configuration);
-        assert_eq!("Any CPU", c.configurations[0].platform);
+        assert_eq!(1, c.configs.len());
+        assert_eq!("Debug", c.configs[0].config);
+        assert_eq!("Any CPU", c.configs[0].platform);
     }
 
     #[test]
@@ -348,13 +342,13 @@ mod tests {
         let s = "{27060CA7-FB29-42BC-BA66-7FC80D498354}.Debug .NET 4.0|Any CPU.ActiveCfg";
 
         // Act
-        let c = ProjectConfigurations::from(s);
+        let c = ProjectConfigs::from(s);
 
         // Assert
         assert_eq!("{27060CA7-FB29-42BC-BA66-7FC80D498354}", c.project_id);
-        assert_eq!(1, c.configurations.len());
-        assert_eq!("Debug .NET 4.0", c.configurations[0].configuration);
-        assert_eq!("Any CPU", c.configurations[0].platform);
+        assert_eq!(1, c.configs.len());
+        assert_eq!("Debug .NET 4.0", c.configs[0].config);
+        assert_eq!("Any CPU", c.configs[0].platform);
     }
 
     #[test]
@@ -363,13 +357,13 @@ mod tests {
         let s = "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.ActiveCfg";
 
         // Act
-        let c = ProjectConfigurations::from(s);
+        let c = ProjectConfigs::from(s);
 
         // Assert
         assert_eq!("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", c.project_id);
-        assert_eq!(1, c.configurations.len());
-        assert_eq!("Release", c.configurations[0].configuration);
-        assert_eq!(".NET", c.configurations[0].platform);
+        assert_eq!(1, c.configs.len());
+        assert_eq!("Release", c.configs[0].config);
+        assert_eq!(".NET", c.configs[0].platform);
     }
 
     #[test]
@@ -378,12 +372,12 @@ mod tests {
         let s = "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.Build.0";
 
         // Act
-        let c = ProjectConfigurations::from(s);
+        let c = ProjectConfigs::from(s);
 
         // Assert
         assert_eq!("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", c.project_id);
-        assert_eq!(1, c.configurations.len());
-        assert_eq!("Release", c.configurations[0].configuration);
-        assert_eq!(".NET", c.configurations[0].platform);
+        assert_eq!(1, c.configs.len());
+        assert_eq!("Release", c.configs[0].config);
+        assert_eq!(".NET", c.configs[0].platform);
     }
 }
