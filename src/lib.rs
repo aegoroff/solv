@@ -69,18 +69,80 @@ fn get_extension_from_filename(filename: &str) -> Option<&str> {
 }
 
 fn cut_from_back_until(s: &str, ch: char, skip: usize) -> &str {
-    let it = s.chars().rev();
+    let cut = cut_count(s, ch, skip);
+    &s[..s.len() - cut]
+}
+
+fn cut_count(s: &str, ch: char, skip: usize) -> usize {
     let mut counter = 0;
 
-    let cut_count = it
+    let count = s
+        .chars()
+        .rev()
         .take_while(|c| {
             if *c == ch {
                 counter += 1;
             }
             counter <= skip
         })
-        .count()
-        + 1; // Last
+        .count();
 
-    &s[..s.len() - cut_count]
+    return if count == s.len() {
+        s.len()
+    } else {
+        count + 1 // Last ch
+    };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cut_from_back_until_necessary_chars_more_then_skip_plus_one() {
+        // Arrange
+        let s = "a.b.c.d";
+
+        // Act
+        let c = cut_from_back_until(s, '.', 1);
+
+        // Assert
+        assert_eq!("a.b", c);
+    }
+
+    #[test]
+    fn cut_from_back_until_has_necessary_chars_to_skip() {
+        // Arrange
+        let s = "a.b.c";
+
+        // Act
+        let c = cut_from_back_until(s, '.', 1);
+
+        // Assert
+        assert_eq!("a", c);
+    }
+
+    #[test]
+    fn cut_from_back_until_chars_to_skip_not_enough() {
+        // Arrange
+        let s = "a.b";
+
+        // Act
+        let c = cut_from_back_until(s, '.', 1);
+
+        // Assert
+        assert_eq!("", c);
+    }
+
+    #[test]
+    fn cut_from_back_until_chars_to_skip_not_present() {
+        // Arrange
+        let s = "ab";
+
+        // Act
+        let c = cut_from_back_until(s, '.', 1);
+
+        // Assert
+        assert_eq!("", c);
+    }
 }
