@@ -1,4 +1,4 @@
-use crate::ast::{Solution, Configuration};
+use crate::ast::{Configuration, Solution};
 use crate::msbuild;
 use crate::Consume;
 use ansi_term::Colour::{Green, Red, Yellow, RGB};
@@ -174,12 +174,16 @@ impl Consume for Validate {
             .project_configurations
             .iter()
             .filter_map(|pc| {
-                let missing = pc.configurations.iter().filter(|c| {
-                    !solution_platforms.contains(c.platform)
-                        || !solution_configurations.contains(c.configuration)
-                }).collect::<Vec<&Configuration>>();
+                let missing = pc
+                    .configurations
+                    .iter()
+                    .filter(|c| {
+                        !solution_platforms.contains(c.platform)
+                            || !solution_configurations.contains(c.configuration)
+                    })
+                    .collect::<Vec<&Configuration>>();
                 if !missing.is_empty() {
-                    return Some((pc.project_id, missing))
+                    return Some((pc.project_id, missing));
                 }
                 None
             })
@@ -209,7 +213,10 @@ impl Consume for Validate {
 
             for (id, configs) in problem_project_configurations.iter() {
                 for config in configs.iter() {
-                    table.add_row(row![*id, format!("{}|{}", config.configuration, config.platform)]);
+                    table.add_row(row![
+                        *id,
+                        format!("{}|{}", config.configuration, config.platform)
+                    ]);
                 }
             }
 
