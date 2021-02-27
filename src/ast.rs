@@ -224,15 +224,13 @@ impl<'input> From<&'input str> for ProjectConfigs<'input> {
             let mut it = trail.chars().rev();
             let mut dot_count = 0;
             let mut cut_count = 0;
-            while dot_count < 2 {
-                cut_count += 1;
-                match it.next() {
-                    Some('.') => dot_count += 1,
-                    None => break,
-                    _ => {}
-                }
+            const SKIP_DOTS: usize = 2;
+
+            while dot_count < SKIP_DOTS {
+                cut_count += it.by_ref().take_while(|ch| *ch != '.').count();
+                dot_count += 1;
             }
-            platform = &trail[..trail.len() - cut_count];
+            platform = &trail[..trail.len() - (cut_count + SKIP_DOTS)];
         }
 
         let mut configs = Vec::new();
