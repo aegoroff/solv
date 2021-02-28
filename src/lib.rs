@@ -1,5 +1,4 @@
 use std::fs;
-use std::path::Path;
 
 use crate::ast::Solution;
 use jwalk::WalkDir;
@@ -50,24 +49,16 @@ pub fn parse(path: &str, consumer: &dyn Consume) {
 pub fn scan(path: &str, extension: &str, consumer: &dyn Consume) -> usize {
     let iter = WalkDir::new(path).skip_hidden(false).follow_links(false);
 
+    let ext = String::from(".") + extension.trim_start_matches('.');
+
     iter.into_iter()
         .filter(Result::is_ok)
         .map(Result::unwrap)
         .filter(|f| f.file_type().is_file())
-        .filter_map(|f| {
-            let ext = f.file_name.to_str().unwrap_or("");
-            let ext = get_extension_from_filename(ext)?;
-            if ext == extension {
-                return Some(f.path().to_str().unwrap_or("").to_string());
-            }
-            None
-        })
+        .filter(|f| f.file_name.to_str().unwrap_or_default().ends_with(&ext))
+        .map(|f| f.path().to_str().unwrap_or("").to_string())
         .inspect(|fp| parse(&fp, consumer))
         .count()
-}
-
-fn get_extension_from_filename(filename: &str) -> Option<&str> {
-    Path::new(filename).extension()?.to_str()
 }
 
 fn cut_from_back_until(s: &str, ch: char, skip: usize) -> &str {
