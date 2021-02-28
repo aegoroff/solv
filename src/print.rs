@@ -187,11 +187,17 @@ impl Consume for Validate {
             })
             .collect::<Vec<(&str, Vec<&Conf>)>>();
 
-        let path = RGB(0xAA, 0xAA, 0xAA).paint(path);
+        if !dangling_configurations.is_empty()
+            || !not_found.is_empty()
+            || !problem_project_configurations.is_empty()
+            || !self.show_only_problems
+        {
+            let path = RGB(0xAA, 0xAA, 0xAA).paint(path);
+            println!(" {}", path);
+        }
 
         let mut no_problems = true;
         if !(dangling_configurations.is_empty()) {
-            println!(" {}", path);
             println!(" {}", Yellow.paint("  Solution contains dangling project configurations that can be safely removed:"));
             println!();
             Info::print_one_column_table("Project ID", dangling_configurations);
@@ -199,7 +205,6 @@ impl Consume for Validate {
         }
 
         if !(not_found.is_empty()) {
-            println!(" {}", path);
             println!(" {}", Yellow.paint("  Solution contains unexist projects:"));
             println!();
             Info::print_one_column_table("Path", not_found);
@@ -207,7 +212,6 @@ impl Consume for Validate {
         }
 
         if !(problem_project_configurations.is_empty()) {
-            println!(" {}", path);
             println!(" {}", Yellow.paint("  Solution contains project configurations that are outside solution's configuration|platform list:"));
             println!();
 
@@ -230,7 +234,6 @@ impl Consume for Validate {
         }
 
         if !self.show_only_problems && no_problems {
-            println!(" {}", path);
             println!(" {}", Green.paint("  No problems found in solution."));
             println!();
         }
