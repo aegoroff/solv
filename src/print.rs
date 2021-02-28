@@ -258,7 +258,7 @@ fn make_path(dir: &Path, relative: &str) -> PathBuf {
 #[cfg(target_os = "windows")]
 fn make_path(dir: &Path, relative: &str) -> PathBuf {
     let mut pb = PathBuf::from(&dir);
-    let cleaned = cleaned.trim_matches('"');
+    let cleaned = relative.trim_matches('"');
     pb.push(cleaned);
     pb
 }
