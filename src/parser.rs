@@ -8,6 +8,9 @@ pub fn parse_str(contents: &str, debug: bool) -> Option<Solution> {
     let input;
 
     let cb = contents.as_bytes();
+    if contents.len() < 3 {
+        return None;
+    }
     if cb[0] == b'\xEF' && cb[1] == b'\xBB' && cb[2] == b'\xBF' {
         input = &contents[3..];
     } else {
@@ -274,5 +277,29 @@ Global
 EndGlobal
 "#;
         parse_str(input, true);
+    }
+
+    #[test]
+    fn parser_empty() {
+        // Arrange
+        let input = r#""#;
+
+        // Act
+        let sln = parse_str(input, false);
+
+        // Assert
+        assert!(sln.is_none());
+    }
+
+    #[test]
+    fn parser_trash() {
+        // Arrange
+        let input = r#"123243"#;
+
+        // Act
+        let sln = parse_str(input, false);
+
+        // Assert
+        assert!(sln.is_none());
     }
 }
