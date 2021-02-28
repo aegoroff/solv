@@ -6,7 +6,7 @@ use prettytable::format;
 use prettytable::format::TableFormat;
 use prettytable::Table;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 extern crate ansi_term;
 
@@ -149,12 +149,15 @@ impl Consume for Validate {
         let mut sep = String::new();
         sep.push(std::path::MAIN_SEPARATOR);
 
+        let dir = Path::new(path).parent().unwrap_or_else(|| Path::new(""));
+
         let projects = solution
             .projects
             .iter()
+            .filter(|p| !msbuild::is_solution_folder(p.type_id))
             .map(|p| {
                 let mut pb = PathBuf::new();
-                pb.push(path);
+                pb.push(&dir);
                 let cleaned = p.path.replace("\\", &sep);
                 let cleaned = cleaned.trim_matches('"');
                 pb.push(cleaned);
@@ -165,7 +168,7 @@ impl Consume for Validate {
 
         let not_found: BTreeSet<&str> = projects
             .iter()
-            .filter(|(_, path)| path.as_path().exists())
+            .filter(|(_, path)| path.canonicalize().is_err())
             .map(|(_, pb)| pb.as_path().to_str().unwrap_or(""))
             .collect();
 
