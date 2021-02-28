@@ -125,12 +125,7 @@ impl<'input> Default for Solution<'input> {
 
 impl<'input> Project<'input> {
     pub fn new(id: &'input str, type_id: &'input str) -> Self {
-        let type_descr;
-        if let Some(type_name) = msbuild::PROJECT_TYPES.get(type_id) {
-            type_descr = *type_name;
-        } else {
-            type_descr = type_id;
-        }
+        let type_descr = msbuild::describe_project(type_id);
 
         Self {
             id,

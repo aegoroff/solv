@@ -1,6 +1,18 @@
-pub const ID_SOLUTION_FOLDER: &str = "{2150E333-8FDC-42A3-9474-1A3956D46DE8}";
+pub fn is_solution_folder(id: &str) -> bool {
+    id == ID_SOLUTION_FOLDER
+}
 
-pub static PROJECT_TYPES: phf::Map<&'static str, &'static str> = phf::phf_map! {
+pub fn describe_project(id: &str) -> &str {
+    if let Some(type_name) = PROJECT_TYPES.get(id) {
+        *type_name
+    } else {
+        id
+    }
+}
+
+const ID_SOLUTION_FOLDER: &str = "{2150E333-8FDC-42A3-9474-1A3956D46DE8}";
+
+static PROJECT_TYPES: phf::Map<&'static str, &'static str> = phf::phf_map! {
     "{CC5FD16D-436D-48AD-A40C-5A424C6E3E79}" => "Azure Project",
     "{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}" => "ASP.NET 5",
     "{603C0E0B-DB56-11DC-BE95-000D561079B0}" => "ASP.NET MVC 1",

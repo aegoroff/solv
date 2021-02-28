@@ -76,7 +76,7 @@ impl Consume for Info {
     fn ok(&self, path: &str, solution: &Solution) {
         let mut projects_by_type: BTreeMap<&str, i32> = BTreeMap::new();
         for prj in &solution.projects {
-            if prj.type_id == msbuild::ID_SOLUTION_FOLDER {
+            if msbuild::is_solution_folder(prj.type_id) {
                 continue;
             }
             *projects_by_type.entry(prj.type_descr).or_insert(0) += 1;
