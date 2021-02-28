@@ -32,11 +32,15 @@ pub trait Consume {
 
 /// parse parses single solution file specified by path.
 pub fn parse(path: &str, consumer: &dyn Consume) {
-    let contents = fs::read_to_string(path).expect("Something went wrong reading the file");
-    if let Some(solution) = parser::parse_str(&contents, consumer.is_debug()) {
-        consumer.ok(path, &solution);
-    } else {
-        consumer.err(path);
+    match fs::read_to_string(path) {
+        Ok(contents) => {
+            if let Some(solution) = parser::parse_str(&contents, consumer.is_debug()) {
+                consumer.ok(path, &solution);
+            } else {
+                consumer.err(path);
+            }
+        }
+        Err(e)=> eprintln!("{} - {}", path, e)
     }
 }
 
