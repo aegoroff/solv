@@ -95,7 +95,7 @@ pub struct ProjectConfigs<'input> {
     pub configs: Vec<Conf<'input>>,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Conf<'input> {
     pub config: &'input str,
     pub platform: &'input str,

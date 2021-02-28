@@ -158,17 +158,8 @@ impl Consume for Validate {
             .map(|pc| pc.project_id)
             .collect::<BTreeSet<&str>>();
 
-        let solution_platforms = solution
-            .solution_configs
-            .iter()
-            .map(|c| c.platform)
-            .collect::<HashSet<&str>>();
-
-        let solution_configurations = solution
-            .solution_configs
-            .iter()
-            .map(|c| c.config)
-            .collect::<HashSet<&str>>();
+        let solution_platforms_configs =
+            solution.solution_configs.iter().collect::<HashSet<&Conf>>();
 
         let problem_project_configurations = solution
             .project_configs
@@ -177,10 +168,7 @@ impl Consume for Validate {
                 let missing = pc
                     .configs
                     .iter()
-                    .filter(|c| {
-                        !solution_platforms.contains(c.platform)
-                            || !solution_configurations.contains(c.config)
-                    })
+                    .filter(|c| !solution_platforms_configs.contains(c))
                     .collect::<Vec<&Conf>>();
                 if !missing.is_empty() {
                     return Some((pc.project_id, missing));
