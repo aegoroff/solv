@@ -40,17 +40,17 @@ pub fn parse(path: &str, consumer: &dyn Consume) {
                 consumer.err(path);
             }
         }
-        Err(e)=> eprintln!("{} - {}", path, e)
+        Err(e) => eprintln!("{} - {}", path, e),
     }
 }
 
 /// scan parses directory specified by path. recursively
 /// it finds all files with sln extension and parses them.
-pub fn scan(path: &str, extension: &str, consumer: &dyn Consume) {
+/// returns the number of scanned solutions
+pub fn scan(path: &str, extension: &str, consumer: &dyn Consume) -> usize {
     let iter = WalkDir::new(path).skip_hidden(false).follow_links(false);
 
-    let it = iter
-        .into_iter()
+    iter.into_iter()
         .filter(Result::is_ok)
         .map(Result::unwrap)
         .filter(|f| f.file_type().is_file())
@@ -61,11 +61,9 @@ pub fn scan(path: &str, extension: &str, consumer: &dyn Consume) {
                 return Some(f.path().to_str().unwrap_or("").to_string());
             }
             None
-        });
-
-    for full_path in it {
-        parse(&full_path, consumer);
-    }
+        })
+        .inspect(|fp| parse(&fp, consumer))
+        .count()
 }
 
 fn get_extension_from_filename(filename: &str) -> Option<&str> {

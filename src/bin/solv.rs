@@ -20,7 +20,10 @@ fn main() {
 
             let is_info = cmd.is_present("info");
             let consumer = new_consumer(debug, !is_info, only_problems);
-            solv::scan(path, extension, &*consumer);
+            let scanned = solv::scan(path, extension, &*consumer);
+
+            println!();
+            println!("solutions scanned: {}", scanned);
 
             println!(
                 "elapsed: {}",
