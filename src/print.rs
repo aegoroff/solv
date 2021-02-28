@@ -146,24 +146,13 @@ impl Consume for Info {
 
 impl Consume for Validate {
     fn ok(&self, path: &str, solution: &Solution) {
-        let mut sep = String::new();
-        sep.push(std::path::MAIN_SEPARATOR);
-
         let dir = Path::new(path).parent().unwrap_or_else(|| Path::new(""));
 
         let projects = solution
             .projects
             .iter()
             .filter(|p| !msbuild::is_solution_folder(p.type_id))
-            .map(|p| {
-                let mut pb = PathBuf::new();
-                pb.push(&dir);
-                let cleaned = p.path.replace("\\", &sep);
-                let cleaned = cleaned.trim_matches('"');
-                pb.push(cleaned);
-
-                (p.id.to_uppercase(), pb)
-            })
+            .map(|p| (p.id.to_uppercase(), make_path(dir, p.path)))
             .collect::<HashMap<String, PathBuf>>();
 
         let not_found: BTreeSet<&str> = projects
@@ -254,4 +243,22 @@ impl Consume for Validate {
     fn is_debug(&self) -> bool {
         self.debug
     }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn make_path(dir: &Path, relative: &str) -> PathBuf {
+    let sep = &std::path::MAIN_SEPARATOR.to_string();
+    let mut pb = PathBuf::from(&dir);
+    let cleaned = relative.replace("\\", &sep);
+    let cleaned = cleaned.trim_matches('"');
+    pb.push(cleaned);
+    pb
+}
+
+#[cfg(target_os = "windows")]
+fn make_path(dir: &Path, relative: &str) -> PathBuf {
+    let mut pb = PathBuf::from(&dir);
+    let cleaned = cleaned.trim_matches('"');
+    pb.push(cleaned);
+    pb
 }
