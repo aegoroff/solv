@@ -16,10 +16,11 @@ fn main() {
         if let Some(path) = cmd.value_of("PATH") {
             let now = Instant::now();
             let only_problems = cmd.is_present("problems");
+            let extension = cmd.value_of("ext").unwrap_or("");
 
             let is_info = cmd.is_present("info");
             let consumer = new_consumer(debug, !is_info, only_problems);
-            solv::scan(path, &*consumer);
+            solv::scan(path, extension, &*consumer);
 
             println!(
                 "elapsed: {}",
@@ -73,6 +74,15 @@ fn build_cli() -> App<'static, 'static> {
                         .short("i")
                         .takes_value(false)
                         .help("show solutions info without validation")
+                        .required(false),
+                )
+                .arg(
+                    Arg::with_name("ext")
+                        .long("ext")
+                        .short("e")
+                        .takes_value(true)
+                        .default_value("sln")
+                        .help("Visual Studio solution extension")
                         .required(false),
                 )
                 .arg(

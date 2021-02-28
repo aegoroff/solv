@@ -42,7 +42,7 @@ pub fn parse(path: &str, consumer: &dyn Consume) {
 
 /// scan parses directory specified by path. recursively
 /// it finds all files with sln extension and parses them.
-pub fn scan(path: &str, consumer: &dyn Consume) {
+pub fn scan(path: &str, extension: &str, consumer: &dyn Consume) {
     let iter = WalkDir::new(path).skip_hidden(false).follow_links(false);
 
     let it = iter
@@ -53,7 +53,7 @@ pub fn scan(path: &str, consumer: &dyn Consume) {
         .filter_map(|f| {
             let ext = f.file_name.to_str().unwrap_or("");
             let ext = get_extension_from_filename(ext)?;
-            if ext == "sln" {
+            if ext == extension {
                 return Some(f.path().to_str().unwrap_or("").to_string());
             }
             None
