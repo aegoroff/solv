@@ -5,7 +5,8 @@ use ansi_term::Colour::{Green, Red, Yellow, RGB};
 use prettytable::format;
 use prettytable::format::TableFormat;
 use prettytable::Table;
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::path::PathBuf;
 
 extern crate ansi_term;
 
@@ -145,16 +146,33 @@ impl Consume for Info {
 
 impl Consume for Validate {
     fn ok(&self, path: &str, solution: &Solution) {
+        let mut sep = String::new();
+        sep.push(std::path::MAIN_SEPARATOR);
+
         let projects = solution
             .projects
             .iter()
-            .map(|c| c.id.to_uppercase())
-            .collect::<HashSet<String>>();
+            .map(|p| {
+                let mut pb = PathBuf::new();
+                pb.push(path);
+                let cleaned = p.path.replace("\\", &sep);
+                let cleaned = cleaned.trim_matches('"');
+                pb.push(cleaned);
+
+                (p.id.to_uppercase(), pb)
+            })
+            .collect::<HashMap<String, PathBuf>>();
+
+        let not_found: BTreeSet<&str> = projects
+            .iter()
+            .filter(|(_, path)| path.as_path().exists())
+            .map(|(_, pb)| pb.as_path().to_str().unwrap_or(""))
+            .collect();
 
         let dangling_configurations = solution
             .project_configs
             .iter()
-            .filter(|pc| !projects.contains(&pc.project_id.to_uppercase()))
+            .filter(|pc| !projects.contains_key(&pc.project_id.to_uppercase()))
             .map(|pc| pc.project_id)
             .collect::<BTreeSet<&str>>();
 
@@ -185,6 +203,14 @@ impl Consume for Validate {
             println!(" {}", Yellow.paint("  Solution contains dangling project configurations that can be safely removed:"));
             println!();
             Info::print_one_column_table("Project ID", dangling_configurations);
+            no_problems = false;
+        }
+
+        if !(not_found.is_empty()) {
+            println!(" {}", path);
+            println!(" {}", Yellow.paint("  Solution contains unexist projects:"));
+            println!();
+            Info::print_one_column_table("Path", not_found);
             no_problems = false;
         }
 
