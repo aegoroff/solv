@@ -148,37 +148,11 @@ impl Consume for Validate {
     fn ok(&self, path: &str, solution: &Solution) {
         let projects = new_projects_map(path, solution);
 
-        let not_found: BTreeSet<&str> = projects
-            .iter()
-            .filter(|(_, path)| path.canonicalize().is_err())
-            .map(|(_, pb)| pb.as_path().to_str().unwrap_or(""))
-            .collect();
+        let not_found = Validate::search_not_found(&projects);
 
-        let danglings = solution
-            .project_configs
-            .iter()
-            .filter(|pc| !projects.contains_key(&pc.project_id.to_uppercase()))
-            .map(|pc| pc.project_id)
-            .collect::<BTreeSet<&str>>();
+        let danglings = Validate::search_dangling_configs(solution, &projects);
 
-        let solution_platforms_configs =
-            solution.solution_configs.iter().collect::<HashSet<&Conf>>();
-
-        let missings = solution
-            .project_configs
-            .iter()
-            .filter_map(|pc| {
-                let missing = pc
-                    .configs
-                    .iter()
-                    .filter(|c| !solution_platforms_configs.contains(c))
-                    .collect::<Vec<&Conf>>();
-                if !missing.is_empty() {
-                    return Some((pc.project_id, missing));
-                }
-                None
-            })
-            .collect::<Vec<(&str, Vec<&Conf>)>>();
+        let missings = Validate::search_missing(solution);
 
         if !danglings.is_empty()
             || !not_found.is_empty()
@@ -241,7 +215,6 @@ impl Consume for Validate {
     }
 }
 
-
 #[cfg(not(target_os = "windows"))]
 fn make_path(dir: &Path, relative: &str) -> PathBuf {
     let sep = &std::path::MAIN_SEPARATOR.to_string();
@@ -270,4 +243,50 @@ fn new_projects_map(path: &str, solution: &Solution) -> HashMap<String, PathBuf>
         .map(|p| (p.id.to_uppercase(), make_path(dir, p.path)))
         .collect::<HashMap<String, PathBuf>>();
     projects
+}
+
+impl Validate {
+    fn search_not_found(projects: &HashMap<String, PathBuf>) -> BTreeSet<&str> {
+        let not_found: BTreeSet<&str> = projects
+            .iter()
+            .filter(|(_, path)| path.canonicalize().is_err())
+            .map(|(_, pb)| pb.as_path().to_str().unwrap_or(""))
+            .collect();
+        not_found
+    }
+
+    fn search_dangling_configs<'a>(
+        solution: &'a Solution,
+        projects: &HashMap<String, PathBuf>,
+    ) -> BTreeSet<&'a str> {
+        let danglings = solution
+            .project_configs
+            .iter()
+            .filter(|pc| !projects.contains_key(&pc.project_id.to_uppercase()))
+            .map(|pc| pc.project_id)
+            .collect::<BTreeSet<&str>>();
+        danglings
+    }
+
+    fn search_missing<'a>(solution: &'a Solution<'a>) -> Vec<(&'a str, Vec<&'a Conf>)> {
+        let solution_platforms_configs =
+            solution.solution_configs.iter().collect::<HashSet<&Conf>>();
+
+        let missings = solution
+            .project_configs
+            .iter()
+            .filter_map(|pc| {
+                let missing = pc
+                    .configs
+                    .iter()
+                    .filter(|c| !solution_platforms_configs.contains(c))
+                    .collect::<Vec<&Conf>>();
+                if !missing.is_empty() {
+                    return Some((pc.project_id, missing));
+                }
+                None
+            })
+            .collect::<Vec<(&str, Vec<&Conf>)>>();
+        missings
+    }
 }
