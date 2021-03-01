@@ -281,7 +281,7 @@ impl Validate {
                     .iter()
                     .collect::<HashSet<&Conf>>()
                     .difference(&solution_platforms_configs)
-                    .map(|c| *c)
+                    .copied()
                     .collect::<Vec<&Conf>>();
 
                 if !diff.is_empty() {
