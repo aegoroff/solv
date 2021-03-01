@@ -146,14 +146,7 @@ impl Consume for Info {
 
 impl Consume for Validate {
     fn ok(&self, path: &str, solution: &Solution) {
-        let dir = Path::new(path).parent().unwrap_or_else(|| Path::new(""));
-
-        let projects = solution
-            .projects
-            .iter()
-            .filter(|p| !msbuild::is_solution_folder(p.type_id))
-            .map(|p| (p.id.to_uppercase(), make_path(dir, p.path)))
-            .collect::<HashMap<String, PathBuf>>();
+        let projects = new_projects_map(path, solution);
 
         let not_found: BTreeSet<&str> = projects
             .iter()
@@ -161,7 +154,7 @@ impl Consume for Validate {
             .map(|(_, pb)| pb.as_path().to_str().unwrap_or(""))
             .collect();
 
-        let dangling_configurations = solution
+        let danglings = solution
             .project_configs
             .iter()
             .filter(|pc| !projects.contains_key(&pc.project_id.to_uppercase()))
@@ -171,7 +164,7 @@ impl Consume for Validate {
         let solution_platforms_configs =
             solution.solution_configs.iter().collect::<HashSet<&Conf>>();
 
-        let problem_project_configurations = solution
+        let missings = solution
             .project_configs
             .iter()
             .filter_map(|pc| {
@@ -187,9 +180,9 @@ impl Consume for Validate {
             })
             .collect::<Vec<(&str, Vec<&Conf>)>>();
 
-        if !dangling_configurations.is_empty()
+        if !danglings.is_empty()
             || !not_found.is_empty()
-            || !problem_project_configurations.is_empty()
+            || !missings.is_empty()
             || !self.show_only_problems
         {
             let path = RGB(0xAA, 0xAA, 0xAA).paint(path);
@@ -197,10 +190,10 @@ impl Consume for Validate {
         }
 
         let mut no_problems = true;
-        if !(dangling_configurations.is_empty()) {
+        if !(danglings.is_empty()) {
             println!(" {}", Yellow.paint("  Solution contains dangling project configurations that can be safely removed:"));
             println!();
-            Info::print_one_column_table("Project ID", dangling_configurations);
+            Info::print_one_column_table("Project ID", danglings);
             no_problems = false;
         }
 
@@ -211,7 +204,7 @@ impl Consume for Validate {
             no_problems = false;
         }
 
-        if !(problem_project_configurations.is_empty()) {
+        if !(missings.is_empty()) {
             println!(" {}", Yellow.paint("  Solution contains project configurations that are outside solution's configuration|platform list:"));
             println!();
 
@@ -221,7 +214,7 @@ impl Consume for Validate {
             table.set_format(fmt);
             table.set_titles(row![bF=> "Project ID", "Configuration|Platform"]);
 
-            for (id, configs) in problem_project_configurations.iter() {
+            for (id, configs) in missings.iter() {
                 for config in configs.iter() {
                     table.add_row(row![*id, format!("{}|{}", config.config, config.platform)]);
                 }
@@ -248,6 +241,7 @@ impl Consume for Validate {
     }
 }
 
+
 #[cfg(not(target_os = "windows"))]
 fn make_path(dir: &Path, relative: &str) -> PathBuf {
     let sep = &std::path::MAIN_SEPARATOR.to_string();
@@ -264,4 +258,16 @@ fn make_path(dir: &Path, relative: &str) -> PathBuf {
     let cleaned = relative.trim_matches('"');
     pb.push(cleaned);
     pb
+}
+
+fn new_projects_map(path: &str, solution: &Solution) -> HashMap<String, PathBuf> {
+    let dir = Path::new(path).parent().unwrap_or_else(|| Path::new(""));
+
+    let projects = solution
+        .projects
+        .iter()
+        .filter(|p| !msbuild::is_solution_folder(p.type_id))
+        .map(|p| (p.id.to_uppercase(), make_path(dir, p.path)))
+        .collect::<HashMap<String, PathBuf>>();
+    projects
 }
