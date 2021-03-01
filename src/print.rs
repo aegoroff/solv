@@ -5,10 +5,12 @@ use ansi_term::Colour::{Green, Red, Yellow, RGB};
 use prettytable::format;
 use prettytable::format::TableFormat;
 use prettytable::Table;
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
+use fnv::{FnvHashMap, FnvHashSet};
 
 extern crate ansi_term;
+extern crate fnv;
 
 pub struct Info {
     debug: bool,
@@ -233,7 +235,7 @@ fn make_path(dir: &Path, relative: &str) -> PathBuf {
     pb
 }
 
-fn new_projects_map(path: &str, solution: &Solution) -> HashMap<String, PathBuf> {
+fn new_projects_map(path: &str, solution: &Solution) -> FnvHashMap<String, PathBuf> {
     let dir = Path::new(path).parent().unwrap_or_else(|| Path::new(""));
 
     let projects = solution
@@ -241,12 +243,12 @@ fn new_projects_map(path: &str, solution: &Solution) -> HashMap<String, PathBuf>
         .iter()
         .filter(|p| !msbuild::is_solution_folder(p.type_id))
         .map(|p| (p.id.to_uppercase(), make_path(dir, p.path)))
-        .collect::<HashMap<String, PathBuf>>();
+        .collect::<FnvHashMap<String, PathBuf>>();
     projects
 }
 
 impl Validate {
-    fn search_not_found(projects: &HashMap<String, PathBuf>) -> BTreeSet<&str> {
+    fn search_not_found(projects: &FnvHashMap<String, PathBuf>) -> BTreeSet<&str> {
         let not_found: BTreeSet<&str> = projects
             .iter()
             .filter(|(_, path)| path.canonicalize().is_err())
@@ -257,7 +259,7 @@ impl Validate {
 
     fn search_dangling_configs<'a>(
         solution: &'a Solution,
-        projects: &HashMap<String, PathBuf>,
+        projects: &FnvHashMap<String, PathBuf>,
     ) -> BTreeSet<&'a str> {
         let danglings = solution
             .project_configs
@@ -270,7 +272,7 @@ impl Validate {
 
     fn search_missing<'a>(solution: &'a Solution<'a>) -> Vec<(&'a str, Vec<&'a Conf>)> {
         let solution_platforms_configs =
-            solution.solution_configs.iter().collect::<HashSet<&Conf>>();
+            solution.solution_configs.iter().collect::<FnvHashSet<&Conf>>();
 
         let missings = solution
             .project_configs
@@ -279,7 +281,7 @@ impl Validate {
                 let diff = pc
                     .configs
                     .iter()
-                    .collect::<HashSet<&Conf>>()
+                    .collect::<FnvHashSet<&Conf>>()
                     .difference(&solution_platforms_configs)
                     .copied()
                     .collect::<Vec<&Conf>>();

@@ -17,6 +17,7 @@ prettytable-rs = "^0.8"
 phf = { version = "0.8", features = ["macros"] }
 ansi_term = "0.12"
 itertools = "0.10"
+fnv = "1"
 humantime = { version = "2.1", optional = true }
 clap = { version = "2", optional = true }
 
