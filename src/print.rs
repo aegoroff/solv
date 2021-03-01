@@ -276,13 +276,16 @@ impl Validate {
             .project_configs
             .iter()
             .filter_map(|pc| {
-                let missing = pc
+                let diff = pc
                     .configs
                     .iter()
-                    .filter(|c| !solution_platforms_configs.contains(c))
+                    .collect::<HashSet<&Conf>>()
+                    .difference(&solution_platforms_configs)
+                    .map(|c| *c)
                     .collect::<Vec<&Conf>>();
-                if !missing.is_empty() {
-                    return Some((pc.project_id, missing));
+
+                if !diff.is_empty() {
+                    return Some((pc.project_id, diff));
                 }
                 None
             })
