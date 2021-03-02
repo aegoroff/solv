@@ -2,12 +2,12 @@ use crate::ast::{Conf, Solution};
 use crate::msbuild;
 use crate::Consume;
 use ansi_term::Colour::{Green, Red, Yellow, RGB};
+use fnv::{FnvHashMap, FnvHashSet};
 use prettytable::format;
 use prettytable::format::TableFormat;
 use prettytable::Table;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
-use fnv::{FnvHashMap, FnvHashSet};
 
 extern crate ansi_term;
 extern crate fnv;
@@ -236,43 +236,42 @@ fn make_path(dir: &Path, relative: &str) -> PathBuf {
 fn new_projects_map(path: &str, solution: &Solution) -> FnvHashMap<String, PathBuf> {
     let dir = Path::new(path).parent().unwrap_or_else(|| Path::new(""));
 
-    let projects = solution
+    solution
         .projects
         .iter()
         .filter(|p| !msbuild::is_solution_folder(p.type_id))
         .map(|p| (p.id.to_uppercase(), make_path(dir, p.path)))
-        .collect::<FnvHashMap<String, PathBuf>>();
-    projects
+        .collect::<FnvHashMap<String, PathBuf>>()
 }
 
 impl Validate {
     fn search_not_found(projects: &FnvHashMap<String, PathBuf>) -> BTreeSet<&str> {
-        let not_found: BTreeSet<&str> = projects
+        projects
             .iter()
             .filter(|(_, path)| path.canonicalize().is_err())
             .map(|(_, pb)| pb.as_path().to_str().unwrap_or(""))
-            .collect();
-        not_found
+            .collect()
     }
 
     fn search_dangling_configs<'a>(
         solution: &'a Solution,
         projects: &FnvHashMap<String, PathBuf>,
     ) -> BTreeSet<&'a str> {
-        let danglings = solution
+        solution
             .project_configs
             .iter()
             .filter(|pc| !projects.contains_key(&pc.project_id.to_uppercase()))
             .map(|pc| pc.project_id)
-            .collect::<BTreeSet<&str>>();
-        danglings
+            .collect::<BTreeSet<&str>>()
     }
 
     fn search_missing<'a>(solution: &'a Solution<'a>) -> Vec<(&'a str, Vec<&'a Conf>)> {
-        let solution_platforms_configs =
-            solution.solution_configs.iter().collect::<FnvHashSet<&Conf>>();
+        let solution_platforms_configs = solution
+            .solution_configs
+            .iter()
+            .collect::<FnvHashSet<&Conf>>();
 
-        let missings = solution
+        solution
             .project_configs
             .iter()
             .filter_map(|pc| {
@@ -289,7 +288,6 @@ impl Validate {
                 }
                 None
             })
-            .collect::<Vec<(&str, Vec<&Conf>)>>();
-        missings
+            .collect::<Vec<(&str, Vec<&Conf>)>>()
     }
 }
