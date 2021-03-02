@@ -135,7 +135,9 @@ impl<'input> Lexer<'input> {
                     return if guid {
                         Some(Ok((i + 1, Tok::Guid(&self.input[i + 1..*j]), *j - 1)))
                     } else {
-                        Some(Ok((i, Tok::Str(&self.input[i..*j + 1]), *j)))
+                        let start = i + 1;
+                        let finish = *j;
+                        Some(Ok((start, Tok::Str(&self.input[start..finish]), finish)))
                     };
                 }
                 None => {

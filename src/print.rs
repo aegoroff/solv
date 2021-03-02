@@ -222,7 +222,6 @@ fn make_path(dir: &Path, relative: &str) -> PathBuf {
     let sep = &std::path::MAIN_SEPARATOR.to_string();
     let mut pb = PathBuf::from(&dir);
     let cleaned = relative.replace("\\", &sep);
-    let cleaned = cleaned.trim_matches('"');
     pb.push(cleaned);
     pb
 }
@@ -230,8 +229,7 @@ fn make_path(dir: &Path, relative: &str) -> PathBuf {
 #[cfg(target_os = "windows")]
 fn make_path(dir: &Path, relative: &str) -> PathBuf {
     let mut pb = PathBuf::from(&dir);
-    let cleaned = relative.trim_matches('"');
-    pb.push(cleaned);
+    pb.push(relative);
     pb
 }
 
