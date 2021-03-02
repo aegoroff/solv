@@ -241,7 +241,7 @@ fn new_projects_map(path: &str, solution: &Solution) -> FnvHashMap<String, PathB
         .iter()
         .filter(|p| !msbuild::is_solution_folder(p.type_id))
         .map(|p| (p.id.to_uppercase(), make_path(dir, p.path)))
-        .collect::<FnvHashMap<String, PathBuf>>()
+        .collect()
 }
 
 impl Validate {
@@ -262,7 +262,7 @@ impl Validate {
             .iter()
             .filter(|pc| !projects.contains_key(&pc.project_id.to_uppercase()))
             .map(|pc| pc.project_id)
-            .collect::<BTreeSet<&str>>()
+            .collect()
     }
 
     fn search_missing<'a>(solution: &'a Solution<'a>) -> Vec<(&'a str, Vec<&'a Conf>)> {
@@ -288,6 +288,6 @@ impl Validate {
                 }
                 None
             })
-            .collect::<Vec<(&str, Vec<&Conf>)>>()
+            .collect()
     }
 }
