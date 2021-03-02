@@ -220,17 +220,13 @@ impl Consume for Validate {
 #[cfg(not(target_os = "windows"))]
 fn make_path(dir: &Path, relative: &str) -> PathBuf {
     let sep = &std::path::MAIN_SEPARATOR.to_string();
-    let mut pb = PathBuf::from(&dir);
     let cleaned = relative.replace("\\", &sep);
-    pb.push(cleaned);
-    pb
+    PathBuf::from(&dir).join(cleaned)
 }
 
 #[cfg(target_os = "windows")]
 fn make_path(dir: &Path, relative: &str) -> PathBuf {
-    let mut pb = PathBuf::from(&dir);
-    pb.push(relative);
-    pb
+    PathBuf::from(&dir).join(relative)
 }
 
 fn new_projects_map(path: &str, solution: &Solution) -> FnvHashMap<String, PathBuf> {
