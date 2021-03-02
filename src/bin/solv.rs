@@ -23,10 +23,11 @@ fn main() {
             let scanned = solv::scan(path, extension, &*consumer);
 
             println!();
-            println!("solutions scanned: {}", scanned);
+            println!("{:20} {}", "solutions scanned:", scanned);
 
             println!(
-                "elapsed: {}",
+                "{:20} {}",
+                "elapsed:",
                 humantime::format_duration(now.elapsed()).to_string()
             );
         }
