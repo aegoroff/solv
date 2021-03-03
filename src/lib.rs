@@ -55,8 +55,8 @@ pub fn scan(path: &str, extension: &str, consumer: &dyn Consume) -> usize {
         .filter(Result::is_ok)
         .map(Result::unwrap)
         .filter(|f| f.file_type().is_file())
-        .filter(|f| f.file_name.to_str().unwrap_or_default().ends_with(&ext))
         .map(|f| f.path().to_str().unwrap_or("").to_string())
+        .filter(|p| p.ends_with(&ext))
         .inspect(|fp| parse(&fp, consumer))
         .count()
 }
