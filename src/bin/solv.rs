@@ -42,11 +42,11 @@ fn main() {
 }
 
 fn new_consumer(debug: bool, only_validate: bool, only_problems: bool) -> Box<dyn Consume> {
-    return if only_validate {
+    if only_validate {
         Validate::new_box(debug, only_problems)
     } else {
         Info::new_box(debug)
-    };
+    }
 }
 
 fn build_cli() -> App<'static, 'static> {
