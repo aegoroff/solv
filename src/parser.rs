@@ -34,6 +34,19 @@ pub fn parse_str(contents: &str, debug: bool) -> Option<Solution> {
     None
 }
 
+#[macro_export]
+macro_rules! section_content {
+    ($s:ident, $n:expr) => {{
+        if let Expr::Section(begin, content) = $s {
+            if begin.is_section($n) {
+                return Some(content);
+            }
+            return None;
+        }
+        None
+    }};
+}
+
 fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'input> {
     let (head, lines) = solution;
 
@@ -61,15 +74,7 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
             Expr::Global(sections) => {
                 let solution_configs = sections
                     .iter()
-                    .filter_map(|sect| {
-                        if let Expr::Section(begin, content) = sect {
-                            if begin.is_section("SolutionConfigurationPlatforms") {
-                                return Some(content);
-                            }
-                            return None;
-                        }
-                        None
-                    })
+                    .filter_map(|sect| section_content!(sect, "SolutionConfigurationPlatforms"))
                     .map(|content| content.iter().filter_map(|c| Conf::from_expr(c)))
                     .flatten();
 
@@ -77,15 +82,7 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
 
                 let project_configs = sections
                     .iter()
-                    .filter_map(|sect| {
-                        if let Expr::Section(begin, content) = sect {
-                            if begin.is_section("ProjectConfigurationPlatforms") {
-                                return Some(content);
-                            }
-                            return None;
-                        }
-                        None
-                    })
+                    .filter_map(|sect| section_content!(sect, "ProjectConfigurationPlatforms"))
                     .map(|content| content.iter().filter_map(|c| ProjectConfigs::new(c)))
                     .flatten()
                     .group_by(|x| x.project_id)
