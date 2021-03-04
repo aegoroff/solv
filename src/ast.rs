@@ -77,7 +77,7 @@ pub struct ProjectConfigs<'input> {
     pub configs: Vec<Conf<'input>>,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Default)]
 pub struct Conf<'input> {
     pub config: &'input str,
     pub platform: &'input str,
@@ -157,14 +157,14 @@ impl<'input> Version<'input> {
 
 impl<'input> From<&'input str> for Conf<'input> {
     fn from(s: &'input str) -> Self {
-        let parts: Vec<&str> = s.split('|').collect();
-        let mut config = "";
-        let mut platform = "";
-        if parts.len() == 2 {
-            config = parts[0];
-            platform = parts[1];
+        let mut parts = s.split('|');
+        let config = parts.next().unwrap_or_default();
+        let platform = parts.next().unwrap_or_default();
+        if config.is_empty() || platform.is_empty() || parts.next().is_some() {
+            Default::default()
+        } else {
+            Self { config, platform }
         }
-        Self { config, platform }
     }
 }
 
