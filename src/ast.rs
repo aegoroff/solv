@@ -25,7 +25,7 @@ pub enum Expr<'input> {
 }
 
 /// Generates simple &str getter from Expr variant
-macro_rules! str_getter {
+macro_rules! impl_str_getter {
     ($name:ident, $variant:ident) => {
         pub fn $name(&self) -> &'input str {
             if let Expr::$variant(s) = self {
@@ -37,10 +37,10 @@ macro_rules! str_getter {
 }
 
 impl<'input> Expr<'input> {
-    str_getter!(identifier, Identifier);
-    str_getter!(digit_or_dot, DigitOrDot);
-    str_getter!(string, Str);
-    str_getter!(guid, Guid);
+    impl_str_getter!(identifier, Identifier);
+    impl_str_getter!(digit_or_dot, DigitOrDot);
+    impl_str_getter!(string, Str);
+    impl_str_getter!(guid, Guid);
 
     pub fn is_section(&self, name: &str) -> bool {
         if let Expr::SectionBegin(names, _) = self {
