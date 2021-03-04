@@ -24,34 +24,23 @@ pub enum Expr<'input> {
     SectionValue(Box<Expr<'input>>),
 }
 
+/// Generates simple &str getter from Expr variant
+macro_rules! str_getter {
+    ($name:ident, $variant:ident) => {
+        pub fn $name(&self) -> &'input str {
+            if let Expr::$variant(s) = self {
+                return *s;
+            }
+            ""
+        }
+    };
+}
+
 impl<'input> Expr<'input> {
-    pub fn identifier(&self) -> &'input str {
-        if let Expr::Identifier(s) = self {
-            return *s;
-        }
-        ""
-    }
-
-    pub fn digit_or_dot(&self) -> &'input str {
-        if let Expr::DigitOrDot(s) = self {
-            return *s;
-        }
-        ""
-    }
-
-    pub fn string(&self) -> &'input str {
-        if let Expr::Str(s) = self {
-            return *s;
-        }
-        ""
-    }
-
-    pub fn guid(&self) -> &'input str {
-        if let Expr::Guid(s) = self {
-            return *s;
-        }
-        ""
-    }
+    str_getter!(identifier, Identifier);
+    str_getter!(digit_or_dot, DigitOrDot);
+    str_getter!(string, Str);
+    str_getter!(guid, Guid);
 
     pub fn is_section(&self, name: &str) -> bool {
         if let Expr::SectionBegin(names, _) = self {

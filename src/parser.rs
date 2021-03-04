@@ -34,7 +34,6 @@ pub fn parse_str(contents: &str, debug: bool) -> Option<Solution> {
     None
 }
 
-#[macro_export]
 macro_rules! section_content {
     ($s:ident, $n:expr) => {{
         if let Expr::Section(begin, content) = $s {
