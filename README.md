@@ -1,2 +1,2 @@
 # solv
-Microsoft Visual Studio SOLution Validation console tool and parsing library written in Rust
+Microsoft Visual Studio **SOL**ution **V**alidation console tool and parsing library written in Rust
