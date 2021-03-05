@@ -1,4 +1,3 @@
-post-release-commit-message = "release {{next_version}}"
 no-dev-version = false
 consolidate-commits = true
 
