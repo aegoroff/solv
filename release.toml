@@ -1,5 +1,5 @@
 post-release-commit-message = "release {{version}}"
-no-dev-version = true
+no-dev-version = false
 consolidate-commits = true
 
 post-release-replacements = [
