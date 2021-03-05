@@ -9,7 +9,6 @@ edition = "2018"
 [dependencies]
 prettytable-rs = "^0.8"
 ansi_term = "0.12"
-itertools = "0.10"
 humantime = "2.1"
 clap = "2"
 fnv = "1"
