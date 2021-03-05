@@ -16,4 +16,4 @@ ansi_term = "0.12"
 humantime = "2.1"
 clap = "2"
 fnv = "1"
-solp = { path = "../solp/", version = "0.1.3" }
+solp = { path = "../solp/", version = "0.1.4" }
