@@ -1,5 +1,5 @@
 pre-release-commit-message = "release {{version}}"
 
-pre-release-replacements = [
+post-release-replacements = [
     { file = "../solv/Cargo.toml", search = "path = \"\\.\\./solp/\", version = \"[a-z0-9\\.-]+\"", replace = "path = \"../solp/\", version = \"{{version}}\"" },
 ]
