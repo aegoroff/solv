@@ -16,7 +16,7 @@ extern crate jwalk;
 lalrpop_mod!(
     #[allow(clippy::all)]
     #[allow(unused)]
-    pub solv
+    pub solp
 );
 
 /// Consume provides parsed solution consumer
