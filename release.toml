@@ -3,5 +3,5 @@ no-dev-version = false
 consolidate-commits = true
 
 post-release-replacements = [
-    { file = "../solv/Cargo.toml", min = 0, search = "path = \"\\.\\./solp/\", version = \"[a-z0-9\\.-]+\"", replace = "path = \"../solp/\", version = \"{{version}}\"" },
+    { file = "../solv/Cargo.toml", min = 0, search = "path = \"\\.\\./solp/\", version = \"[a-z0-9\\.-]+\"", replace = "path = \"../solp/\", version = \"{{next_version}}\"" },
 ]
