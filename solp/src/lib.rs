@@ -4,17 +4,14 @@ use crate::ast::Solution;
 use jwalk::WalkDir;
 use std::option::Option::Some;
 
-mod ast;
+pub mod ast;
 mod lex;
-mod msbuild;
+pub mod msbuild;
 mod parser;
-pub mod print;
 
 #[macro_use]
 extern crate lalrpop_util;
 extern crate jwalk;
-#[macro_use]
-extern crate prettytable;
 
 lalrpop_mod!(
     #[allow(clippy::all)]

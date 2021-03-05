@@ -1,10 +1,15 @@
+mod print;
+
+use crate::print::{Info, Validate};
 use clap::{App, Arg, SubCommand};
-use solv::print::{Info, Validate};
-use solv::Consume;
+use solp::Consume;
 use std::time::Instant;
 
 extern crate clap;
 extern crate humantime;
+extern crate solp;
+#[macro_use]
+extern crate prettytable;
 
 fn main() {
     let app = build_cli();
@@ -20,7 +25,7 @@ fn main() {
 
             let is_info = cmd.is_present("info");
             let consumer = new_consumer(debug, !is_info, only_problems);
-            let scanned = solv::scan(path, extension, &*consumer);
+            let scanned = solp::scan(path, extension, &*consumer);
 
             println!();
             println!("{:>20} {}", "solutions scanned:", scanned);
@@ -36,7 +41,7 @@ fn main() {
         if let Some(path) = cmd.value_of("PATH") {
             let is_info = cmd.is_present("info");
             let consumer = new_consumer(debug, !is_info, false);
-            solv::parse(path, &*consumer);
+            solp::parse(path, &*consumer);
         }
     }
 }

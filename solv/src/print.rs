@@ -1,11 +1,11 @@
-use crate::ast::{Conf, Solution};
-use crate::msbuild;
 use crate::Consume;
 use ansi_term::Colour::{Green, Red, Yellow, RGB};
 use fnv::{FnvHashMap, FnvHashSet};
 use prettytable::format;
 use prettytable::format::TableFormat;
 use prettytable::Table;
+use solp::ast::{Conf, Solution};
+use solp::msbuild;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 

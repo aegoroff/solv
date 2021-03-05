@@ -1,29 +1,6 @@
-[package]
-name = "solv"
-version = "0.1.0"
-authors = ["egoroff <egoroff@gmail.com>"]
-edition = "2018"
+[workspace]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[build-dependencies] # <-- We added this and everything after!
-lalrpop = "0.19"
-
-[dependencies]
-lalrpop-util = "0.19"
-regex = "1"
-jwalk = "0.6"
-prettytable-rs = "^0.8"
-phf = { version = "0.8", features = ["macros"] }
-ansi_term = "0.12"
-itertools = "0.10"
-fnv = "1"
-humantime = { version = "2.1", optional = true }
-clap = { version = "2", optional = true }
-
-[features]
-build-binary = ["humantime", "clap"]
-
-[[bin]]
-name = "solv"
-required-features = ["build-binary"]
+members = [
+    "solv",
+    "solp",
+]
