@@ -1,7 +1,7 @@
-pre-release-commit-message = "release {{version}}"
+post-release-commit-message = "release {{version}}"
 no-dev-version = true
 consolidate-commits = true
 
 post-release-replacements = [
-    { file = "Cargo.toml", min = 0, search = "path = \"\\.\\./solp/\", version = \"[a-z0-9\\.-]+\"", replace = "path = \"../solp/\", version = \"{{version}}\"" },
+    { file = "../solv/Cargo.toml", min = 0, search = "path = \"\\.\\./solp/\", version = \"[a-z0-9\\.-]+\"", replace = "path = \"../solp/\", version = \"{{version}}\"" },
 ]
