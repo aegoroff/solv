@@ -1,1 +1,1 @@
-enable-features = ["solp"]
+pre-release-commit-message = "release {{version}}"
