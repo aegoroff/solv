@@ -64,7 +64,7 @@ pub struct Solution<'input> {
     pub versions: Vec<Version<'input>>,
     pub solution_configs: Vec<Conf<'input>>,
     pub project_configs: Vec<ProjectConfigs<'input>>,
-    pub graph: DiGraphMap<&'input str, i32>,
+    pub dependencies: DiGraphMap<&'input str, i32>,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -103,7 +103,7 @@ impl<'input> Default for Solution<'input> {
             versions: Vec::new(),
             solution_configs: Vec::new(),
             project_configs: Vec::new(),
-            graph: DiGraphMap::new(),
+            dependencies: DiGraphMap::new(),
         }
     }
 }

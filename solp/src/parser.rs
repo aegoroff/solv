@@ -64,7 +64,7 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
             Expr::Project(head, sections) => {
                 if let Some(p) = Project::from_begin(&head) {
                     sol.projects.push(p);
-                    sol.graph.add_node(p.id);
+                    sol.dependencies.add_node(p.id);
                 }
                 let parents: Vec<&str> = sections
                     .iter()
@@ -78,9 +78,10 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                     })
                     .collect();
 
-                for parent in parents {
-                    sol.graph
-                        .add_edge(parent, &sol.projects[sol.projects.len() - 1].id, 1);
+                let last_id = &sol.projects[sol.projects.len() - 1].id;
+                for from in parents {
+                    sol.dependencies
+                        .add_edge(from, last_id, 1);
                 }
             }
             Expr::Version(name, val) => {
@@ -137,11 +138,11 @@ mod tests {
         // Assert
         assert!(result.is_some());
         let solution = result.unwrap();
-        assert_eq!(solution.projects.len(), solution.graph.node_count());
-        assert_eq!(4, solution.graph.edge_count());
+        assert_eq!(solution.projects.len(), solution.dependencies.node_count());
+        assert_eq!(4, solution.dependencies.edge_count());
         println!(
             "{:?}",
-            Dot::with_config(&solution.graph, &[Config::EdgeNoLabel])
+            Dot::with_config(&solution.dependencies, &[Config::EdgeNoLabel])
         );
     }
 

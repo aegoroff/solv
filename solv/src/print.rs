@@ -158,8 +158,8 @@ impl Consume for Validate {
 
         let missings = Validate::search_missing(solution);
 
-        let mut space = DfsSpace::new(&solution.graph);
-        let cycle_detected = petgraph::algo::toposort(&solution.graph, Some(&mut space)).is_err();
+        let mut space = DfsSpace::new(&solution.dependencies);
+        let cycle_detected = petgraph::algo::toposort(&solution.dependencies, Some(&mut space)).is_err();
 
         if !danglings.is_empty()
             || !not_found.is_empty()
