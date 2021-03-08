@@ -8,9 +8,11 @@ use solp::ast::{Conf, Solution};
 use solp::msbuild;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
+use self::petgraph::algo::DfsSpace;
 
 extern crate ansi_term;
 extern crate fnv;
+extern crate petgraph;
 
 pub struct Info {
     debug: bool,
@@ -156,9 +158,13 @@ impl Consume for Validate {
 
         let missings = Validate::search_missing(solution);
 
+        let mut space = DfsSpace::new(&solution.graph);
+        let cycle_detected = petgraph::algo::toposort(&solution.graph, Some(&mut space)).is_err();
+
         if !danglings.is_empty()
             || !not_found.is_empty()
             || !missings.is_empty()
+            || cycle_detected
             || !self.show_only_problems
         {
             let path = RGB(0xAA, 0xAA, 0xAA).paint(path);
@@ -166,6 +172,12 @@ impl Consume for Validate {
         }
 
         let mut no_problems = true;
+        if cycle_detected {
+            println!(" {}", Red.paint("  Solution contains project dependencies cycles"));
+            println!();
+            no_problems = false;
+        }
+
         if !(danglings.is_empty()) {
             println!(" {}", Yellow.paint("  Solution contains dangling project configurations that can be safely removed:"));
             println!();

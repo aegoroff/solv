@@ -17,3 +17,4 @@ humantime = "2.1"
 clap = "2"
 fnv = "1"
 solp = { path = "../solp/", version = "0.1.16"}
+petgraph = "0.5"
