@@ -72,13 +72,12 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                     .map(|items| {
                         items.iter().filter_map(|c| {
                             if let Expr::SectionContent(left, _) = c {
-                                return Some(left.guid());
+                                return Some(left.string());
                             }
                             None
                         })
                     })
                     .flatten()
-                    .filter(|g| *g != "")
                     .inspect(|from| {
                         sol.graph
                             .add_edge(from, &sol.projects[sol.projects.len() - 1].id, 1);
@@ -124,6 +123,7 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
 #[cfg(test)]
 mod tests {
     use super::*;
+    use petgraph::dot::{Dot, Config};
 
     #[test]
     fn parser_debug() {
@@ -139,9 +139,8 @@ mod tests {
         assert!(result.is_some());
         let solution = result.unwrap();
         assert_eq!(solution.projects.len(), solution.graph.node_count());
-        for node in solution.graph.nodes() {
-            println!("{}", node);
-        }
+        assert_eq!(4, solution.graph.edge_count());
+        println!("{:?}", Dot::with_config(&solution.graph, &[Config::EdgeNoLabel]));
     }
 
     #[test]
