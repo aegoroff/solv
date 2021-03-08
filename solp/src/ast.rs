@@ -1,4 +1,5 @@
 use crate::{cut_from_back_until, msbuild};
+use petgraph::graphmap::DiGraphMap;
 
 #[derive(Debug)]
 pub enum Expr<'input> {
@@ -63,6 +64,7 @@ pub struct Solution<'input> {
     pub versions: Vec<Version<'input>>,
     pub solution_configs: Vec<Conf<'input>>,
     pub project_configs: Vec<ProjectConfigs<'input>>,
+    pub graph: DiGraphMap<&'input str, i32>,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -83,7 +85,7 @@ pub struct Conf<'input> {
     pub platform: &'input str,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Default)]
 pub struct Project<'input> {
     pub type_id: &'input str,
     pub type_descr: &'input str,
@@ -101,6 +103,7 @@ impl<'input> Default for Solution<'input> {
             versions: Vec::new(),
             solution_configs: Vec::new(),
             project_configs: Vec::new(),
+            graph: DiGraphMap::new(),
         }
     }
 }
@@ -113,8 +116,7 @@ impl<'input> Project<'input> {
             id,
             type_id,
             type_descr,
-            name: "",
-            path: "",
+            ..Default::default()
         }
     }
 

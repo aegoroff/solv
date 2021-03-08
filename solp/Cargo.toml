@@ -19,3 +19,4 @@ regex = "1"
 jwalk = "0.6"
 phf = { version = "0.8", features = ["macros"] }
 itertools = "0.10"
+petgraph = "0.5"

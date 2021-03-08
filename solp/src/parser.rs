@@ -61,10 +61,29 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
 
     for line in lines {
         match line {
-            Expr::Project(head, _) => {
+            Expr::Project(head, sections) => {
                 if let Some(p) = Project::from_begin(&head) {
                     sol.projects.push(p);
+                    sol.graph.add_node(p.id);
                 }
+                sections
+                    .iter()
+                    .filter_map(|sect| section_content!(sect, "ProjectDependencies"))
+                    .map(|items| {
+                        items.iter().filter_map(|c| {
+                            if let Expr::SectionContent(left, _) = c {
+                                return Some(left.guid());
+                            }
+                            None
+                        })
+                    })
+                    .flatten()
+                    .filter(|g| *g != "")
+                    .inspect(|from| {
+                        sol.graph
+                            .add_edge(from, &sol.projects[sol.projects.len() - 1].id, 1);
+                    })
+                    .count();
             }
             Expr::Version(name, val) => {
                 let version = Version::from(&name, &val);
@@ -107,8 +126,67 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parser() {
+    fn parser_debug() {
+        parse_str(REAL_SOLUTION, true);
+    }
+
+    #[test]
+    fn parser_no_debug() {
+        // Act
+        let result = parse_str(REAL_SOLUTION, false);
+
+        // Assert
+        assert!(result.is_some());
+        let solution = result.unwrap();
+        assert_eq!(solution.projects.len(), solution.graph.node_count());
+        for node in solution.graph.nodes() {
+            println!("{}", node);
+        }
+    }
+
+    #[test]
+    fn parser_incorrect() {
         let input = r#"
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 14
+VisualStudioVersion = 14.0.22528.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Folder1", "Folder1", "{F619A230-72A6-45B8-95FD-75073969017B}"
+EndProject
+Global
+    GlobalSection(SolutionProperties) = preSolution
+        HideSolutionNode = FALSE
+    EndGlobalSection
+EndGlobal
+"#;
+        parse_str(input, true);
+    }
+
+    #[test]
+    fn parser_empty() {
+        // Arrange
+        let input = r#""#;
+
+        // Act
+        let sln = parse_str(input, false);
+
+        // Assert
+        assert!(sln.is_none());
+    }
+
+    #[test]
+    fn parser_trash() {
+        // Arrange
+        let input = r#"123243"#;
+
+        // Act
+        let sln = parse_str(input, false);
+
+        // Assert
+        assert!(sln.is_none());
+    }
+
+    const REAL_SOLUTION: &str = r#"
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.26403.0
@@ -254,48 +332,4 @@ Global
 	EndGlobalSection
 EndGlobal
 "#;
-        parse_str(input, true);
-    }
-
-    #[test]
-    fn parser_incorrect() {
-        let input = r#"
-Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 14
-VisualStudioVersion = 14.0.22528.0
-MinimumVisualStudioVersion = 10.0.40219.1
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Folder1", "Folder1", "{F619A230-72A6-45B8-95FD-75073969017B}"
-EndProject
-Global
-    GlobalSection(SolutionProperties) = preSolution
-        HideSolutionNode = FALSE
-    EndGlobalSection
-EndGlobal
-"#;
-        parse_str(input, true);
-    }
-
-    #[test]
-    fn parser_empty() {
-        // Arrange
-        let input = r#""#;
-
-        // Act
-        let sln = parse_str(input, false);
-
-        // Assert
-        assert!(sln.is_none());
-    }
-
-    #[test]
-    fn parser_trash() {
-        // Arrange
-        let input = r#"123243"#;
-
-        // Act
-        let sln = parse_str(input, false);
-
-        // Assert
-        assert!(sln.is_none());
-    }
 }
