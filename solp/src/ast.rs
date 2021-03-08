@@ -1,5 +1,5 @@
 use crate::{cut_from_back_until, msbuild};
-use petgraph::graphmap::DiGraphMap;
+use petgraph::prelude::*;
 
 #[derive(Debug)]
 pub enum Expr<'input> {
