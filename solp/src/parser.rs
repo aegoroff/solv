@@ -66,23 +66,22 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                     sol.projects.push(p);
                     sol.graph.add_node(p.id);
                 }
-                sections
+                let parents: Vec<&str> = sections
                     .iter()
                     .filter_map(|sect| section_content!(sect, "ProjectDependencies"))
-                    .map(|items| {
-                        items.iter().filter_map(|c| {
-                            if let Expr::SectionContent(left, _) = c {
-                                return Some(left.string());
-                            }
-                            None
-                        })
-                    })
                     .flatten()
-                    .inspect(|from| {
-                        sol.graph
-                            .add_edge(from, &sol.projects[sol.projects.len() - 1].id, 1);
+                    .filter_map(|expr| {
+                        if let Expr::SectionContent(left, _) = expr {
+                            return Some(left.string());
+                        }
+                        None
                     })
-                    .count();
+                    .collect();
+
+                for parent in parents {
+                    sol.graph
+                        .add_edge(parent, &sol.projects[sol.projects.len() - 1].id, 1);
+                }
             }
             Expr::Version(name, val) => {
                 let version = Version::from(&name, &val);
@@ -92,16 +91,16 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                 let solution_configs = sections
                     .iter()
                     .filter_map(|sect| section_content!(sect, "SolutionConfigurationPlatforms"))
-                    .map(|items| items.iter().filter_map(|c| Conf::from_expr(c)))
-                    .flatten();
+                    .flatten()
+                    .filter_map(|expr| Conf::from_expr(expr));
 
                 sol.solution_configs.extend(solution_configs);
 
                 let project_configs = sections
                     .iter()
                     .filter_map(|sect| section_content!(sect, "ProjectConfigurationPlatforms"))
-                    .map(|items| items.iter().filter_map(|c| ProjectConfigs::new(c)))
                     .flatten()
+                    .filter_map(|expr| ProjectConfigs::new(expr))
                     .group_by(|x| x.project_id)
                     .into_iter()
                     .map(|(pid, project_configs)| {
@@ -123,7 +122,7 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
 #[cfg(test)]
 mod tests {
     use super::*;
-    use petgraph::dot::{Dot, Config};
+    use petgraph::dot::{Config, Dot};
 
     #[test]
     fn parser_debug() {
@@ -140,7 +139,10 @@ mod tests {
         let solution = result.unwrap();
         assert_eq!(solution.projects.len(), solution.graph.node_count());
         assert_eq!(4, solution.graph.edge_count());
-        println!("{:?}", Dot::with_config(&solution.graph, &[Config::EdgeNoLabel]));
+        println!(
+            "{:?}",
+            Dot::with_config(&solution.graph, &[Config::EdgeNoLabel])
+        );
     }
 
     #[test]

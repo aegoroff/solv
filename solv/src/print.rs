@@ -1,3 +1,4 @@
+use self::petgraph::algo::DfsSpace;
 use crate::Consume;
 use ansi_term::Colour::{Green, Red, Yellow, RGB};
 use fnv::{FnvHashMap, FnvHashSet};
@@ -8,7 +9,6 @@ use solp::ast::{Conf, Solution};
 use solp::msbuild;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
-use self::petgraph::algo::DfsSpace;
 
 extern crate ansi_term;
 extern crate fnv;
@@ -173,7 +173,10 @@ impl Consume for Validate {
 
         let mut no_problems = true;
         if cycle_detected {
-            println!(" {}", Red.paint("  Solution contains project dependencies cycles"));
+            println!(
+                " {}",
+                Red.paint("  Solution contains project dependencies cycles")
+            );
             println!();
             no_problems = false;
         }
