@@ -5,6 +5,7 @@ use clap::{App, Arg, SubCommand};
 use solp::Consume;
 use std::time::Instant;
 
+#[macro_use]
 extern crate clap;
 extern crate humantime;
 extern crate solp;
@@ -56,7 +57,7 @@ fn new_consumer(debug: bool, only_validate: bool, only_problems: bool) -> Box<dy
 
 fn build_cli() -> App<'static, 'static> {
     return App::new("solv")
-        .version("0.1")
+        .version(crate_version!())
         .author("egoroff <egoroff@gmail.com>")
         .about("SOLution Validation tool that analyzes Microsoft Visual Studio solutions")
         .arg(
