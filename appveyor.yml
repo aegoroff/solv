@@ -10,17 +10,10 @@ environment:
   # TODO These are all the build jobs. Adjust as necessary. Comment out what you
   # don't need
   matrix:
-    # MinGW
-    - TARGET: i686-pc-windows-gnu
-    - TARGET: x86_64-pc-windows-gnu
-
     # MSVC
-    - TARGET: i686-pc-windows-msvc
     - TARGET: x86_64-pc-windows-msvc
 
     # Testing other channels
-    - TARGET: x86_64-pc-windows-gnu
-      RUST_VERSION: nightly
     - TARGET: x86_64-pc-windows-msvc
       RUST_VERSION: nightly
 
@@ -61,7 +54,7 @@ deploy:
   # - Encrypt it. Go to https://ci.appveyor.com/tools/encrypt
   # - Paste the output down here
   auth_token:
-    secure: t3puM/2hOig26EHhAodcZBc61NywF7/PFEpimR6SwGaCiqS07KR5i7iAhSABmBp7
+    secure: v+6Xc1VU7K+h2H9j5Icgrp/NA/dAplsJdY8t+q60QQ6nP7sAwVzq8fBgBQrf14pl
   description: ''
   on:
     # TODO Here you can pick which targets will generate binary releases
