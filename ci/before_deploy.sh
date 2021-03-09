@@ -20,9 +20,9 @@ main() {
   cross build --manifest-path solv/Cargo.toml --target $TARGET --release
 
   if [ $TARGET = x86_64-pc-windows-gnu ]; then
-      cp target/$TARGET/release/solv.exe $stage/
+    cp target/$TARGET/release/solv.exe $stage/
   else
-      cp target/$TARGET/release/solv $stage/
+    cp target/$TARGET/release/solv $stage/
   fi
 
   cp target/$TARGET/release/solv $stage/
