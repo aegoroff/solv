@@ -19,7 +19,3 @@ clap = "2"
 fnv = "1"
 solp = { path = "../solp/", version = "0.2.20"}
 petgraph = "0.5"
-
-[profile.release]
-panic = 'abort'
-lto = true

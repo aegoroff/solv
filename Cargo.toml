@@ -1,3 +1,7 @@
 [workspace]
 members = ["solv", "solp", ]
 default-members = ["solv"]
+
+[profile.release]
+panic = 'abort'
+lto = true
