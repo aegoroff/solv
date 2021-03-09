@@ -25,10 +25,13 @@ fn main() {
             let extension = cmd.value_of("ext").unwrap_or("");
 
             let is_info = cmd.is_present("info");
-            let consumer = new_consumer(debug, !is_info, only_problems);
-            let scanned = solp::scan(path, extension, &*consumer);
+            let mut consumer = new_consumer(debug, !is_info, only_problems);
+            let scanned = solp::scan(path, extension, consumer.as_consume());
 
             println!();
+
+            print!("{}", consumer);
+
             println!("{:>20} {}", "solutions scanned:", scanned);
 
             println!(
@@ -41,13 +44,29 @@ fn main() {
     if let Some(cmd) = matches.subcommand_matches("s") {
         if let Some(path) = cmd.value_of("PATH") {
             let is_info = cmd.is_present("info");
-            let consumer = new_consumer(debug, !is_info, false);
-            solp::parse(path, &*consumer);
+            let mut consumer = new_consumer(debug, !is_info, false);
+            solp::parse(path, consumer.as_consume());
         }
     }
 }
 
-fn new_consumer(debug: bool, only_validate: bool, only_problems: bool) -> Box<dyn Consume> {
+pub trait ConsumeDisplay: Consume + std::fmt::Display {
+    fn as_consume(&mut self) -> &mut dyn Consume;
+}
+
+impl ConsumeDisplay for Info {
+    fn as_consume(&mut self) -> &mut dyn Consume {
+        self
+    }
+}
+
+impl ConsumeDisplay for Validate {
+    fn as_consume(&mut self) -> &mut dyn Consume {
+        self
+    }
+}
+
+fn new_consumer(debug: bool, only_validate: bool, only_problems: bool) -> Box<dyn ConsumeDisplay> {
     if only_validate {
         Validate::new_box(debug, only_problems)
     } else {

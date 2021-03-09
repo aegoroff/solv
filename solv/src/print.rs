@@ -1,5 +1,5 @@
 use self::petgraph::algo::DfsSpace;
-use crate::Consume;
+use crate::{Consume, ConsumeDisplay};
 use ansi_term::Colour::{Green, Red, Yellow, RGB};
 use fnv::{FnvHashMap, FnvHashSet};
 use prettytable::format;
@@ -8,6 +8,8 @@ use prettytable::Table;
 use solp::ast::{Conf, Solution};
 use solp::msbuild;
 use std::collections::{BTreeMap, BTreeSet};
+use std::fmt;
+use std::fmt::Display;
 use std::path::{Path, PathBuf};
 
 extern crate ansi_term;
@@ -16,6 +18,9 @@ extern crate petgraph;
 
 pub struct Info {
     debug: bool,
+    total_projects: BTreeMap<String, i32>,
+    projects_in_solutions: BTreeMap<String, i32>,
+    solutions: i32,
 }
 
 pub struct Validate {
@@ -23,9 +28,16 @@ pub struct Validate {
     debug: bool,
 }
 
+pub trait ConsumePrintable: Consume + Display {}
+
 impl Info {
-    pub fn new_box(debug: bool) -> Box<dyn Consume> {
-        Box::new(Self { debug })
+    pub fn new_box(debug: bool) -> Box<dyn ConsumeDisplay> {
+        Box::new(Self {
+            debug,
+            total_projects: BTreeMap::new(),
+            projects_in_solutions: BTreeMap::new(),
+            solutions: 0,
+        })
     }
 
     fn new_format() -> TableFormat {
@@ -69,7 +81,7 @@ impl Info {
 }
 
 impl Validate {
-    pub fn new_box(debug: bool, show_only_problems: bool) -> Box<dyn Consume> {
+    pub fn new_box(debug: bool, show_only_problems: bool) -> Box<dyn ConsumeDisplay> {
         Box::new(Self {
             debug,
             show_only_problems,
@@ -78,7 +90,8 @@ impl Validate {
 }
 
 impl Consume for Info {
-    fn ok(&self, path: &str, solution: &Solution) {
+    fn ok(&mut self, path: &str, solution: &Solution) {
+        self.solutions += 1;
         let mut projects_by_type: BTreeMap<&str, i32> = BTreeMap::new();
         for prj in &solution.projects {
             if msbuild::is_solution_folder(prj.type_id) {
@@ -117,6 +130,11 @@ impl Consume for Info {
         table.set_titles(row![bF=> "Project type", "Count"]);
 
         for (key, value) in projects_by_type.iter() {
+            *self.total_projects.entry(String::from(*key)).or_insert(0) += *value;
+            *self
+                .projects_in_solutions
+                .entry(String::from(*key))
+                .or_insert(0) += 1;
             table.add_row(row![*key, bFg->*value]);
         }
 
@@ -148,8 +166,39 @@ impl Consume for Info {
     }
 }
 
+impl Display for Info {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "{}", Red.bold().paint(" Totals:"))?;
+        writeln!(f, "")?;
+
+        let mut table = Table::new();
+
+        let fmt = Info::new_format();
+        table.set_format(fmt);
+        table
+            .set_titles(row![bF->"Project type", bF->"Count", cbF->"%", bF->"Solutions", cbF->"%"]);
+
+        let projects = self.total_projects.iter().fold(0, |total, p| total + *p.1);
+
+        for (key, value) in self.total_projects.iter() {
+            let p = (*value as f64 / projects as f64) * 100 as f64;
+            let in_sols = self.projects_in_solutions.get(key).unwrap();
+            let ps = (*in_sols as f64 / self.solutions as f64) * 100 as f64;
+            table.add_row(row![
+                key,
+                *value,
+                format!("{:.2}%", p),
+                *in_sols,
+                format!("{:.2}%", ps)
+            ]);
+        }
+        table.printstd();
+        writeln!(f, "")
+    }
+}
+
 impl Consume for Validate {
-    fn ok(&self, path: &str, solution: &Solution) {
+    fn ok(&mut self, path: &str, solution: &Solution) {
         let projects = new_projects_map(path, solution);
 
         let not_found = Validate::search_not_found(&projects);
@@ -159,7 +208,8 @@ impl Consume for Validate {
         let missings = Validate::search_missing(solution);
 
         let mut space = DfsSpace::new(&solution.dependencies);
-        let cycle_detected = petgraph::algo::toposort(&solution.dependencies, Some(&mut space)).is_err();
+        let cycle_detected =
+            petgraph::algo::toposort(&solution.dependencies, Some(&mut space)).is_err();
 
         if !danglings.is_empty()
             || !not_found.is_empty()
@@ -229,6 +279,12 @@ impl Consume for Validate {
 
     fn is_debug(&self) -> bool {
         self.debug
+    }
+}
+
+impl Display for Validate {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "")
     }
 }
 
