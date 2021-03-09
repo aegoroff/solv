@@ -1,6 +1,3 @@
 [workspace]
-
-members = [
-    "solv",
-    "solp",
-]
+members = ["solv", "solp", ]
+default-members = ["solv"]
