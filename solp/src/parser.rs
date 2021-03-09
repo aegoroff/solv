@@ -80,8 +80,7 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
 
                 let last_id = &sol.projects[sol.projects.len() - 1].id;
                 for from in parents {
-                    sol.dependencies
-                        .add_edge(from, last_id, 1);
+                    sol.dependencies.add_edge(from, last_id, 1);
                 }
             }
             Expr::Version(name, val) => {

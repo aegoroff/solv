@@ -23,7 +23,7 @@ lalrpop_mod!(
 /// Consume provides parsed solution consumer
 pub trait Consume {
     /// Called in case of success parsing
-    fn ok(&self, path: &str, solution: &Solution);
+    fn ok(&mut self, path: &str, solution: &Solution);
     /// Called on error
     fn err(&self, path: &str);
     /// Whether to use debug mode (usually just print AST into console)
@@ -31,7 +31,7 @@ pub trait Consume {
 }
 
 /// parse parses single solution file specified by path.
-pub fn parse(path: &str, consumer: &dyn Consume) {
+pub fn parse(path: &str, consumer: &mut dyn Consume) {
     match fs::read_to_string(path) {
         Ok(contents) => {
             if let Some(solution) = parser::parse_str(&contents, consumer.is_debug()) {
@@ -47,7 +47,7 @@ pub fn parse(path: &str, consumer: &dyn Consume) {
 /// scan parses directory specified by path. recursively
 /// it finds all files with sln extension and parses them.
 /// returns the number of scanned solutions
-pub fn scan(path: &str, extension: &str, consumer: &dyn Consume) -> usize {
+pub fn scan(path: &str, extension: &str, consumer: &mut dyn Consume) -> usize {
     let iter = WalkDir::new(path).skip_hidden(false).follow_links(false);
 
     let ext = String::from(".") + extension.trim_start_matches('.');
