@@ -1,0 +1,89 @@
+# Based on the "trust" template v0.1.2
+# https://github.com/japaric/trust/tree/v0.1.2
+
+dist: trusty
+language: rust
+services: docker
+sudo: required
+
+# TODO Rust builds on stable by default, this can be
+# overridden on a case by case basis down below.
+
+env:
+  global:
+    - CRATE_NAME=solv
+
+matrix:
+  # TODO These are all the build jobs. Adjust as necessary. Comment out what you
+  # don't need
+  include:
+    # Linux
+    - env: TARGET=aarch64-unknown-linux-gnu
+    - env: TARGET=arm-unknown-linux-gnueabi
+    - env: TARGET=armv7-unknown-linux-gnueabihf
+    - env: TARGET=i686-unknown-linux-gnu
+    - env: TARGET=i686-unknown-linux-musl
+    - env: TARGET=x86_64-unknown-linux-gnu
+    - env: TARGET=x86_64-unknown-linux-musl
+
+    # OSX
+    - env: TARGET=i686-apple-darwin
+      os: osx
+    - env: TARGET=x86_64-apple-darwin
+      os: osx
+
+    # Windows
+    - env: TARGET=x86_64-pc-windows-gnu
+
+    # Testing other channels
+    - env: TARGET=x86_64-unknown-linux-gnu
+      rust: nightly
+    - env: TARGET=x86_64-apple-darwin
+      os: osx
+      rust: nightly
+
+before_install:
+  - set -e
+  - rustup self update
+
+install:
+  - sh ci/install.sh
+  - source ~/.cargo/env || true
+
+script:
+  - bash ci/script.sh
+
+after_script: set +e
+
+before_deploy:
+  - sh ci/before_deploy.sh
+
+deploy:
+  # TODO update `api_key.secure`
+  # - Create a `public_repo` GitHub token. Go to: https://github.com/settings/tokens/new
+  # - Encrypt it: `travis encrypt 0123456789012345678901234567890123456789
+  # - Paste the output down here
+  api_key:
+    secure: GIb/IHIz3F0HjqGhr5g4mdPhgFD0CO/LVoQX9AAsouvpbnGDmSdTHw3PIWS9JlIZH9TPAY2ycSzS11W5Nnm8YWmDKVHp2uysdQpcqPNwKnlg90UAHryMFAjoly7mAYh48FdFDlmgamgYrRJcR29GAC+fkq8KC+oS1+apIeYqSSFe4E8zHtcdiskzxnTOWQxxnuQOIv0yJYbGd0XbpXzvQSRRim3IsOq3dKHKS8McgJv9jBtEGP6sXaBVSj5dAVaRVrUi20oSx1CSlQyA4UrfvPjLx29810oXrnZRhhkyIrNx6LE0JMLJWU6p4RfJpAbQxlUPxZtdzaaMp9YlMNa6J+/qKA3S3S4Nlr1N3KgpnuQbLKD56el9h4eoLRh6hxwMHJo06TQX7jEhZHrblJH50d2VPcxUNyQOTD56ufPWVx6HLFTfmoI4/wRLqAwzVaJPnPLD/qq6rRhgIjmE2aSXeiFKfS81rQfWOKb1GDq9uZahOSSLklaeYETE8FriHahY/PMY5o1N0ewd8z8an/U920g6mXPiqMSQPg+j1iISx5LtnL8bHOn6OCktm1uTTRp6idmh21RudTol6ateD0rvQHEMcEJ7jty3jmL8kd+l1wtwDMEEQUonzozb1ePJHzC+OXgNyTh2gtDq451Y9xjlVuFvO2kKexD6Me7Gh74brdc=
+  file_glob: true
+  file: $CRATE_NAME-$TRAVIS_TAG-$TARGET.*
+  on:
+    condition: $TRAVIS_RUST_VERSION = stable
+    tags: true
+  provider: releases
+  skip_cleanup: true
+
+cache: cargo
+before_cache:
+  # Travis can't cache files that are not readable by "others"
+  - chmod -R a+r $HOME/.cargo
+
+branches:
+  only:
+    # release tags
+    - /^v\d+\.\d+\.\d+.*$/
+    - master
+
+notifications:
+  email:
+    on_success: never
