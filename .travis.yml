@@ -6,16 +6,11 @@ language: rust
 services: docker
 sudo: required
 
-# TODO Rust builds on stable by default, this can be
-# overridden on a case by case basis down below.
-
 env:
   global:
     - CRATE_NAME=solv
 
 matrix:
-  # TODO These are all the build jobs. Adjust as necessary. Comment out what you
-  # don't need
   include:
     # Linux
     - env: TARGET=aarch64-unknown-linux-gnu
@@ -46,9 +41,8 @@ before_deploy:
   - sh ci/before_deploy.sh
 
 deploy:
-  # TODO update `api_key.secure`
   # - Create a `public_repo` GitHub token. Go to: https://github.com/settings/tokens/new
-  # - Encrypt it: `travis encrypt 0123456789012345678901234567890123456789
+  # - Encrypt it: `travis encrypt 0123456789012345678901234567890123456789 or travis encrypt -r user/repo --pro 0123456789012345678901234567890123456789
   # - Paste the output down here
   api_key:
     secure: "hwZjpdcb6A9JVnGdjZT3eNayDwOVSKYtBDDK0ZEJsRYndQT59Eczw4E1ufhQiHWTeSNjq6qWM6r7mRNNnvkgQDmdu1Ff/qjUKscSLKxLtyGl0NBgTE4m3WJ6nt8T6iJ3r2/IPfwXW7zUvcwtNdRXfxLsm9nJsLmU70gqygQwcL/TBVKvePxzDrnNYzlBsbboNgT1r//P0UcOftavuGAwhp96DU9w+kTYrOcbEGyi8nX6YbD+kWkUP0GskNsTMynBxbj+co4mOD3gUSYhc/wDLrzY9U0se4ymGq8JLWK8KfVLpau520N5ahK646A24RLyEKMKXn1Id6L8l14lZSdkQ7rhCA/hpD0hSFnY+e/+fdzwAlf/gkxlc2fopGiUnGGEScg94J6yWTnyLRyxzf5EF9e5bgGcIsVaAf12i9TP3hPMta3HhFBWKcqjMBI3C8SLJpFU3LTHj4i2t2RxILBro2Ap/V1SWC82FsoeUcPFR7NZx97hjmCVNvPSZFp+DX0WB25SALAvfKQdik92N88ap2d8s3Jil0Z5CFSP/1fa1Ke9UfgcLSjiugsqzNpr3B1XaBOGOu1oTJzb8nZ6oSai+owo3OswQzNGljDnX1A1vmQbA/RvaNw2spWu2TGChNrA2zBCfeY8sKN+uFe43q04xEJI2+Vu6PBpR42rgtpU5TI="
