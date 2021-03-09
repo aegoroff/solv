@@ -22,8 +22,11 @@ lalrpop_mod!(
 
 /// Consume provides parsed solution consumer
 pub trait Consume {
+    /// Called in case of success parsing
     fn ok(&self, path: &str, solution: &Solution);
+    /// Called on error
     fn err(&self, path: &str);
+    /// Whether to use debug mode (usually just print AST into console)
     fn is_debug(&self) -> bool;
 }
 
