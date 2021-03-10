@@ -188,7 +188,7 @@ impl Display for Info {
                 key,
                 *value,
                 format!("{:.2}%", p),
-                *in_sols,
+                r->*in_sols,
                 format!("{:.2}%", ps)
             ]);
         }
