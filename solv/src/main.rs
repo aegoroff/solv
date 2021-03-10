@@ -1,6 +1,8 @@
-mod print;
+mod info;
+mod validate;
 
-use crate::print::{Info, Validate};
+use crate::info::Info;
+use crate::validate::Validate;
 use clap::{App, Arg, SubCommand};
 use solp::Consume;
 use std::time::Instant;
@@ -11,6 +13,7 @@ extern crate humantime;
 extern crate solp;
 #[macro_use]
 extern crate prettytable;
+extern crate ansi_term;
 
 fn main() {
     let app = build_cli();
