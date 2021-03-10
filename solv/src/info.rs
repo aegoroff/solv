@@ -145,7 +145,7 @@ impl Consume for Info {
 impl Display for Info {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "{}", Red.bold().paint(" Totals:"))?;
-        writeln!(f, "")?;
+        writeln!(f)?;
 
         let mut table = Table::new();
 
@@ -157,18 +157,18 @@ impl Display for Info {
         let projects = self.total_projects.iter().fold(0, |total, p| total + *p.1);
 
         for (key, value) in self.total_projects.iter() {
-            let p = (*value as f64 / projects as f64) * 100 as f64;
+            let proj_percent = (*value as f64 / projects as f64) * 100_f64;
             let in_sols = self.projects_in_solutions.get(key).unwrap();
-            let ps = (*in_sols as f64 / self.solutions as f64) * 100 as f64;
+            let sol_percent = (*in_sols as f64 / self.solutions as f64) * 100_f64;
             table.add_row(row![
                 key,
                 *value,
-                format!("{:.2}%", p),
+                format!("{:.2}%", proj_percent),
                 r->*in_sols,
-                format!("{:.2}%", ps)
+                format!("{:.2}%", sol_percent)
             ]);
         }
         table.printstd();
-        writeln!(f, "")
+        writeln!(f)
     }
 }
