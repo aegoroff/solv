@@ -114,8 +114,8 @@ impl Consume for Validate {
 }
 
 impl Display for Validate {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "")
+    fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Ok(())
     }
 }
 
