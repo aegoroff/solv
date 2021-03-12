@@ -1,5 +1,6 @@
 use crate::ConsumeDisplay;
 use ansi_term::Colour::{Red, RGB};
+use num_format::{Locale, ToFormattedString};
 use prettytable::format::TableFormat;
 use prettytable::{format, Table};
 use solp::ast::Solution;
@@ -7,6 +8,8 @@ use solp::{msbuild, Consume};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::fmt::Display;
+
+extern crate num_format;
 
 pub struct Info {
     debug: bool,
@@ -175,8 +178,14 @@ impl Display for Info {
         let mut table = Table::new();
         let fmt = Info::new_format();
         table.set_format(fmt);
-        table.add_row(row!["Total solutions", self.solutions,]);
-        table.add_row(row!["Total projects", projects,]);
+        table.add_row(row![
+            "Total solutions",
+            self.solutions.to_formatted_string(&Locale::en),
+        ]);
+        table.add_row(row![
+            "Total projects",
+            projects.to_formatted_string(&Locale::en),
+        ]);
         table.printstd();
 
         writeln!(f)

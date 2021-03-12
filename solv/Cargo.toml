@@ -19,3 +19,4 @@ clap = "2"
 fnv = "1"
 solp = { path = "../solp/", version = "0.3.1"}
 petgraph = "0.5"
+num-format = "0.4"
