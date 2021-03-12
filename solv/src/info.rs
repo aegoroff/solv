@@ -165,9 +165,9 @@ impl Display for Info {
             let sol_percent = (*in_sols as f64 / self.solutions as f64) * 100_f64;
             table.add_row(row![
                 key,
-                *value,
+                *value.to_formatted_string(&Locale::en),
                 format!("{:.2}%", proj_percent),
-                r->*in_sols,
+                r->*in_sols.to_formatted_string(&Locale::en),
                 format!("{:.2}%", sol_percent)
             ]);
         }
