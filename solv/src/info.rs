@@ -169,6 +169,16 @@ impl Display for Info {
             ]);
         }
         table.printstd();
+
+        writeln!(f)?;
+
+        let mut table = Table::new();
+        let fmt = Info::new_format();
+        table.set_format(fmt);
+        table.add_row(row!["Total solutions", self.solutions,]);
+        table.add_row(row!["Total projects", projects,]);
+        table.printstd();
+
         writeln!(f)
     }
 }
