@@ -30,13 +30,13 @@ impl Validate {
 
 impl Consume for Validate {
     fn ok(&mut self, path: &str, solution: &Solution) {
-        let projects = new_projects_map(path, solution);
+        let projects = new_projects_paths_map(path, solution);
 
-        let not_found = Validate::search_not_found(&projects);
+        let not_found = search_not_found(&projects);
 
-        let danglings = Validate::search_dangling_configs(solution, &projects);
+        let danglings = search_dangling_configs(solution, &projects);
 
-        let missings = Validate::search_missing(solution);
+        let missings = search_missing(solution);
 
         let mut space = DfsSpace::new(&solution.dependencies);
         let cycle_detected =
@@ -131,7 +131,7 @@ fn make_path(dir: &Path, relative: &str) -> PathBuf {
     PathBuf::from(&dir).join(relative)
 }
 
-fn new_projects_map(path: &str, solution: &Solution) -> FnvHashMap<String, PathBuf> {
+fn new_projects_paths_map(path: &str, solution: &Solution) -> FnvHashMap<String, PathBuf> {
     let dir = Path::new(path).parent().unwrap_or_else(|| Path::new(""));
 
     solution
@@ -142,50 +142,48 @@ fn new_projects_map(path: &str, solution: &Solution) -> FnvHashMap<String, PathB
         .collect()
 }
 
-impl Validate {
-    fn search_not_found(projects: &FnvHashMap<String, PathBuf>) -> BTreeSet<&str> {
-        projects
-            .iter()
-            .filter(|(_, path)| path.canonicalize().is_err())
-            .map(|(_, pb)| pb.as_path().to_str().unwrap_or(""))
-            .collect()
-    }
+fn search_not_found(projects: &FnvHashMap<String, PathBuf>) -> BTreeSet<&str> {
+    projects
+        .iter()
+        .filter(|(_, path)| path.canonicalize().is_err())
+        .map(|(_, pb)| pb.as_path().to_str().unwrap_or(""))
+        .collect()
+}
 
-    fn search_dangling_configs<'a>(
-        solution: &'a Solution,
-        projects: &FnvHashMap<String, PathBuf>,
-    ) -> BTreeSet<&'a str> {
-        solution
-            .project_configs
-            .iter()
-            .filter(|pc| !projects.contains_key(&pc.project_id.to_uppercase()))
-            .map(|pc| pc.project_id)
-            .collect()
-    }
+fn search_dangling_configs<'a>(
+    solution: &'a Solution,
+    projects: &FnvHashMap<String, PathBuf>,
+) -> BTreeSet<&'a str> {
+    solution
+        .project_configs
+        .iter()
+        .filter(|pc| !projects.contains_key(&pc.project_id.to_uppercase()))
+        .map(|pc| pc.project_id)
+        .collect()
+}
 
-    fn search_missing<'a>(solution: &'a Solution<'a>) -> Vec<(&'a str, Vec<&'a Conf>)> {
-        let solution_platforms_configs = solution
-            .solution_configs
-            .iter()
-            .collect::<FnvHashSet<&Conf>>();
+fn search_missing<'a>(solution: &'a Solution<'a>) -> Vec<(&'a str, Vec<&'a Conf>)> {
+    let solution_platforms_configs = solution
+        .solution_configs
+        .iter()
+        .collect::<FnvHashSet<&Conf>>();
 
-        solution
-            .project_configs
-            .iter()
-            .filter_map(|pc| {
-                let diff = pc
-                    .configs
-                    .iter()
-                    .collect::<FnvHashSet<&Conf>>()
-                    .difference(&solution_platforms_configs)
-                    .copied()
-                    .collect::<Vec<&Conf>>();
+    solution
+        .project_configs
+        .iter()
+        .filter_map(|pc| {
+            let diff = pc
+                .configs
+                .iter()
+                .collect::<FnvHashSet<&Conf>>()
+                .difference(&solution_platforms_configs)
+                .copied()
+                .collect::<Vec<&Conf>>();
 
-                if !diff.is_empty() {
-                    return Some((pc.project_id, diff));
-                }
-                None
-            })
-            .collect()
-    }
+            if !diff.is_empty() {
+                return Some((pc.project_id, diff));
+            }
+            None
+        })
+        .collect()
 }
