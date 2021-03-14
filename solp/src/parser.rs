@@ -66,7 +66,8 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                     sol.projects.push(p);
                     sol.dependencies.add_node(p.id);
                 }
-                let parents: Vec<&str> = sections
+                let last_id = &sol.projects[sol.projects.len() - 1].id;
+                let parents = sections
                     .iter()
                     .filter_map(|sect| section_content!(sect, "ProjectDependencies"))
                     .flatten()
@@ -76,12 +77,9 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                         }
                         None
                     })
-                    .collect();
+                    .map(|from| (from, *last_id));
 
-                let last_id = &sol.projects[sol.projects.len() - 1].id;
-                for from in parents {
-                    sol.dependencies.add_edge(from, last_id, 1);
-                }
+                sol.dependencies.extend(parents);
             }
             Expr::Version(name, val) => {
                 let version = Version::from(&name, &val);
