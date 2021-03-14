@@ -3,6 +3,7 @@ mod validate;
 
 use crate::info::Info;
 use crate::validate::Validate;
+use ansi_term::Colour::Red;
 use clap::{App, Arg, SubCommand};
 use solp::Consume;
 use std::time::Instant;
@@ -75,6 +76,14 @@ fn new_consumer(debug: bool, only_validate: bool, only_problems: bool) -> Box<dy
     } else {
         Info::new_box(debug)
     }
+}
+
+fn err(debug: bool, path: &str) {
+    if debug {
+        return;
+    }
+    let path = Red.paint(path);
+    eprintln!("Error parsing {} solution", path);
 }
 
 fn build_cli() -> App<'static, 'static> {

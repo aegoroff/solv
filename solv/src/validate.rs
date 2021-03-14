@@ -105,7 +105,7 @@ impl Consume for Validate {
     }
 
     fn err(&self, path: &str) {
-        Info::err(self.debug, path);
+        crate::err(self.debug, path);
     }
 
     fn is_debug(&self) -> bool {

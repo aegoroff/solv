@@ -58,14 +58,6 @@ impl Info {
         table.printstd();
         println!();
     }
-
-    pub fn err(debug: bool, path: &str) {
-        if debug {
-            return;
-        }
-        let path = Red.paint(path);
-        eprintln!("Error parsing {} solution", path);
-    }
 }
 
 impl Consume for Info {
@@ -137,7 +129,7 @@ impl Consume for Info {
     }
 
     fn err(&self, path: &str) {
-        Info::err(self.debug, path);
+        crate::err(self.debug, path);
     }
 
     fn is_debug(&self) -> bool {
