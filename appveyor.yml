@@ -7,8 +7,6 @@ environment:
 
     CRATE_NAME: solv
 
-  # TODO These are all the build jobs. Adjust as necessary. Comment out what you
-  # don't need
   matrix:
     # MSVC
     - TARGET: x86_64-pc-windows-msvc
@@ -30,7 +28,6 @@ install:
   - rustc -Vv
   - cargo -V
 
-# TODO This is the "test phase", tweak it as you see fit
 test_script:
   # we don't run the "test phase" when doing deploys
   - if [%APPVEYOR_REPO_TAG%]==[false] (
@@ -49,10 +46,6 @@ before_deploy:
 
 deploy:
   artifact: /.*\.zip/
-  # TODO update `auth_token.secure`
-  # - Create a `public_repo` GitHub token. Go to: https://github.com/settings/tokens/new
-  # - Encrypt it. Go to https://ci.appveyor.com/tools/encrypt
-  # - Paste the output down here
   auth_token:
     secure: v+6Xc1VU7K+h2H9j5Icgrp/NA/dAplsJdY8t+q60QQ6nP7sAwVzq8fBgBQrf14pl
   description: ''
