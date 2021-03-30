@@ -146,7 +146,7 @@ fn search_not_found(projects: &FnvHashMap<String, PathBuf>) -> BTreeSet<&str> {
     projects
         .iter()
         .filter(|(_, path)| path.canonicalize().is_err())
-        .map(|(_, pb)| pb.as_path().to_str().unwrap_or(""))
+        .filter_map(|(_, pb)| pb.as_path().to_str())
         .collect()
 }
 
