@@ -62,6 +62,7 @@ before_cache:
 
 branches:
   only:
+    - master
     # release tags
     - /^v\d+\.\d+\.\d+.*$/
 
