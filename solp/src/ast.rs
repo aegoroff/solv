@@ -112,12 +112,7 @@ impl<'input> Project<'input> {
     pub fn new(id: &'input str, type_id: &'input str) -> Self {
         let type_descr = msbuild::describe_project(type_id);
 
-        Self {
-            id,
-            type_id,
-            type_descr,
-            ..Default::default()
-        }
+        Self { type_id, type_descr, id, ..Default::default() }
     }
 
     pub fn from_begin(head: &Expr<'input>) -> Option<Self> {
