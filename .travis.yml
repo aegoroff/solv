@@ -29,16 +29,16 @@ before_install:
   - rustup self update
 
 install:
-  - sh ci/install.sh
+  - sh .ci/install.sh
   - source ~/.cargo/env || true
 
 script:
-  - bash ci/script.sh
+  - bash .ci/script.sh
 
 after_script: set +e
 
 before_deploy:
-  - sh ci/before_deploy.sh
+  - sh .ci/before_deploy.sh
 
 deploy:
   # - Create a `public_repo` GitHub token. Go to: https://github.com/settings/tokens/new
