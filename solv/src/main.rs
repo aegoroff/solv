@@ -87,7 +87,7 @@ fn err(debug: bool, path: &str) {
 }
 
 fn build_cli() -> App<'static, 'static> {
-    return App::new("solv")
+    return App::new(crate_name!())
         .version(crate_version!())
         .author("egoroff <egoroff@gmail.com>")
         .about("SOLution Validation tool that analyzes Microsoft Visual Studio solutions")
