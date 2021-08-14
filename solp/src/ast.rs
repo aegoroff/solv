@@ -112,7 +112,12 @@ impl<'input> Project<'input> {
     pub fn new(id: &'input str, type_id: &'input str) -> Self {
         let type_descr = msbuild::describe_project(type_id);
 
-        Self { type_id, type_descr, id, ..Default::default() }
+        Self {
+            type_id,
+            type_descr,
+            id,
+            ..Default::default()
+        }
     }
 
     pub fn from_begin(head: &Expr<'input>) -> Option<Self> {
@@ -231,6 +236,7 @@ impl<'input> ProjectConfigs<'input> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use spectral::prelude::*;
 
     #[test]
     fn from_configuration_correct() {
@@ -241,8 +247,8 @@ mod tests {
         let c = Conf::from(s);
 
         // Assert
-        assert_eq!("Release", c.config);
-        assert_eq!("Any CPU", c.platform);
+        assert_that(&c.config).is_equal_to(&"Release");
+        assert_that(&c.platform).is_equal_to(&"Any CPU");
     }
 
     #[test]
@@ -254,8 +260,8 @@ mod tests {
         let c = Conf::from(s);
 
         // Assert
-        assert_eq!("", c.config);
-        assert_eq!("", c.platform);
+        assert_that(&c.config).is_equal_to(&"");
+        assert_that(&c.platform).is_equal_to(&"");
     }
 
     #[test]
@@ -267,8 +273,8 @@ mod tests {
         let c = Conf::from(s);
 
         // Assert
-        assert_eq!("", c.config);
-        assert_eq!("", c.platform);
+        assert_that(&c.config).is_equal_to(&"");
+        assert_that(&c.platform).is_equal_to(&"");
     }
 
     #[test]
@@ -280,8 +286,8 @@ mod tests {
         let c = Conf::from(s);
 
         // Assert
-        assert_eq!("", c.config);
-        assert_eq!("", c.platform);
+        assert_that(&c.config).is_equal_to(&"");
+        assert_that(&c.platform).is_equal_to(&"");
     }
 
     #[test]
@@ -293,10 +299,10 @@ mod tests {
         let c = ProjectConfigs::from(s);
 
         // Assert
-        assert_eq!("{27060CA7-FB29-42BC-BA66-7FC80D498354}", c.project_id);
-        assert_eq!(1, c.configs.len());
-        assert_eq!("Debug", c.configs[0].config);
-        assert_eq!("Any CPU", c.configs[0].platform);
+        assert_that(&c.project_id).is_equal_to(&"{27060CA7-FB29-42BC-BA66-7FC80D498354}");
+        assert_that(&c.configs).has_length(1);
+        assert_that(&c.configs[0].config).is_equal_to(&"Debug");
+        assert_that(&c.configs[0].platform).is_equal_to(&"Any CPU");
     }
 
     #[test]
@@ -308,10 +314,10 @@ mod tests {
         let c = ProjectConfigs::from(s);
 
         // Assert
-        assert_eq!("{27060CA7-FB29-42BC-BA66-7FC80D498354}", c.project_id);
-        assert_eq!(1, c.configs.len());
-        assert_eq!("Debug .NET 4.0", c.configs[0].config);
-        assert_eq!("Any CPU", c.configs[0].platform);
+        assert_that(&c.project_id).is_equal_to(&"{27060CA7-FB29-42BC-BA66-7FC80D498354}");
+        assert_that(&c.configs).has_length(1);
+        assert_that(&c.configs[0].config).is_equal_to(&"Debug .NET 4.0");
+        assert_that(&c.configs[0].platform).is_equal_to(&"Any CPU");
     }
 
     #[test]
@@ -323,10 +329,10 @@ mod tests {
         let c = ProjectConfigs::from(s);
 
         // Assert
-        assert_eq!("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", c.project_id);
-        assert_eq!(1, c.configs.len());
-        assert_eq!("Release", c.configs[0].config);
-        assert_eq!(".NET", c.configs[0].platform);
+        assert_that(&c.project_id).is_equal_to(&"{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}");
+        assert_that(&c.configs).has_length(1);
+        assert_that(&c.configs[0].config).is_equal_to(&"Release");
+        assert_that(&c.configs[0].platform).is_equal_to(&".NET");
     }
 
     #[test]
@@ -338,9 +344,9 @@ mod tests {
         let c = ProjectConfigs::from(s);
 
         // Assert
-        assert_eq!("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", c.project_id);
-        assert_eq!(1, c.configs.len());
-        assert_eq!("Release", c.configs[0].config);
-        assert_eq!(".NET", c.configs[0].platform);
+        assert_that(&c.project_id).is_equal_to(&"{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}");
+        assert_that(&c.configs).has_length(1);
+        assert_that(&c.configs[0].config).is_equal_to(&"Release");
+        assert_that(&c.configs[0].platform).is_equal_to(&".NET");
     }
 }

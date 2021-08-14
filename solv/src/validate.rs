@@ -21,7 +21,10 @@ pub struct Validate {
 
 impl Validate {
     pub fn new_box(debug: bool, show_only_problems: bool) -> Box<dyn ConsumeDisplay> {
-        Box::new(Self { show_only_problems, debug })
+        Box::new(Self {
+            show_only_problems,
+            debug,
+        })
     }
 }
 

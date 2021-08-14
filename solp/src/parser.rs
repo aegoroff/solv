@@ -121,6 +121,7 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
 mod tests {
     use super::*;
     use petgraph::dot::{Config, Dot};
+    use spectral::prelude::*;
 
     #[test]
     fn parser_debug() {
@@ -133,10 +134,10 @@ mod tests {
         let result = parse_str(REAL_SOLUTION, false);
 
         // Assert
-        assert!(result.is_some());
+        assert_that(&result).is_some();
         let solution = result.unwrap();
-        assert_eq!(solution.projects.len(), solution.dependencies.node_count());
-        assert_eq!(4, solution.dependencies.edge_count());
+        assert_that(&solution.projects.len()).is_equal_to(solution.dependencies.node_count());
+        assert_that(&solution.dependencies.edge_count()).is_equal_to(4);
         println!(
             "{:?}",
             Dot::with_config(&solution.dependencies, &[Config::EdgeNoLabel])
@@ -170,7 +171,7 @@ EndGlobal
         let sln = parse_str(input, false);
 
         // Assert
-        assert!(sln.is_none());
+        assert_that(&sln).is_none();
     }
 
     #[test]
@@ -182,7 +183,7 @@ EndGlobal
         let sln = parse_str(input, false);
 
         // Assert
-        assert!(sln.is_none());
+        assert_that(&sln).is_none();
     }
 
     const REAL_SOLUTION: &str = r#"
