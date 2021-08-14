@@ -13,6 +13,7 @@ mod parser;
 extern crate lalrpop_util;
 extern crate jwalk;
 extern crate petgraph;
+extern crate spectral;
 
 lalrpop_mod!(
     #[allow(clippy::all)]
@@ -91,6 +92,7 @@ fn cut_count(s: &str, ch: char, skip: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use spectral::prelude::*;
 
     #[test]
     fn cut_from_back_until_necessary_chars_more_then_skip_plus_one() {
@@ -101,7 +103,7 @@ mod tests {
         let c = cut_from_back_until(s, '.', 1);
 
         // Assert
-        assert_eq!("a.b", c);
+        assert_that(&c).is_equal_to(&"a.b");
     }
 
     #[test]
@@ -113,7 +115,7 @@ mod tests {
         let c = cut_from_back_until(s, '.', 1);
 
         // Assert
-        assert_eq!("a", c);
+        assert_that(&c).is_equal_to(&"a");
     }
 
     #[test]
@@ -125,7 +127,7 @@ mod tests {
         let c = cut_from_back_until(s, '.', 1);
 
         // Assert
-        assert_eq!("a.", c);
+        assert_that(&c).is_equal_to(&"a.");
     }
 
     #[test]
@@ -137,7 +139,7 @@ mod tests {
         let c = cut_from_back_until(s, '.', 1);
 
         // Assert
-        assert_eq!(".", c);
+        assert_that(&c).is_equal_to(&".");
     }
 
     #[test]
@@ -149,7 +151,7 @@ mod tests {
         let c = cut_from_back_until(s, '.', 1);
 
         // Assert
-        assert_eq!("", c);
+        assert_that(&c).is_equal_to(&"");
     }
 
     #[test]
@@ -161,7 +163,7 @@ mod tests {
         let c = cut_from_back_until(s, '.', 1);
 
         // Assert
-        assert_eq!("", c);
+        assert_that(&c).is_equal_to(&"");
     }
 
     #[test]
@@ -173,7 +175,7 @@ mod tests {
         let c = cut_from_back_until(s, '.', 1);
 
         // Assert
-        assert_eq!("", c);
+        assert_that(&c).is_equal_to(&"");
     }
 
     #[test]
@@ -185,6 +187,6 @@ mod tests {
         let c = cut_from_back_until(s, '.', 1);
 
         // Assert
-        assert_eq!("", c);
+        assert_that(&c).is_equal_to(&"");
     }
 }
