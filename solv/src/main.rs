@@ -70,6 +70,7 @@ impl ConsumeDisplay for Validate {
     }
 }
 
+// Factory method
 fn new_consumer(debug: bool, only_validate: bool, only_problems: bool) -> Box<dyn ConsumeDisplay> {
     if only_validate {
         Validate::new_box(debug, only_problems)
