@@ -14,7 +14,7 @@ pub fn parse_str(contents: &str, debug: bool) -> Option<Solution> {
     if cb[0] == b'\xEF' && cb[1] == b'\xBB' && cb[2] == b'\xBF' {
         input = &contents[3..];
     } else {
-        input = &contents;
+        input = contents;
     }
     let lexer = crate::lex::Lexer::new(input);
     match crate::solp::SolutionParser::new().parse(input, lexer) {

@@ -122,7 +122,7 @@ impl Display for Validate {
 #[cfg(not(target_os = "windows"))]
 fn make_path(dir: &Path, relative: &str) -> PathBuf {
     let sep = &std::path::MAIN_SEPARATOR.to_string();
-    let cleaned = relative.replace("\\", &sep);
+    let cleaned = relative.replace("\\", sep);
     PathBuf::from(&dir).join(cleaned)
 }
 

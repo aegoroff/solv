@@ -161,7 +161,7 @@ impl<'input> Lexer<'input> {
             let start = i + 1;
             match self.chars.peek() {
                 Some((j, '=')) => {
-                    let finish = Lexer::trim_end(&self.input, *j);
+                    let finish = Lexer::trim_end(self.input, *j);
 
                     return Some(Ok((
                         start,
@@ -187,7 +187,7 @@ impl<'input> Lexer<'input> {
         if self.tab_count <= 1 {
             Some(Ok((i, Tok::Eq, i + 1)))
         } else {
-            let start = Lexer::trim_start(&self.input, i + 1);
+            let start = Lexer::trim_start(self.input, i + 1);
 
             loop {
                 match self.chars.peek() {
