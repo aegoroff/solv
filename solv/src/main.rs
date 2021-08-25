@@ -58,6 +58,8 @@ pub trait ConsumeDisplay: Consume + std::fmt::Display {
     fn as_consume(&mut self) -> &mut dyn Consume;
 }
 
+// Trait casting code begin
+
 impl ConsumeDisplay for Info {
     fn as_consume(&mut self) -> &mut dyn Consume {
         self
@@ -69,6 +71,8 @@ impl ConsumeDisplay for Validate {
         self
     }
 }
+
+// Trait casting code end
 
 // Factory method
 fn new_consumer(debug: bool, only_validate: bool, only_problems: bool) -> Box<dyn ConsumeDisplay> {
