@@ -180,10 +180,11 @@ fn search_missing<'a>(solution: &'a Solution<'a>) -> Vec<(&'a str, Vec<&'a Conf>
                 .copied()
                 .collect::<Vec<&Conf>>();
 
-            if !diff.is_empty() {
-                return Some((pc.project_id, diff));
+            if diff.is_empty() {
+                None
+            } else {
+                Some((pc.project_id, diff))
             }
-            None
         })
         .collect()
 }
