@@ -1,4 +1,4 @@
-use clap::{App, Arg, SubCommand};
+use clap::{App, AppSettings, Arg, SubCommand};
 use std::time::Instant;
 
 #[macro_use]
@@ -44,6 +44,7 @@ fn main() {
 
 fn build_cli() -> App<'static, 'static> {
     return App::new(crate_name!())
+        .setting(AppSettings::ArgRequiredElseHelp)
         .version(crate_version!())
         .author("egoroff <egoroff@gmail.com>")
         .about("SOLution Validation tool that analyzes Microsoft Visual Studio solutions")
