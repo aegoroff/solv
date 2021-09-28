@@ -51,14 +51,20 @@ pub fn parse(path: &str, consumer: &mut dyn Consume) {
 pub fn scan(path: &str, extension: &str, consumer: &mut dyn Consume) -> usize {
     let iter = WalkDir::new(path).skip_hidden(false).follow_links(false);
 
-    let ext = String::from(".") + extension.trim_start_matches('.');
+    let ext = extension.trim_start_matches('.');
 
     iter.into_iter()
         .filter(Result::is_ok)
         .map(Result::unwrap)
         .filter(|f| f.file_type().is_file())
-        .map(|f| f.path().to_str().unwrap_or("").to_string())
-        .filter(|p| p.ends_with(&ext))
+        .map(|f| f.path())
+        .filter(|p| {
+            return match p.extension() {
+                Some(s) => s == ext,
+                None => false,
+            };
+        })
+        .map(|f| f.to_str().unwrap_or("").to_string())
         .inspect(|fp| parse(fp, consumer))
         .count()
 }
