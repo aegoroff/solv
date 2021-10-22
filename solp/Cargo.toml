@@ -21,3 +21,4 @@ phf = { version = "0.8", features = ["macros"] }
 itertools = "0.10"
 petgraph = "0.5"
 spectral = "0.6.0"
+num_cpus = "1.13.0"

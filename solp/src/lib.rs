@@ -1,7 +1,7 @@
-use std::fs;
+use std::{fs};
 
 use crate::ast::Solution;
-use jwalk::WalkDir;
+use jwalk::{Parallelism, WalkDir};
 use std::option::Option::Some;
 
 pub mod ast;
@@ -49,7 +49,12 @@ pub fn parse(path: &str, consumer: &mut dyn Consume) {
 /// it finds all files with sln extension and parses them.
 /// returns the number of scanned solutions
 pub fn scan(path: &str, extension: &str, consumer: &mut dyn Consume) -> usize {
-    let iter = WalkDir::new(path).skip_hidden(false).follow_links(false);
+    let parallelism = Parallelism::RayonNewPool(num_cpus::get_physical());
+
+    let iter = WalkDir::new(path)
+        .skip_hidden(false)
+        .follow_links(false)
+        .parallelism(parallelism);
 
     let ext = extension.trim_start_matches('.');
 
