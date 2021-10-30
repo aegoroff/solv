@@ -82,20 +82,20 @@ jobs:
         if: matrix.build == 'linux'
         run: |
           mv ./target/${{ env.LINUX_TARGET }}/release/${{ env.RELEASE_BIN }} ./dist/${{ env.RELEASE_BIN }}
-          7z a -ttar -so -an ./dist | 7z a -si ./${{ env.RELEASE_DIR }}/${{ env.RELEASE_BIN }}-${{ steps.get_version.outputs.VERSION }}-${{ env.LINUX_TARGET }}.tar.gz
+          7z a -ttar -so -an ./dist/* | 7z a -si ./${{ env.RELEASE_DIR }}/${{ env.RELEASE_BIN }}-${{ steps.get_version.outputs.VERSION }}-${{ env.LINUX_TARGET }}.tar.gz
 
       - name: Create tarball (Windows)
         if: matrix.build == 'windows'
         shell: bash
         run: |
           mv ./target/release/${{ env.RELEASE_BIN }}.exe ./dist/${{ env.RELEASE_BIN }}.exe
-          7z a -ttar -so -an ./dist | 7z a -si ./${{ env.RELEASE_DIR }}/${{ env.RELEASE_BIN }}-${{ steps.get_version.outputs.VERSION }}-${{ env.WINDOWS_TARGET }}.tar.gz
+          7z a -ttar -so -an ./dist/* | 7z a -si ./${{ env.RELEASE_DIR }}/${{ env.RELEASE_BIN }}-${{ steps.get_version.outputs.VERSION }}-${{ env.WINDOWS_TARGET }}.tar.gz
 
       - name: Create tarball (MacOS)
         if: matrix.build == 'macos'
         run: |
           mv ./target/release/${{ env.RELEASE_BIN }} ./dist/${{ env.RELEASE_BIN }}
-          7z a -ttar -so -an ./dist | 7z a -si ./${{ env.RELEASE_DIR }}/${{ env.RELEASE_BIN }}-${{ steps.get_version.outputs.VERSION }}-${{ env.MACOS_TARGET }}.tar.gz
+          7z a -ttar -so -an ./dist/* | 7z a -si ./${{ env.RELEASE_DIR }}/${{ env.RELEASE_BIN }}-${{ steps.get_version.outputs.VERSION }}-${{ env.MACOS_TARGET }}.tar.gz
 
       - name: Upload Zip
         uses: actions/upload-artifact@v1
@@ -138,6 +138,39 @@ jobs:
         uses: actions/download-artifact@v1
         with:
           name: macos
+
+      - name: Install Rust
+        run: |
+          rustup update stable --no-self-update
+          rustup default stable
+          cargo install releaser
+      - name: Create brew formula
+        run: /home/runner/.cargo/bin/releaser b -c ./solv/ -b https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.VERSION }}/ -l './linux/' -m './macos/' -u ${{ env.RELEASE_BIN }}.rb
+      - name: Publish brew formula
+        uses: dmnemec/copy_file_to_another_repo_action@main
+        env:
+          API_TOKEN_GITHUB: ${{ secrets.GH_TOKEN }}
+        with:
+          github_server: 'github.com'
+          source_file: ${{ env.RELEASE_BIN }}.rb
+          destination_repo: 'aegoroff/homebrew-tap'
+          user_email: 'egoroff@email.com'
+          user_name: 'aegoroff'
+          commit_message: "release: ${{ steps.get_version.outputs.VERSION }}"
+
+      - name: Create scoop json
+        run: /home/runner/.cargo/bin/releaser s -c ./solv/ -b https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.VERSION }}/ -i './windows/' -e ${{ env.RELEASE_BIN }}.exe -u ${{ env.RELEASE_BIN }}.json
+      - name: Publish scoop json
+        uses: dmnemec/copy_file_to_another_repo_action@main
+        env:
+          API_TOKEN_GITHUB: ${{ secrets.GH_TOKEN }}
+        with:
+          github_server: 'github.com'
+          source_file: ${{ env.RELEASE_BIN }}.json
+          destination_repo: 'aegoroff/scoop-bucket'
+          user_email: 'egoroff@email.com'
+          user_name: 'aegoroff'
+          commit_message: "release: ${{ steps.get_version.outputs.VERSION }}"
 
       - name: Release Linux tarball
         uses: actions/upload-release-asset@v1
