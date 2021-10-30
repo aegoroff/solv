@@ -13,6 +13,9 @@ mod parser;
 extern crate lalrpop_util;
 extern crate jwalk;
 extern crate petgraph;
+
+#[cfg(test)] // <-- not needed in integration tests
+#[macro_use]
 extern crate spectral;
 
 lalrpop_mod!(
