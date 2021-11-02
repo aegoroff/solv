@@ -1,4 +1,4 @@
-use std::{fs};
+use std::fs;
 
 use crate::ast::Solution;
 use jwalk::{Parallelism, WalkDir};
@@ -17,6 +17,10 @@ extern crate petgraph;
 #[cfg(test)] // <-- not needed in integration tests
 #[macro_use]
 extern crate spectral;
+
+#[cfg(test)] // <-- not needed in integration tests
+#[macro_use]
+extern crate table_test;
 
 lalrpop_mod!(
     #[allow(clippy::all)]
@@ -106,101 +110,30 @@ fn cut_count(s: &str, ch: char, skip: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use spectral::prelude::*;
 
     #[test]
-    fn cut_from_back_until_necessary_chars_more_then_skip_plus_one() {
+    fn cut_from_back_until_tests() {
         // Arrange
-        let s = "a.b.c.d";
+        let cases = vec![
+            ("a.b.c.d", "a.b"),
+            ("a.b.c", "a"),
+            ("a..b.c", "a."),
+            ("...", "."),
+            ("..", ""),
+            (".", ""),
+            ("a.b", ""),
+            ("ab", ""),
+        ];
 
         // Act
-        let c = cut_from_back_until(s, '.', 1);
+        for (validator, input, expected) in table_test!(cases) {
+            let actual = cut_from_back_until(input, '.', 1);
 
-        // Assert
-        assert_that(&c).is_equal_to(&"a.b");
-    }
-
-    #[test]
-    fn cut_from_back_until_has_necessary_chars_to_skip() {
-        // Arrange
-        let s = "a.b.c";
-
-        // Act
-        let c = cut_from_back_until(s, '.', 1);
-
-        // Assert
-        assert_that(&c).is_equal_to(&"a");
-    }
-
-    #[test]
-    fn cut_from_back_until_necessary_chars_to_skip_following_each_other() {
-        // Arrange
-        let s = "a..b.c";
-
-        // Act
-        let c = cut_from_back_until(s, '.', 1);
-
-        // Assert
-        assert_that(&c).is_equal_to(&"a.");
-    }
-
-    #[test]
-    fn cut_from_back_until_only_necessary_chars() {
-        // Arrange
-        let s = "...";
-
-        // Act
-        let c = cut_from_back_until(s, '.', 1);
-
-        // Assert
-        assert_that(&c).is_equal_to(&".");
-    }
-
-    #[test]
-    fn cut_from_back_until_only_necessary_chars_eq_skip_plus_one() {
-        // Arrange
-        let s = "..";
-
-        // Act
-        let c = cut_from_back_until(s, '.', 1);
-
-        // Assert
-        assert_that(&c).is_equal_to(&"");
-    }
-
-    #[test]
-    fn cut_from_back_until_only_necessary_chars_eq_skip() {
-        // Arrange
-        let s = ".";
-
-        // Act
-        let c = cut_from_back_until(s, '.', 1);
-
-        // Assert
-        assert_that(&c).is_equal_to(&"");
-    }
-
-    #[test]
-    fn cut_from_back_until_chars_to_skip_not_enough() {
-        // Arrange
-        let s = "a.b";
-
-        // Act
-        let c = cut_from_back_until(s, '.', 1);
-
-        // Assert
-        assert_that(&c).is_equal_to(&"");
-    }
-
-    #[test]
-    fn cut_from_back_until_chars_to_skip_not_present() {
-        // Arrange
-        let s = "ab";
-
-        // Act
-        let c = cut_from_back_until(s, '.', 1);
-
-        // Assert
-        assert_that(&c).is_equal_to(&"");
+            validator
+                .given(&format!("from {}", input))
+                .when("cut_from_back_until")
+                .then(&format!("it should be {}", expected))
+                .assert_eq(expected, actual);
+        }
     }
 }
