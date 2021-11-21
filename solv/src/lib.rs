@@ -3,15 +3,14 @@ mod validate;
 
 use crate::info::Info;
 use crate::validate::Validate;
+use crossterm::style::Stylize;
 use solp::Consume;
-
-use ansi_term::Colour::Red;
 
 extern crate humantime;
 extern crate solp;
 #[macro_use]
 extern crate prettytable;
-extern crate ansi_term;
+extern crate crossterm;
 
 pub trait ConsumeDisplay: Consume + std::fmt::Display {
     fn as_consume(&mut self) -> &mut dyn Consume;
@@ -50,6 +49,5 @@ fn err(debug: bool, path: &str) {
     if debug {
         return;
     }
-    let path = Red.paint(path);
-    eprintln!("Error parsing {} solution", path);
+    eprintln!("Error parsing {} solution", path.red());
 }

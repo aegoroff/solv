@@ -14,7 +14,7 @@ workspace = ".."
 
 [dependencies]
 prettytable-rs = "^0.8"
-ansi_term = "0.12"
+crossterm = "0.22"
 humantime = "2.1"
 clap = "2"
 fnv = "1"

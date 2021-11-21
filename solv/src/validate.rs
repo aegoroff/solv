@@ -1,7 +1,7 @@
 use self::petgraph::algo::DfsSpace;
 use crate::info::Info;
 use crate::{Consume, ConsumeDisplay};
-use ansi_term::Colour::{Green, Red, Yellow, RGB};
+use crossterm::style::{style, Color, Stylize};
 use fnv::{FnvHashMap, FnvHashSet};
 use prettytable::Table;
 use solp::ast::{Conf, Solution};
@@ -48,7 +48,11 @@ impl Consume for Validate {
             || cycle_detected
             || !self.show_only_problems
         {
-            let path = RGB(0xAA, 0xAA, 0xAA).paint(path);
+            let path = style(path).with(Color::Rgb {
+                r: 0xAA,
+                g: 0xAA,
+                b: 0xAA,
+            });
             println!(" {}", path);
         }
 
@@ -56,28 +60,32 @@ impl Consume for Validate {
         if cycle_detected {
             println!(
                 " {}",
-                Red.paint("  Solution contains project dependencies cycles")
+                "  Solution contains project dependencies cycles".red()
             );
             println!();
             no_problems = false;
         }
 
         if !(danglings.is_empty()) {
-            println!(" {}", Yellow.paint("  Solution contains dangling project configurations that can be safely removed:"));
+            println!(
+                " {}",
+                "  Solution contains dangling project configurations that can be safely removed:"
+                    .yellow()
+            );
             println!();
             Info::print_one_column_table("Project ID", danglings);
             no_problems = false;
         }
 
         if !(not_found.is_empty()) {
-            println!(" {}", Yellow.paint("  Solution contains unexist projects:"));
+            println!(" {}", "  Solution contains unexist projects:".yellow());
             println!();
             Info::print_one_column_table("Path", not_found);
             no_problems = false;
         }
 
         if !(missings.is_empty()) {
-            println!(" {}", Yellow.paint("  Solution contains project configurations that are outside solution's configuration|platform list:"));
+            println!(" {}", "  Solution contains project configurations that are outside solution's configuration|platform list:".yellow());
             println!();
 
             let mut table = Table::new();
@@ -99,7 +107,7 @@ impl Consume for Validate {
         }
 
         if !self.show_only_problems && no_problems {
-            println!(" {}", Green.paint("  No problems found in solution."));
+            println!(" {}", "  No problems found in solution.".green());
             println!();
         }
     }

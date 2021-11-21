@@ -1,5 +1,5 @@
 use crate::ConsumeDisplay;
-use ansi_term::Colour::{Red, RGB};
+use crossterm::style::{style, Color, Stylize};
 use num_format::{Locale, ToFormattedString};
 use prettytable::format::TableFormat;
 use prettytable::{format, Table};
@@ -71,7 +71,11 @@ impl Consume for Info {
             *projects_by_type.entry(prj.type_descr).or_insert(0) += 1;
         }
 
-        let path = RGB(0xAA, 0xAA, 0xAA).paint(path);
+        let path = style(path).with(Color::Rgb {
+            r: 0xAA,
+            g: 0xAA,
+            b: 0xAA,
+        });
         println!(" {}", path);
 
         let mut table = Table::new();
@@ -139,7 +143,7 @@ impl Consume for Info {
 
 impl Display for Info {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "{}", Red.bold().paint(" Totals:"))?;
+        writeln!(f, "{}", " Totals:".red().bold())?;
         writeln!(f)?;
 
         let mut table = Table::new();
