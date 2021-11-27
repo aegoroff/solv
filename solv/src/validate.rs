@@ -207,6 +207,7 @@ mod tests {
     #[rstest]
     #[case("/base", "x", "/base/x")]
     #[case("/base", r"x\y", "/base/x/y")]
+    #[case("/base", "x/y", "/base/x/y")]
     #[trace]
     fn make_path_tests(#[case] base: &str, #[case] path: &str, #[case] expected: &str) {
         // Arrange
