@@ -21,3 +21,7 @@ fnv = "1"
 solp = { path = "../solp/", version = "0.3.8"}
 petgraph = "0.5"
 num-format = "0.4"
+
+[dev-dependencies]
+spectral = "0.6.0"
+rstest = "0.11.0"

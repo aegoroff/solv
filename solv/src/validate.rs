@@ -129,9 +129,9 @@ impl Display for Validate {
 
 #[cfg(not(target_os = "windows"))]
 fn make_path(dir: &Path, relative: &str) -> PathBuf {
-    let sep = &std::path::MAIN_SEPARATOR.to_string();
-    let cleaned = relative.replace("\\", sep);
-    PathBuf::from(&dir).join(cleaned)
+    relative
+        .split(r"\")
+        .fold(PathBuf::from(&dir), |pb, s| pb.join(s))
 }
 
 #[cfg(target_os = "windows")]
@@ -195,4 +195,27 @@ fn search_missing<'a>(solution: &'a Solution<'a>) -> Vec<(&'a str, Vec<&'a Conf>
             }
         })
         .collect()
+}
+
+#[cfg(test)]
+#[cfg(not(target_os = "windows"))]
+mod tests {
+    use super::*;
+    use rstest::*;
+    use spectral::prelude::*;
+
+    #[rstest]
+    #[case("/base", "x", "/base/x")]
+    #[case("/base", r"x\y", "/base/x/y")]
+    #[trace]
+    fn make_path_tests(#[case] base: &str, #[case] path: &str, #[case] expected: &str) {
+        // Arrange
+        let d = Path::new(base);
+
+        // Act
+        let actual = make_path(&d, path);
+
+        // Assert
+        assert_that!(actual.to_str().unwrap()).is_equal_to(expected);
+    }
 }

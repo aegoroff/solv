@@ -44,7 +44,7 @@ jobs:
         uses: codecov/codecov-action@v2
       - name: Run tests
         if: matrix.build != 'linux'
-        run: cargo test -p solp
+        run: cargo test --workspace
       - name: Run linter
         uses: actions-rs/clippy-check@v1
         with:
