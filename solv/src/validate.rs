@@ -130,7 +130,7 @@ impl Display for Validate {
 #[cfg(not(target_os = "windows"))]
 fn make_path(dir: &Path, relative: &str) -> PathBuf {
     relative
-        .split(r"\")
+        .split('\\')
         .fold(PathBuf::from(&dir), |pb, s| pb.join(s))
 }
 
