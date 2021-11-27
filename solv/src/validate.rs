@@ -48,11 +48,13 @@ impl Consume for Validate {
             || cycle_detected
             || !self.show_only_problems
         {
-            let path = style(path).with(Color::Rgb {
-                r: 0xAA,
-                g: 0xAA,
-                b: 0xAA,
-            });
+            let path = style(path)
+                .with(Color::Rgb {
+                    r: 0xAA,
+                    g: 0xAA,
+                    b: 0xAA,
+                })
+                .bold();
             println!(" {}", path);
         }
 
@@ -60,7 +62,9 @@ impl Consume for Validate {
         if cycle_detected {
             println!(
                 " {}",
-                "  Solution contains project dependencies cycles".red()
+                "  Solution contains project dependencies cycles"
+                    .dark_red()
+                    .bold()
             );
             println!();
             no_problems = false;
@@ -70,7 +74,8 @@ impl Consume for Validate {
             println!(
                 " {}",
                 "  Solution contains dangling project configurations that can be safely removed:"
-                    .yellow()
+                    .dark_yellow()
+                    .bold()
             );
             println!();
             Info::print_one_column_table("Project ID", danglings);
@@ -78,14 +83,17 @@ impl Consume for Validate {
         }
 
         if !(not_found.is_empty()) {
-            println!(" {}", "  Solution contains unexist projects:".yellow());
+            println!(
+                " {}",
+                "  Solution contains unexist projects:".dark_yellow().bold()
+            );
             println!();
             Info::print_one_column_table("Path", not_found);
             no_problems = false;
         }
 
         if !(missings.is_empty()) {
-            println!(" {}", "  Solution contains project configurations that are outside solution's configuration|platform list:".yellow());
+            println!(" {}", "  Solution contains project configurations that are outside solution's configuration|platform list:".dark_yellow().bold());
             println!();
 
             let mut table = Table::new();
@@ -107,7 +115,10 @@ impl Consume for Validate {
         }
 
         if !self.show_only_problems && no_problems {
-            println!(" {}", "  No problems found in solution.".green());
+            println!(
+                " {}",
+                "  No problems found in solution.".dark_green().bold()
+            );
             println!();
         }
     }

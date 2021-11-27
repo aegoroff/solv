@@ -71,11 +71,13 @@ impl Consume for Info {
             *projects_by_type.entry(prj.type_descr).or_insert(0) += 1;
         }
 
-        let path = style(path).with(Color::Rgb {
-            r: 0xAA,
-            g: 0xAA,
-            b: 0xAA,
-        });
+        let path = style(path)
+            .with(Color::Rgb {
+                r: 0xAA,
+                g: 0xAA,
+                b: 0xAA,
+            })
+            .bold();
         println!(" {}", path);
 
         let mut table = Table::new();
@@ -143,7 +145,7 @@ impl Consume for Info {
 
 impl Display for Info {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "{}", " Totals:".red().bold())?;
+        writeln!(f, "{}", " Totals:".dark_red().bold())?;
         writeln!(f)?;
 
         let mut table = Table::new();
