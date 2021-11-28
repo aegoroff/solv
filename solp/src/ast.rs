@@ -1,4 +1,12 @@
-use crate::{cut_from_back_until, msbuild};
+use crate::msbuild;
+use nom::branch::alt;
+use nom::bytes::complete::{is_not, tag, take_until};
+use nom::character::complete;
+use nom::character::complete::char;
+use nom::combinator::recognize;
+use nom::error::ParseError;
+use nom::error::VerboseError;
+use nom::{sequence, IResult};
 use petgraph::prelude::*;
 
 #[derive(Debug)]
@@ -190,18 +198,8 @@ impl<'input> Conf<'input> {
 
 impl<'input> From<&'input str> for ProjectConfigs<'input> {
     fn from(s: &'input str) -> Self {
-        let mut it = s.split('.');
-        let project_id = it.next().unwrap_or("");
-
-        let mut it = s[project_id.len() + 1..].split('|');
-        let config = it.next().unwrap_or("");
-
-        let trail = &s[project_id.len() + config.len() + 2..];
-        let mut it = trail.split(".ActiveCfg");
-        let mut platform = it.next().unwrap_or("");
-        if platform.len() == trail.len() {
-            platform = cut_from_back_until(trail, '.', 1);
-        }
+        let (_, ((project_id, config), platform)) =
+            ProjectConfigs::configuration_and_platform::<VerboseError<&str>>(s).unwrap_or_default();
 
         let mut configs = Vec::new();
         let config = Conf::new(config, platform);
@@ -231,11 +229,53 @@ impl<'input> ProjectConfigs<'input> {
 
         None
     }
+
+    fn guid<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
+        where
+            E: ParseError<&'a str> + std::fmt::Debug,
+    {
+        recognize(sequence::delimited(
+            complete::char('{'),
+            is_not("{}"),
+            complete::char('}'),
+        ))(input)
+    }
+
+    fn configuration_and_platform<'a, E>(
+        input: &'a str,
+    ) -> IResult<&'a str, ((&'a str, &'a str), &'a str), E>
+        where
+            E: ParseError<&'a str> + std::fmt::Debug,
+    {
+        sequence::separated_pair(
+            ProjectConfigs::id_and_configuration,
+            char('|'),
+            ProjectConfigs::cfg,
+        )(input)
+    }
+
+    fn id_and_configuration<'a, E>(input: &'a str) -> IResult<&'a str, (&'a str, &'a str), E>
+        where
+            E: ParseError<&'a str> + std::fmt::Debug,
+    {
+        sequence::separated_pair(ProjectConfigs::guid, char('.'), is_not("|"))(input)
+    }
+
+    fn cfg<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
+        where
+            E: ParseError<&'a str> + std::fmt::Debug,
+    {
+        sequence::terminated(
+            alt((take_until(".ActiveCfg"), take_until(".Build.0"))),
+            alt((tag(".ActiveCfg"), tag(".Build.0"))),
+        )(input)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::*;
     use spectral::prelude::*;
 
     #[test]
@@ -348,5 +388,48 @@ mod tests {
         assert_that(&c.configs).has_length(1);
         assert_that(&c.configs[0].config).is_equal_to(&"Release");
         assert_that(&c.configs[0].platform).is_equal_to(&".NET");
+    }
+
+    #[test]
+    fn guid_test() {
+        // Arrange
+        let s = "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.Build.0";
+
+        // Act
+        let result = ProjectConfigs::guid::<VerboseError<&str>>(s);
+
+        // Assert
+        assert_that!(result).is_equal_to(Ok((
+            ".Release|.NET.Build.0",
+            "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}",
+        )));
+    }
+
+    #[rstest]
+    #[case(".NET.Build.0", ".NET")]
+    #[case(".NET.ActiveCfg", ".NET")]
+    #[trace]
+    fn cfg_tests(#[case] i: &str, #[case] expected: &str) {
+        // Arrange
+
+        // Act
+        let result = ProjectConfigs::cfg::<VerboseError<&str>>(i);
+
+        // Assert
+        assert_that!(result).is_equal_to(Ok(("", expected)));
+    }
+
+    #[rstest]
+    #[case("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.Build.0", (("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", "Release"), ".NET"))]
+    #[case("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.ActiveCfg", (("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", "Release"), ".NET"))]
+    #[trace]
+    fn configuration_and_platform_tests(#[case] i: &str, #[case] expected: ((&str, &str), &str)) {
+        // Arrange
+
+        // Act
+        let result = ProjectConfigs::configuration_and_platform::<VerboseError<&str>>(i);
+
+        // Assert
+        assert_that!(result).is_equal_to(Ok(("", expected)));
     }
 }

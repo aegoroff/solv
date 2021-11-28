@@ -12,6 +12,7 @@ mod parser;
 #[macro_use]
 extern crate lalrpop_util;
 extern crate jwalk;
+extern crate nom;
 extern crate petgraph;
 
 #[cfg(test)] // <-- not needed in integration tests
@@ -19,8 +20,7 @@ extern crate petgraph;
 extern crate spectral;
 
 #[cfg(test)] // <-- not needed in integration tests
-#[macro_use]
-extern crate table_test;
+extern crate rstest;
 
 lalrpop_mod!(
     #[allow(clippy::all)]
@@ -79,61 +79,4 @@ pub fn scan(path: &str, extension: &str, consumer: &mut dyn Consume) -> usize {
         .map(|f| f.to_str().unwrap_or("").to_string())
         .inspect(|fp| parse(fp, consumer))
         .count()
-}
-
-fn cut_from_back_until(s: &str, ch: char, skip: usize) -> &str {
-    let cut = cut_count(s, ch, skip);
-    &s[..s.len() - cut]
-}
-
-fn cut_count(s: &str, ch: char, skip: usize) -> usize {
-    let mut counter = 0;
-
-    let count = s
-        .chars()
-        .rev()
-        .take_while(|c| {
-            if *c == ch {
-                counter += 1;
-            }
-            counter <= skip
-        })
-        .count();
-
-    if count == s.len() {
-        s.len()
-    } else {
-        count + 1 // Last ch
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn cut_from_back_until_tests() {
-        // Arrange
-        let cases = vec![
-            ("a.b.c.d", "a.b"),
-            ("a.b.c", "a"),
-            ("a..b.c", "a."),
-            ("...", "."),
-            ("..", ""),
-            (".", ""),
-            ("a.b", ""),
-            ("ab", ""),
-        ];
-
-        // Act
-        for (validator, input, expected) in table_test!(cases) {
-            let actual = cut_from_back_until(input, '.', 1);
-
-            validator
-                .given(&format!("from {}", input))
-                .when("cut_from_back_until")
-                .then(&format!("it should be {}", expected))
-                .assert_eq(expected, actual);
-        }
-    }
 }
