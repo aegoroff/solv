@@ -198,17 +198,24 @@ impl<'input> Conf<'input> {
 
 impl<'input> From<&'input str> for ProjectConfigs<'input> {
     fn from(s: &'input str) -> Self {
-        let (_, (project_id, config, platform)) =
+        let (_, project_config) =
             ProjectConfigs::parse::<VerboseError<&str>>(s).unwrap_or_default();
 
         let mut configs = Vec::new();
-        let config = Conf::new(config, platform);
+        let config = Conf::new(project_config.configuration, project_config.platform);
         configs.push(config);
         Self {
-            project_id,
+            project_id: project_config.id,
             configs,
         }
     }
+}
+
+#[derive(Default, PartialEq, Debug)]
+struct ProjectConfig<'input> {
+    id: &'input str,
+    configuration: &'input str,
+    platform: &'input str,
 }
 
 impl<'input> ProjectConfigs<'input> {
@@ -230,7 +237,7 @@ impl<'input> ProjectConfigs<'input> {
         None
     }
 
-    fn parse<'a, E>(input: &'a str) -> IResult<&'a str, (&'a str, &'a str, &'a str), E>
+    fn parse<'a, E>(input: &'a str) -> IResult<&'a str, ProjectConfig<'a>, E>
         where
             E: ParseError<&'a str> + std::fmt::Debug,
     {
@@ -239,8 +246,10 @@ impl<'input> ProjectConfigs<'input> {
             char('|'),
             ProjectConfigs::platform,
         );
-        combinator::map(parser, |((project_id, config), platform)| {
-            (project_id, config, platform)
+        combinator::map(parser, |((project_id, config), platform)| ProjectConfig {
+            id: project_id,
+            configuration: config,
+            platform,
         })(input)
     }
 
@@ -421,10 +430,10 @@ mod tests {
     }
 
     #[rstest]
-    #[case("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.Build.0", ("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", "Release", ".NET"))]
-    #[case("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.ActiveCfg", ("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", "Release", ".NET"))]
+    #[case("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.Build.0", ProjectConfig { id: "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", configuration: "Release", platform: ".NET" })]
+    #[case("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.ActiveCfg", ProjectConfig { id: "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", configuration: "Release", platform: ".NET" })]
     #[trace]
-    fn project_configs_parse_tests(#[case] i: &str, #[case] expected: (&str, &str, &str)) {
+    fn project_configs_parse_tests(#[case] i: &str, #[case] expected: ProjectConfig) {
         // Arrange
 
         // Act
