@@ -198,8 +198,15 @@ impl<'input> Conf<'input> {
 
 impl<'input> From<&'input str> for ProjectConfigs<'input> {
     fn from(s: &'input str) -> Self {
-        let (_, project_config) =
-            ProjectConfigs::parse::<VerboseError<&str>>(s).unwrap_or_default();
+        let project_config = match ProjectConfigs::parse::<VerboseError<&str>>(s) {
+            Ok((_, project_config)) => project_config,
+            _ => {
+                let (_, project_config) =
+                    ProjectConfigs::parse_without_platform::<VerboseError<&str>>(s)
+                        .unwrap_or_default();
+                project_config
+            }
+        };
 
         let mut configs = Vec::new();
         let config = Conf::new(project_config.configuration, project_config.platform);
@@ -253,9 +260,21 @@ impl<'input> ProjectConfigs<'input> {
         })(input)
     }
 
+    fn parse_without_platform<'a, E>(input: &'a str) -> IResult<&'a str, ProjectConfig<'a>, E>
+        where
+            E: ParseError<&'a str> + std::fmt::Debug,
+    {
+        let parser = ProjectConfigs::id_and_configuration_without_platform;
+        combinator::map(parser, |(project_id, config)| ProjectConfig {
+            id: project_id,
+            configuration: config,
+            platform: "",
+        })(input)
+    }
+
     fn guid<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
-    where
-        E: ParseError<&'a str> + std::fmt::Debug,
+        where
+            E: ParseError<&'a str> + std::fmt::Debug,
     {
         recognize(sequence::delimited(
             complete::char('{'),
@@ -265,15 +284,24 @@ impl<'input> ProjectConfigs<'input> {
     }
 
     fn id_and_configuration<'a, E>(input: &'a str) -> IResult<&'a str, (&'a str, &'a str), E>
-    where
-        E: ParseError<&'a str> + std::fmt::Debug,
+        where
+            E: ParseError<&'a str> + std::fmt::Debug,
     {
         sequence::separated_pair(ProjectConfigs::guid, char('.'), is_not("|"))(input)
     }
 
+    fn id_and_configuration_without_platform<'a, E>(
+        input: &'a str,
+    ) -> IResult<&'a str, (&'a str, &'a str), E>
+        where
+            E: ParseError<&'a str> + std::fmt::Debug,
+    {
+        sequence::separated_pair(ProjectConfigs::guid, char('.'), ProjectConfigs::platform)(input)
+    }
+
     fn platform<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
-    where
-        E: ParseError<&'a str> + std::fmt::Debug,
+        where
+            E: ParseError<&'a str> + std::fmt::Debug,
     {
         sequence::terminated(
             alt((take_until(".ActiveCfg"), take_until(".Build.0"))),
@@ -386,18 +414,18 @@ mod tests {
     }
 
     #[test]
-    fn from_project_configurations_platform_with_dot_build() {
+    fn from_project_configurations_without_platform() {
         // Arrange
-        let s = "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.Build.0";
+        let s = "{5228E9CE-A216-422F-A5E6-58E95E2DD71D}.DLL Debug.ActiveCfg";
 
         // Act
         let c = ProjectConfigs::from(s);
 
         // Assert
-        assert_that!(c.project_id).is_equal_to("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}");
+        assert_that!(c.project_id).is_equal_to("{5228E9CE-A216-422F-A5E6-58E95E2DD71D}");
         assert_that!(c.configs).has_length(1);
-        assert_that!(c.configs[0].config).is_equal_to("Release");
-        assert_that!(c.configs[0].platform).is_equal_to(".NET");
+        assert_that!(c.configs[0].config).is_equal_to("DLL Debug");
+        assert_that!(c.configs[0].platform).is_equal_to("");
     }
 
     #[test]
@@ -438,6 +466,22 @@ mod tests {
 
         // Act
         let result = ProjectConfigs::parse::<VerboseError<&str>>(i);
+
+        // Assert
+        assert_that!(result).is_equal_to(Ok(("", expected)));
+    }
+
+    #[rstest]
+    #[case("{5228E9CE-A216-422F-A5E6-58E95E2DD71D}.DLL Debug.ActiveCfg", ProjectConfig { id: "{5228E9CE-A216-422F-A5E6-58E95E2DD71D}", configuration: "DLL Debug", platform: "" })]
+    #[trace]
+    fn project_configs_parse_without_platform_tests(
+        #[case] i: &str,
+        #[case] expected: ProjectConfig,
+    ) {
+        // Arrange
+
+        // Act
+        let result = ProjectConfigs::parse_without_platform::<VerboseError<&str>>(i);
 
         // Assert
         assert_that!(result).is_equal_to(Ok(("", expected)));
