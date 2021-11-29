@@ -238,8 +238,8 @@ impl<'input> ProjectConfigs<'input> {
     }
 
     fn parse<'a, E>(input: &'a str) -> IResult<&'a str, ProjectConfig<'a>, E>
-        where
-            E: ParseError<&'a str> + std::fmt::Debug,
+    where
+        E: ParseError<&'a str> + std::fmt::Debug,
     {
         let parser = sequence::separated_pair(
             ProjectConfigs::id_and_configuration,
@@ -254,8 +254,8 @@ impl<'input> ProjectConfigs<'input> {
     }
 
     fn guid<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
-        where
-            E: ParseError<&'a str> + std::fmt::Debug,
+    where
+        E: ParseError<&'a str> + std::fmt::Debug,
     {
         recognize(sequence::delimited(
             complete::char('{'),
@@ -265,15 +265,15 @@ impl<'input> ProjectConfigs<'input> {
     }
 
     fn id_and_configuration<'a, E>(input: &'a str) -> IResult<&'a str, (&'a str, &'a str), E>
-        where
-            E: ParseError<&'a str> + std::fmt::Debug,
+    where
+        E: ParseError<&'a str> + std::fmt::Debug,
     {
         sequence::separated_pair(ProjectConfigs::guid, char('.'), is_not("|"))(input)
     }
 
     fn platform<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
-        where
-            E: ParseError<&'a str> + std::fmt::Debug,
+    where
+        E: ParseError<&'a str> + std::fmt::Debug,
     {
         sequence::terminated(
             alt((take_until(".ActiveCfg"), take_until(".Build.0"))),
