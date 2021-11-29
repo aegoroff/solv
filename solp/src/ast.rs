@@ -6,7 +6,7 @@ use nom::character::complete::char;
 use nom::combinator::recognize;
 use nom::error::ParseError;
 use nom::error::VerboseError;
-use nom::{sequence, IResult};
+use nom::{combinator, sequence, IResult};
 use petgraph::prelude::*;
 
 #[derive(Debug)]
@@ -198,8 +198,8 @@ impl<'input> Conf<'input> {
 
 impl<'input> From<&'input str> for ProjectConfigs<'input> {
     fn from(s: &'input str) -> Self {
-        let (_, ((project_id, config), platform)) =
-            ProjectConfigs::configuration_and_platform::<VerboseError<&str>>(s).unwrap_or_default();
+        let (_, (project_id, config, platform)) =
+            ProjectConfigs::parse::<VerboseError<&str>>(s).unwrap_or_default();
 
         let mut configs = Vec::new();
         let config = Conf::new(config, platform);
@@ -230,6 +230,20 @@ impl<'input> ProjectConfigs<'input> {
         None
     }
 
+    fn parse<'a, E>(input: &'a str) -> IResult<&'a str, (&'a str, &'a str, &'a str), E>
+        where
+            E: ParseError<&'a str> + std::fmt::Debug,
+    {
+        let parser = sequence::separated_pair(
+            ProjectConfigs::id_and_configuration,
+            char('|'),
+            ProjectConfigs::platform,
+        );
+        combinator::map(parser, |((project_id, config), platform)| {
+            (project_id, config, platform)
+        })(input)
+    }
+
     fn guid<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
         where
             E: ParseError<&'a str> + std::fmt::Debug,
@@ -241,19 +255,6 @@ impl<'input> ProjectConfigs<'input> {
         ))(input)
     }
 
-    fn configuration_and_platform<'a, E>(
-        input: &'a str,
-    ) -> IResult<&'a str, ((&'a str, &'a str), &'a str), E>
-        where
-            E: ParseError<&'a str> + std::fmt::Debug,
-    {
-        sequence::separated_pair(
-            ProjectConfigs::id_and_configuration,
-            char('|'),
-            ProjectConfigs::cfg,
-        )(input)
-    }
-
     fn id_and_configuration<'a, E>(input: &'a str) -> IResult<&'a str, (&'a str, &'a str), E>
         where
             E: ParseError<&'a str> + std::fmt::Debug,
@@ -261,7 +262,7 @@ impl<'input> ProjectConfigs<'input> {
         sequence::separated_pair(ProjectConfigs::guid, char('.'), is_not("|"))(input)
     }
 
-    fn cfg<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
+    fn platform<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
         where
             E: ParseError<&'a str> + std::fmt::Debug,
     {
@@ -287,8 +288,8 @@ mod tests {
         let c = Conf::from(s);
 
         // Assert
-        assert_that(&c.config).is_equal_to(&"Release");
-        assert_that(&c.platform).is_equal_to(&"Any CPU");
+        assert_that!(c.config).is_equal_to("Release");
+        assert_that!(c.platform).is_equal_to("Any CPU");
     }
 
     #[test]
@@ -300,8 +301,8 @@ mod tests {
         let c = Conf::from(s);
 
         // Assert
-        assert_that(&c.config).is_equal_to(&"");
-        assert_that(&c.platform).is_equal_to(&"");
+        assert_that!(c.config).is_equal_to("");
+        assert_that!(c.platform).is_equal_to("");
     }
 
     #[test]
@@ -313,8 +314,8 @@ mod tests {
         let c = Conf::from(s);
 
         // Assert
-        assert_that(&c.config).is_equal_to(&"");
-        assert_that(&c.platform).is_equal_to(&"");
+        assert_that!(c.config).is_equal_to("");
+        assert_that!(c.platform).is_equal_to("");
     }
 
     #[test]
@@ -326,8 +327,8 @@ mod tests {
         let c = Conf::from(s);
 
         // Assert
-        assert_that(&c.config).is_equal_to(&"");
-        assert_that(&c.platform).is_equal_to(&"");
+        assert_that!(c.config).is_equal_to("");
+        assert_that!(c.platform).is_equal_to("");
     }
 
     #[test]
@@ -339,10 +340,10 @@ mod tests {
         let c = ProjectConfigs::from(s);
 
         // Assert
-        assert_that(&c.project_id).is_equal_to(&"{27060CA7-FB29-42BC-BA66-7FC80D498354}");
-        assert_that(&c.configs).has_length(1);
-        assert_that(&c.configs[0].config).is_equal_to(&"Debug");
-        assert_that(&c.configs[0].platform).is_equal_to(&"Any CPU");
+        assert_that!(c.project_id).is_equal_to("{27060CA7-FB29-42BC-BA66-7FC80D498354}");
+        assert_that!(c.configs).has_length(1);
+        assert_that!(c.configs[0].config).is_equal_to("Debug");
+        assert_that!(c.configs[0].platform).is_equal_to("Any CPU");
     }
 
     #[test]
@@ -354,10 +355,10 @@ mod tests {
         let c = ProjectConfigs::from(s);
 
         // Assert
-        assert_that(&c.project_id).is_equal_to(&"{27060CA7-FB29-42BC-BA66-7FC80D498354}");
-        assert_that(&c.configs).has_length(1);
-        assert_that(&c.configs[0].config).is_equal_to(&"Debug .NET 4.0");
-        assert_that(&c.configs[0].platform).is_equal_to(&"Any CPU");
+        assert_that!(c.project_id).is_equal_to("{27060CA7-FB29-42BC-BA66-7FC80D498354}");
+        assert_that!(c.configs).has_length(1);
+        assert_that!(c.configs[0].config).is_equal_to("Debug .NET 4.0");
+        assert_that!(c.configs[0].platform).is_equal_to("Any CPU");
     }
 
     #[test]
@@ -369,10 +370,10 @@ mod tests {
         let c = ProjectConfigs::from(s);
 
         // Assert
-        assert_that(&c.project_id).is_equal_to(&"{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}");
-        assert_that(&c.configs).has_length(1);
-        assert_that(&c.configs[0].config).is_equal_to(&"Release");
-        assert_that(&c.configs[0].platform).is_equal_to(&".NET");
+        assert_that!(c.project_id).is_equal_to("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}");
+        assert_that!(c.configs).has_length(1);
+        assert_that!(c.configs[0].config).is_equal_to("Release");
+        assert_that!(c.configs[0].platform).is_equal_to(".NET");
     }
 
     #[test]
@@ -384,10 +385,10 @@ mod tests {
         let c = ProjectConfigs::from(s);
 
         // Assert
-        assert_that(&c.project_id).is_equal_to(&"{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}");
-        assert_that(&c.configs).has_length(1);
-        assert_that(&c.configs[0].config).is_equal_to(&"Release");
-        assert_that(&c.configs[0].platform).is_equal_to(&".NET");
+        assert_that!(c.project_id).is_equal_to("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}");
+        assert_that!(c.configs).has_length(1);
+        assert_that!(c.configs[0].config).is_equal_to("Release");
+        assert_that!(c.configs[0].platform).is_equal_to(".NET");
     }
 
     #[test]
@@ -413,21 +414,21 @@ mod tests {
         // Arrange
 
         // Act
-        let result = ProjectConfigs::cfg::<VerboseError<&str>>(i);
+        let result = ProjectConfigs::platform::<VerboseError<&str>>(i);
 
         // Assert
         assert_that!(result).is_equal_to(Ok(("", expected)));
     }
 
     #[rstest]
-    #[case("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.Build.0", (("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", "Release"), ".NET"))]
-    #[case("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.ActiveCfg", (("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", "Release"), ".NET"))]
+    #[case("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.Build.0", ("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", "Release", ".NET"))]
+    #[case("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.ActiveCfg", ("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", "Release", ".NET"))]
     #[trace]
-    fn configuration_and_platform_tests(#[case] i: &str, #[case] expected: ((&str, &str), &str)) {
+    fn project_configs_parse_tests(#[case] i: &str, #[case] expected: (&str, &str, &str)) {
         // Arrange
 
         // Act
-        let result = ProjectConfigs::configuration_and_platform::<VerboseError<&str>>(i);
+        let result = ProjectConfigs::parse::<VerboseError<&str>>(i);
 
         // Assert
         assert_that!(result).is_equal_to(Ok(("", expected)));
