@@ -194,12 +194,20 @@ impl<'input> Conf<'input> {
     }
 }
 
+#[derive(Default, PartialEq, Debug)]
+struct ProjectConfig<'input> {
+    id: &'input str,
+    configuration: &'input str,
+    platform: &'input str,
+}
+
 impl<'input> From<&'input str> for ProjectConfigs<'input> {
-    fn from(s: &'input str) -> Self {
+    fn from(k: &'input str) -> Self {
         let (_, project_config) =
-            ProjectConfigs::parse::<VerboseError<&str>>(s).unwrap_or_default();
+            ProjectConfigs::parse::<VerboseError<&str>>(k).unwrap_or_default();
 
         let mut configs = Vec::new();
+
         let config = Conf::new(project_config.configuration, project_config.platform);
         configs.push(config);
         Self {
@@ -207,13 +215,6 @@ impl<'input> From<&'input str> for ProjectConfigs<'input> {
             configs,
         }
     }
-}
-
-#[derive(Default, PartialEq, Debug)]
-struct ProjectConfig<'input> {
-    id: &'input str,
-    configuration: &'input str,
-    platform: &'input str,
 }
 
 impl<'input> ProjectConfigs<'input> {
@@ -273,7 +274,11 @@ where
     E: ParseError<&'a str> + std::fmt::Debug,
 {
     sequence::terminated(
-        alt((take_until(".ActiveCfg"), take_until(".Build.0"), take_until(".Deploy.0"))),
+        alt((
+            take_until(".ActiveCfg"),
+            take_until(".Build.0"),
+            take_until(".Deploy.0"),
+        )),
         alt((tag(".ActiveCfg"), tag(".Build.0"), tag(".Deploy.0"))),
     )(input)
 }

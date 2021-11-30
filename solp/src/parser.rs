@@ -86,15 +86,28 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                 sol.versions.push(version);
             }
             Expr::Global(sections) => {
-                let solution_configs = sections
+                let configs_and_platforms = sections
                     .iter()
                     .filter_map(|sect| section_content!(sect, "SolutionConfigurationPlatforms"))
                     .flatten()
                     .filter_map(|expr| Conf::from_expr(expr));
 
-                sol.solution_configs.extend(solution_configs);
+                let only_configs = sections
+                    .iter()
+                    .filter_map(|sect| section_content!(sect, "SolutionConfiguration"))
+                    .flatten()
+                    .filter_map(|expr| {
+                        if let Expr::SectionContent(_, right) = expr {
+                            let conf = Conf::new(right.string(), "");
+                            return Some(conf);
+                        }
+                        None
+                    });
 
-                let project_configs = sections
+                sol.solution_configs.extend(configs_and_platforms);
+                sol.solution_configs.extend(only_configs);
+
+                let project_configs_platforms = sections
                     .iter()
                     .filter_map(|sect| section_content!(sect, "ProjectConfigurationPlatforms"))
                     .flatten()
@@ -107,6 +120,20 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                     })
                     .collect::<Vec<ProjectConfigs<'input>>>();
 
+                let project_configs = sections
+                    .iter()
+                    .filter_map(|sect| section_content!(sect, "ProjectConfiguration"))
+                    .flatten()
+                    .filter_map(|expr| ProjectConfigs::new(expr))
+                    .group_by(|x| x.project_id)
+                    .into_iter()
+                    .map(|(pid, project_configs)| {
+                        let c = project_configs.map(|c| c.configs).flatten().collect();
+                        ProjectConfigs::from_id_and_configs(pid, c)
+                    })
+                    .collect::<Vec<ProjectConfigs<'input>>>();
+
+                sol.project_configs.extend(project_configs_platforms);
                 sol.project_configs.extend(project_configs);
             }
             Expr::Comment(s) => sol.product = s,
