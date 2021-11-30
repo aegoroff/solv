@@ -291,56 +291,20 @@ mod tests {
     use rstest::*;
     use spectral::prelude::*;
 
-    #[test]
-    fn from_configuration_correct() {
+    #[rstest]
+    #[case("Release|Any CPU", Conf { config: "Release", platform: "Any CPU" })]
+    #[case("", Conf { config: "", platform: "" })]
+    #[case("Release Any CPU", Conf { config: "", platform: "" })]
+    #[case("Release|Any CPU|test", Conf { config: "Release", platform: "Any CPU|test" })]
+    #[trace]
+    fn from_configuration_tests(#[case] i: &str, #[case] expected: Conf) {
         // Arrange
-        let s = "Release|Any CPU";
 
         // Act
-        let c = Conf::from(s);
+        let c = Conf::from(i);
 
         // Assert
-        assert_that!(c.config).is_equal_to("Release");
-        assert_that!(c.platform).is_equal_to("Any CPU");
-    }
-
-    #[test]
-    fn from_configuration_empty() {
-        // Arrange
-        let s = "";
-
-        // Act
-        let c = Conf::from(s);
-
-        // Assert
-        assert_that!(c.config).is_equal_to("");
-        assert_that!(c.platform).is_equal_to("");
-    }
-
-    #[test]
-    fn from_configuration_incorrect_no_pipe() {
-        // Arrange
-        let s = "Release Any CPU";
-
-        // Act
-        let c = Conf::from(s);
-
-        // Assert
-        assert_that!(c.config).is_equal_to("");
-        assert_that!(c.platform).is_equal_to("");
-    }
-
-    #[test]
-    fn from_configuration_incorrect_many_pipes() {
-        // Arrange
-        let s = "Release|Any CPU|test";
-
-        // Act
-        let c = Conf::from(s);
-
-        // Assert
-        assert_that!(c.config).is_equal_to("Release");
-        assert_that!(c.platform).is_equal_to("Any CPU|test");
+        assert_that!(c).is_equal_to(expected);
     }
 
     #[test]
