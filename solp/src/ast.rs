@@ -273,8 +273,8 @@ where
     E: ParseError<&'a str> + std::fmt::Debug,
 {
     sequence::terminated(
-        alt((take_until(".ActiveCfg"), take_until(".Build.0"))),
-        alt((tag(".ActiveCfg"), tag(".Build.0"))),
+        alt((take_until(".ActiveCfg"), take_until(".Build.0"), take_until(".Deploy.0"))),
+        alt((tag(".ActiveCfg"), tag(".Build.0"), tag(".Deploy.0"))),
     )(input)
 }
 
@@ -398,6 +398,7 @@ mod tests {
 
     #[rstest]
     #[case("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.Build.0", ProjectConfig { id: "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", configuration: "Release", platform: ".NET" })]
+    #[case("{60BB14A5-0871-4656-BC38-4F0958230F9A}.Debug|ARM.Deploy.0", ProjectConfig { id: "{60BB14A5-0871-4656-BC38-4F0958230F9A}", configuration: "Debug", platform: "ARM" })]
     #[case("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.ActiveCfg", ProjectConfig { id: "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", configuration: "Release", platform: ".NET" })]
     #[case("{5228E9CE-A216-422F-A5E6-58E95E2DD71D}.DLL Debug.ActiveCfg", ProjectConfig { id: "{5228E9CE-A216-422F-A5E6-58E95E2DD71D}", configuration: "DLL Debug", platform: "" })]
     #[trace]
