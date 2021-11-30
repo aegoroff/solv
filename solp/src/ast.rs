@@ -3,9 +3,10 @@ use nom::branch::alt;
 use nom::bytes::complete::{is_not, tag, take_until};
 use nom::character::complete;
 use nom::character::complete::char;
-use nom::combinator::recognize;
+use nom::combinator::{opt, recognize};
 use nom::error::ParseError;
 use nom::error::VerboseError;
+use nom::sequence::tuple;
 use nom::{combinator, sequence, IResult};
 use petgraph::prelude::*;
 
@@ -198,15 +199,8 @@ impl<'input> Conf<'input> {
 
 impl<'input> From<&'input str> for ProjectConfigs<'input> {
     fn from(s: &'input str) -> Self {
-        let project_config = match ProjectConfigs::parse::<VerboseError<&str>>(s) {
-            Ok((_, project_config)) => project_config,
-            _ => {
-                let (_, project_config) =
-                    ProjectConfigs::parse_without_platform::<VerboseError<&str>>(s)
-                        .unwrap_or_default();
-                project_config
-            }
-        };
+        let (_, project_config) =
+            ProjectConfigs::parse::<VerboseError<&str>>(s).unwrap_or_default();
 
         let mut configs = Vec::new();
         let config = Conf::new(project_config.configuration, project_config.platform);
@@ -249,32 +243,28 @@ impl<'input> ProjectConfigs<'input> {
         E: ParseError<&'a str> + std::fmt::Debug,
     {
         let parser = sequence::separated_pair(
-            ProjectConfigs::id_and_configuration,
-            char('|'),
-            ProjectConfigs::platform,
+            ProjectConfigs::guid,
+            char('.'),
+            tuple((opt(ProjectConfigs::configuration), ProjectConfigs::platform)),
         );
-        combinator::map(parser, |((project_id, config), platform)| ProjectConfig {
-            id: project_id,
-            configuration: config,
-            platform,
-        })(input)
-    }
 
-    fn parse_without_platform<'a, E>(input: &'a str) -> IResult<&'a str, ProjectConfig<'a>, E>
-        where
-            E: ParseError<&'a str> + std::fmt::Debug,
-    {
-        let parser = ProjectConfigs::id_and_configuration_without_platform;
-        combinator::map(parser, |(project_id, config)| ProjectConfig {
-            id: project_id,
-            configuration: config,
-            platform: "",
+        combinator::map(parser, |(project_id, (config, platform))| match config {
+            None => ProjectConfig {
+                id: project_id,
+                configuration: platform,
+                platform: "",
+            },
+            Some(c) => ProjectConfig {
+                id: project_id,
+                configuration: c,
+                platform,
+            },
         })(input)
     }
 
     fn guid<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
-        where
-            E: ParseError<&'a str> + std::fmt::Debug,
+    where
+        E: ParseError<&'a str> + std::fmt::Debug,
     {
         recognize(sequence::delimited(
             complete::char('{'),
@@ -283,30 +273,21 @@ impl<'input> ProjectConfigs<'input> {
         ))(input)
     }
 
-    fn id_and_configuration<'a, E>(input: &'a str) -> IResult<&'a str, (&'a str, &'a str), E>
-        where
-            E: ParseError<&'a str> + std::fmt::Debug,
-    {
-        sequence::separated_pair(ProjectConfigs::guid, char('.'), is_not("|"))(input)
-    }
-
-    fn id_and_configuration_without_platform<'a, E>(
-        input: &'a str,
-    ) -> IResult<&'a str, (&'a str, &'a str), E>
-        where
-            E: ParseError<&'a str> + std::fmt::Debug,
-    {
-        sequence::separated_pair(ProjectConfigs::guid, char('.'), ProjectConfigs::platform)(input)
-    }
-
     fn platform<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
-        where
-            E: ParseError<&'a str> + std::fmt::Debug,
+    where
+        E: ParseError<&'a str> + std::fmt::Debug,
     {
         sequence::terminated(
             alt((take_until(".ActiveCfg"), take_until(".Build.0"))),
             alt((tag(".ActiveCfg"), tag(".Build.0"))),
         )(input)
+    }
+
+    fn configuration<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
+    where
+        E: ParseError<&'a str> + std::fmt::Debug,
+    {
+        sequence::terminated(is_not("|"), char('|'))(input)
     }
 }
 
@@ -460,28 +441,13 @@ mod tests {
     #[rstest]
     #[case("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.Build.0", ProjectConfig { id: "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", configuration: "Release", platform: ".NET" })]
     #[case("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.ActiveCfg", ProjectConfig { id: "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", configuration: "Release", platform: ".NET" })]
+    #[case("{5228E9CE-A216-422F-A5E6-58E95E2DD71D}.DLL Debug.ActiveCfg", ProjectConfig { id: "{5228E9CE-A216-422F-A5E6-58E95E2DD71D}", configuration: "DLL Debug", platform: "" })]
     #[trace]
     fn project_configs_parse_tests(#[case] i: &str, #[case] expected: ProjectConfig) {
         // Arrange
 
         // Act
         let result = ProjectConfigs::parse::<VerboseError<&str>>(i);
-
-        // Assert
-        assert_that!(result).is_equal_to(Ok(("", expected)));
-    }
-
-    #[rstest]
-    #[case("{5228E9CE-A216-422F-A5E6-58E95E2DD71D}.DLL Debug.ActiveCfg", ProjectConfig { id: "{5228E9CE-A216-422F-A5E6-58E95E2DD71D}", configuration: "DLL Debug", platform: "" })]
-    #[trace]
-    fn project_configs_parse_without_platform_tests(
-        #[case] i: &str,
-        #[case] expected: ProjectConfig,
-    ) {
-        // Arrange
-
-        // Act
-        let result = ProjectConfigs::parse_without_platform::<VerboseError<&str>>(i);
 
         // Assert
         assert_that!(result).is_equal_to(Ok(("", expected)));
