@@ -168,13 +168,10 @@ impl<'input> Version<'input> {
 
 impl<'input> From<&'input str> for Conf<'input> {
     fn from(s: &'input str) -> Self {
-        let mut parts = s.split('|');
-        let config = parts.next().unwrap_or_default();
-        let platform = parts.next().unwrap_or_default();
-        if config.is_empty() || platform.is_empty() || parts.next().is_some() {
-            Default::default()
-        } else {
-            Self { config, platform }
+        let r = configuration::<VerboseError<&str>>(s);
+        match r {
+            Ok((platform, config)) => Self { config, platform },
+            _ => Default::default(),
         }
     }
 }
@@ -242,11 +239,8 @@ impl<'input> ProjectConfigs<'input> {
     where
         E: ParseError<&'a str> + std::fmt::Debug,
     {
-        let parser = sequence::separated_pair(
-            ProjectConfigs::guid,
-            char('.'),
-            tuple((opt(ProjectConfigs::configuration), ProjectConfigs::platform)),
-        );
+        let parser =
+            sequence::separated_pair(guid, char('.'), tuple((opt(configuration), platform)));
 
         combinator::map(parser, |(project_id, (config, platform))| match config {
             None => ProjectConfig {
@@ -261,34 +255,34 @@ impl<'input> ProjectConfigs<'input> {
             },
         })(input)
     }
+}
 
-    fn guid<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
-    where
-        E: ParseError<&'a str> + std::fmt::Debug,
-    {
-        recognize(sequence::delimited(
-            complete::char('{'),
-            is_not("{}"),
-            complete::char('}'),
-        ))(input)
-    }
+fn guid<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
+where
+    E: ParseError<&'a str> + std::fmt::Debug,
+{
+    recognize(sequence::delimited(
+        complete::char('{'),
+        is_not("{}"),
+        complete::char('}'),
+    ))(input)
+}
 
-    fn platform<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
-    where
-        E: ParseError<&'a str> + std::fmt::Debug,
-    {
-        sequence::terminated(
-            alt((take_until(".ActiveCfg"), take_until(".Build.0"))),
-            alt((tag(".ActiveCfg"), tag(".Build.0"))),
-        )(input)
-    }
+fn platform<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
+where
+    E: ParseError<&'a str> + std::fmt::Debug,
+{
+    sequence::terminated(
+        alt((take_until(".ActiveCfg"), take_until(".Build.0"))),
+        alt((tag(".ActiveCfg"), tag(".Build.0"))),
+    )(input)
+}
 
-    fn configuration<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
-    where
-        E: ParseError<&'a str> + std::fmt::Debug,
-    {
-        sequence::terminated(is_not("|"), char('|'))(input)
-    }
+fn configuration<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
+where
+    E: ParseError<&'a str> + std::fmt::Debug,
+{
+    sequence::terminated(is_not("|"), char('|'))(input)
 }
 
 #[cfg(test)]
@@ -345,8 +339,8 @@ mod tests {
         let c = Conf::from(s);
 
         // Assert
-        assert_that!(c.config).is_equal_to("");
-        assert_that!(c.platform).is_equal_to("");
+        assert_that!(c.config).is_equal_to("Release");
+        assert_that!(c.platform).is_equal_to("Any CPU|test");
     }
 
     #[test]
@@ -415,7 +409,7 @@ mod tests {
         let s = "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.Build.0";
 
         // Act
-        let result = ProjectConfigs::guid::<VerboseError<&str>>(s);
+        let result = guid::<VerboseError<&str>>(s);
 
         // Assert
         assert_that!(result).is_equal_to(Ok((
@@ -428,11 +422,11 @@ mod tests {
     #[case(".NET.Build.0", ".NET")]
     #[case(".NET.ActiveCfg", ".NET")]
     #[trace]
-    fn cfg_tests(#[case] i: &str, #[case] expected: &str) {
+    fn platform_tests(#[case] i: &str, #[case] expected: &str) {
         // Arrange
 
         // Act
-        let result = ProjectConfigs::platform::<VerboseError<&str>>(i);
+        let result = platform::<VerboseError<&str>>(i);
 
         // Assert
         assert_that!(result).is_equal_to(Ok(("", expected)));
