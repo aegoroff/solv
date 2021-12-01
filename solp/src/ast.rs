@@ -187,10 +187,10 @@ impl<'input> Conf<'input> {
     pub fn from_expr(expr: &Expr<'input>) -> Option<Self> {
         if let Expr::SectionContent(left, _) = expr {
             let conf = Conf::from(left.string());
-            return Some(conf);
+            Some(conf)
+        } else {
+            None
         }
-
-        None
     }
 }
 
@@ -230,10 +230,10 @@ impl<'input> ProjectConfigs<'input> {
     pub fn new(expr: &Expr<'input>) -> Option<Self> {
         if let Expr::SectionContent(left, _) = expr {
             let conf = ProjectConfigs::from(left.string());
-            return Some(conf);
+            Some(conf)
+        } else {
+            None
         }
-
-        None
     }
 
     fn parse<'a, E>(input: &'a str) -> IResult<&'a str, ProjectConfig<'a>, E>

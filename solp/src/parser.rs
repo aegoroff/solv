@@ -38,11 +38,13 @@ macro_rules! section_content {
     ($s:ident, $n:expr) => {{
         if let Expr::Section(begin, content) = $s {
             if begin.is_section($n) {
-                return Some(content);
+                Some(content)
+            } else {
+                None
             }
-            return None;
+        } else {
+            None
         }
-        None
     }};
 }
 
@@ -99,9 +101,10 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                     .filter_map(|expr| {
                         if let Expr::SectionContent(_, right) = expr {
                             let conf = Conf::new(right.string(), "");
-                            return Some(conf);
+                            Some(conf)
+                        } else {
+                            None
                         }
-                        None
                     });
 
                 sol.solution_configs.extend(configs_and_platforms);
