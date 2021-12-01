@@ -3,10 +3,10 @@ use nom::branch::alt;
 use nom::bytes::complete::{is_not, tag, take_until};
 use nom::character::complete;
 use nom::character::complete::char;
-use nom::combinator::{opt, recognize};
+use nom::combinator::recognize;
 use nom::error::ParseError;
 use nom::error::VerboseError;
-use nom::sequence::tuple;
+use nom::sequence::pair;
 use nom::{combinator, sequence, IResult};
 use petgraph::prelude::*;
 
@@ -201,22 +201,6 @@ struct ProjectConfig<'input> {
     platform: &'input str,
 }
 
-impl<'input> From<&'input str> for ProjectConfigs<'input> {
-    fn from(k: &'input str) -> Self {
-        let (_, project_config) =
-            ProjectConfigs::parse::<VerboseError<&str>>(k).unwrap_or_default();
-
-        let mut configs = Vec::new();
-
-        let config = Conf::new(project_config.configuration, project_config.platform);
-        configs.push(config);
-        Self {
-            project_id: project_config.id,
-            configs,
-        }
-    }
-}
-
 impl<'input> ProjectConfigs<'input> {
     pub fn from_id_and_configs(project_id: &'input str, configs: Vec<Conf<'input>>) -> Self {
         let mut configurations = Vec::new();
@@ -227,37 +211,82 @@ impl<'input> ProjectConfigs<'input> {
         }
     }
 
-    pub fn new(expr: &Expr<'input>) -> Option<Self> {
+    pub fn from_section_content_key(expr: &Expr<'input>) -> Option<Self> {
         if let Expr::SectionContent(left, _) = expr {
-            let conf = ProjectConfigs::from(left.string());
-            Some(conf)
+            ProjectConfigs::from_project_configuration_platform(left.string())
         } else {
             None
         }
     }
 
-    fn parse<'a, E>(input: &'a str) -> IResult<&'a str, ProjectConfig<'a>, E>
+    pub fn from_section_content(expr: &Expr<'input>) -> Option<Self> {
+        if let Expr::SectionContent(left, right) = expr {
+            ProjectConfigs::from_project_configuration(left.string(), right.string())
+        } else {
+            None
+        }
+    }
+
+    fn from_project_configuration_platform(k: &'input str) -> Option<Self> {
+        let r = ProjectConfigs::parse_project_configuration_platform::<VerboseError<&str>>(k);
+        Self::new(r)
+    }
+
+    fn from_project_configuration(k: &'input str, v: &'input str) -> Option<Self> {
+        let r = ProjectConfigs::parse_project_configuration::<VerboseError<&str>>(k, v);
+        Self::new(r)
+    }
+
+    fn new(
+        r: IResult<&'input str, ProjectConfig<'input>, VerboseError<&'input str>>,
+    ) -> Option<Self> {
+        match r {
+            Ok((_, project_config)) => {
+                let mut configs = Vec::new();
+
+                let config = Conf::new(project_config.configuration, project_config.platform);
+                configs.push(config);
+                Some(Self {
+                    project_id: project_config.id,
+                    configs,
+                })
+            }
+            Err(_) => None,
+        }
+    }
+
+    fn parse_project_configuration_platform<'a, E>(
+        key: &'a str,
+    ) -> IResult<&'a str, ProjectConfig<'a>, E>
     where
         E: ParseError<&'a str> + std::fmt::Debug,
     {
-        let parser = sequence::separated_pair(
-            guid,
-            char('.'),
-            tuple((opt(pipe_terminated), tag_terminated)),
-        );
+        let parser =
+            sequence::separated_pair(guid, char('.'), pair(pipe_terminated, tag_terminated));
 
-        combinator::map(parser, |(project_id, (config, platform))| match config {
-            None => ProjectConfig {
-                id: project_id,
-                configuration: platform,
-                platform: "",
-            },
-            Some(c) => ProjectConfig {
-                id: project_id,
-                configuration: c,
-                platform,
-            },
-        })(input)
+        combinator::map(parser, |(project_id, (config, platform))| ProjectConfig {
+            id: project_id,
+            configuration: config,
+            platform,
+        })(key)
+    }
+
+    fn parse_project_configuration<'a, E>(
+        key: &'a str,
+        value: &'a str,
+    ) -> IResult<&'a str, ProjectConfig<'a>, E>
+    where
+        E: ParseError<&'a str> + std::fmt::Debug,
+    {
+        let parser = sequence::separated_pair(guid, char('.'), tag_terminated);
+
+        let conf = Conf::from(value);
+
+        combinator::map(parser, |(project_id, config)| ProjectConfig {
+            id: project_id,
+            configuration: config,
+            platform: conf.platform,
+        })(key)
     }
 }
 
@@ -321,9 +350,11 @@ mod tests {
         let s = "{27060CA7-FB29-42BC-BA66-7FC80D498354}.Debug|Any CPU.ActiveCfg";
 
         // Act
-        let c = ProjectConfigs::from(s);
+        let c = ProjectConfigs::from_project_configuration_platform(s);
 
         // Assert
+        assert_that!(c).is_some();
+        let c = c.unwrap();
         assert_that!(c.project_id).is_equal_to("{27060CA7-FB29-42BC-BA66-7FC80D498354}");
         assert_that!(c.configs).has_length(1);
         assert_that!(c.configs[0].config).is_equal_to("Debug");
@@ -336,9 +367,11 @@ mod tests {
         let s = "{27060CA7-FB29-42BC-BA66-7FC80D498354}.Debug .NET 4.0|Any CPU.ActiveCfg";
 
         // Act
-        let c = ProjectConfigs::from(s);
+        let c = ProjectConfigs::from_project_configuration_platform(s);
 
         // Assert
+        assert_that!(c).is_some();
+        let c = c.unwrap();
         assert_that!(c.project_id).is_equal_to("{27060CA7-FB29-42BC-BA66-7FC80D498354}");
         assert_that!(c.configs).has_length(1);
         assert_that!(c.configs[0].config).is_equal_to("Debug .NET 4.0");
@@ -351,9 +384,11 @@ mod tests {
         let s = "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.ActiveCfg";
 
         // Act
-        let c = ProjectConfigs::from(s);
+        let c = ProjectConfigs::from_project_configuration_platform(s);
 
         // Assert
+        assert_that!(c).is_some();
+        let c = c.unwrap();
         assert_that!(c.project_id).is_equal_to("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}");
         assert_that!(c.configs).has_length(1);
         assert_that!(c.configs[0].config).is_equal_to("Release");
@@ -366,13 +401,10 @@ mod tests {
         let s = "{5228E9CE-A216-422F-A5E6-58E95E2DD71D}.DLL Debug.ActiveCfg";
 
         // Act
-        let c = ProjectConfigs::from(s);
+        let c = ProjectConfigs::from_project_configuration_platform(s);
 
         // Assert
-        assert_that!(c.project_id).is_equal_to("{5228E9CE-A216-422F-A5E6-58E95E2DD71D}");
-        assert_that!(c.configs).has_length(1);
-        assert_that!(c.configs[0].config).is_equal_to("DLL Debug");
-        assert_that!(c.configs[0].platform).is_equal_to("");
+        assert_that!(c).is_none();
     }
 
     #[test]
@@ -408,13 +440,32 @@ mod tests {
     #[case("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.Build.0", ProjectConfig { id: "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", configuration: "Release", platform: ".NET" })]
     #[case("{60BB14A5-0871-4656-BC38-4F0958230F9A}.Debug|ARM.Deploy.0", ProjectConfig { id: "{60BB14A5-0871-4656-BC38-4F0958230F9A}", configuration: "Debug", platform: "ARM" })]
     #[case("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.ActiveCfg", ProjectConfig { id: "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", configuration: "Release", platform: ".NET" })]
-    #[case("{5228E9CE-A216-422F-A5E6-58E95E2DD71D}.DLL Debug.ActiveCfg", ProjectConfig { id: "{5228E9CE-A216-422F-A5E6-58E95E2DD71D}", configuration: "DLL Debug", platform: "" })]
     #[trace]
-    fn project_configs_parse_tests(#[case] i: &str, #[case] expected: ProjectConfig) {
+    fn project_configs_parse_project_configuration_platform_tests(
+        #[case] i: &str,
+        #[case] expected: ProjectConfig,
+    ) {
         // Arrange
 
         // Act
-        let result = ProjectConfigs::parse::<VerboseError<&str>>(i);
+        let result = ProjectConfigs::parse_project_configuration_platform::<VerboseError<&str>>(i);
+
+        // Assert
+        assert_that!(result).is_equal_to(Ok(("", expected)));
+    }
+
+    #[rstest]
+    #[case("{5228E9CE-A216-422F-A5E6-58E95E2DD71D}.DLL Debug.ActiveCfg", "Release|x64", ProjectConfig { id: "{5228E9CE-A216-422F-A5E6-58E95E2DD71D}", configuration: "DLL Debug", platform: "x64" })]
+    #[trace]
+    fn project_configs_parse_project_configuration_tests(
+        #[case] k: &str,
+        #[case] v: &str,
+        #[case] expected: ProjectConfig,
+    ) {
+        // Arrange
+
+        // Act
+        let result = ProjectConfigs::parse_project_configuration::<VerboseError<&str>>(k, v);
 
         // Assert
         assert_that!(result).is_equal_to(Ok(("", expected)));

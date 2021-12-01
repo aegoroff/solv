@@ -1,5 +1,6 @@
 use crate::ast::{Conf, Expr, Project, ProjectConfigs, Solution, Version};
 use itertools::Itertools;
+use std::collections::HashSet;
 use std::option::Option::Some;
 
 extern crate itertools;
@@ -92,23 +93,13 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                     .flatten()
                     .filter_map(|expr| Conf::from_expr(expr));
 
-                let only_configs = sections
-                    .iter()
-                    .filter_map(|sect| section_content!(sect, "SolutionConfiguration"))
-                    .flatten()
-                    .filter_map(|expr| match expr {
-                        Expr::SectionContent(_, right) => Some(Conf::new(right.string(), "")),
-                        _ => None,
-                    });
-
                 sol.solution_configs.extend(configs_and_platforms);
-                sol.solution_configs.extend(only_configs);
 
                 let project_configs_platforms = sections
                     .iter()
                     .filter_map(|sect| section_content!(sect, "ProjectConfigurationPlatforms"))
                     .flatten()
-                    .filter_map(|expr| ProjectConfigs::new(expr))
+                    .filter_map(|expr| ProjectConfigs::from_section_content_key(expr))
                     .group_by(|x| x.project_id)
                     .into_iter()
                     .map(|(pid, project_configs)| {
@@ -121,7 +112,7 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                     .iter()
                     .filter_map(|sect| section_content!(sect, "ProjectConfiguration"))
                     .flatten()
-                    .filter_map(|expr| ProjectConfigs::new(expr))
+                    .filter_map(|expr| ProjectConfigs::from_section_content(expr))
                     .group_by(|x| x.project_id)
                     .into_iter()
                     .map(|(pid, project_configs)| {
@@ -129,6 +120,23 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                         ProjectConfigs::from_id_and_configs(pid, c)
                     })
                     .collect::<Vec<ProjectConfigs<'input>>>();
+
+                let solution_confugurations = sections
+                    .iter()
+                    .filter_map(|sect| section_content!(sect, "SolutionConfiguration"))
+                    .flatten()
+                    .filter_map(|expr| match expr {
+                        Expr::SectionContent(_, right) => Some(right.string()),
+                        _ => None,
+                    })
+                    .collect::<HashSet<&str>>();
+
+                let from_project_configurations = project_configs
+                    .iter()
+                    .map(|pc| pc.configs.iter())
+                    .flatten()
+                    .filter(|c| solution_confugurations.contains(c.config));
+                sol.solution_configs.extend(from_project_configurations);
 
                 sol.project_configs.extend(project_configs_platforms);
                 sol.project_configs.extend(project_configs);
