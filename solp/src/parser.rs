@@ -121,7 +121,7 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                     })
                     .collect::<Vec<ProjectConfigs<'input>>>();
 
-                let solution_confugurations = sections
+                let solution_configurations = sections
                     .iter()
                     .filter_map(|sect| section_content!(sect, "SolutionConfiguration"))
                     .flatten()
@@ -135,7 +135,7 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                     .iter()
                     .map(|pc| pc.configs.iter())
                     .flatten()
-                    .filter(|c| solution_confugurations.contains(c.config));
+                    .filter(|c| solution_configurations.contains(c.config));
                 sol.solution_configs.extend(from_project_configurations);
 
                 sol.project_configs.extend(project_configs_platforms);
