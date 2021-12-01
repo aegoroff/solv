@@ -168,7 +168,7 @@ impl<'input> Version<'input> {
 
 impl<'input> From<&'input str> for Conf<'input> {
     fn from(s: &'input str) -> Self {
-        let r = configuration::<VerboseError<&str>>(s);
+        let r = pipe_terminated::<VerboseError<&str>>(s);
         match r {
             Ok((platform, config)) => Self { config, platform },
             _ => Default::default(),
@@ -240,8 +240,11 @@ impl<'input> ProjectConfigs<'input> {
     where
         E: ParseError<&'a str> + std::fmt::Debug,
     {
-        let parser =
-            sequence::separated_pair(guid, char('.'), tuple((opt(configuration), platform)));
+        let parser = sequence::separated_pair(
+            guid,
+            char('.'),
+            tuple((opt(pipe_terminated), tag_terminated)),
+        );
 
         combinator::map(parser, |(project_id, (config, platform))| match config {
             None => ProjectConfig {
@@ -269,7 +272,7 @@ where
     ))(input)
 }
 
-fn platform<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
+fn tag_terminated<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
 where
     E: ParseError<&'a str> + std::fmt::Debug,
 {
@@ -283,7 +286,7 @@ where
     )(input)
 }
 
-fn configuration<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
+fn pipe_terminated<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
 where
     E: ParseError<&'a str> + std::fmt::Debug,
 {
@@ -391,11 +394,11 @@ mod tests {
     #[case(".NET.Build.0", ".NET")]
     #[case(".NET.ActiveCfg", ".NET")]
     #[trace]
-    fn platform_tests(#[case] i: &str, #[case] expected: &str) {
+    fn tag_terminated_tests(#[case] i: &str, #[case] expected: &str) {
         // Arrange
 
         // Act
-        let result = platform::<VerboseError<&str>>(i);
+        let result = tag_terminated::<VerboseError<&str>>(i);
 
         // Assert
         assert_that!(result).is_equal_to(Ok(("", expected)));
