@@ -73,11 +73,9 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                     .iter()
                     .filter_map(|sect| section_content!(sect, "ProjectDependencies"))
                     .flatten()
-                    .filter_map(|expr| {
-                        if let Expr::SectionContent(left, _) = expr {
-                            return Some(left.string());
-                        }
-                        None
+                    .filter_map(|expr| match expr {
+                        Expr::SectionContent(left, _) => Some(left.string()),
+                        _ => None,
                     })
                     .map(|from| (from, *last_id));
 
@@ -98,13 +96,9 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                     .iter()
                     .filter_map(|sect| section_content!(sect, "SolutionConfiguration"))
                     .flatten()
-                    .filter_map(|expr| {
-                        if let Expr::SectionContent(_, right) = expr {
-                            let conf = Conf::new(right.string(), "");
-                            Some(conf)
-                        } else {
-                            None
-                        }
+                    .filter_map(|expr| match expr {
+                        Expr::SectionContent(_, right) => Some(Conf::new(right.string(), "")),
+                        _ => None,
                     });
 
                 sol.solution_configs.extend(configs_and_platforms);
