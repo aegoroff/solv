@@ -91,7 +91,7 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                     .iter()
                     .filter_map(|sect| section_content!(sect, "SolutionConfigurationPlatforms"))
                     .flatten()
-                    .filter_map(|expr| Conf::from_expr(expr));
+                    .filter_map(Conf::from_expr);
 
                 sol.solution_configs.extend(configs_and_platforms);
 
@@ -99,7 +99,7 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                     .iter()
                     .filter_map(|sect| section_content!(sect, "ProjectConfigurationPlatforms"))
                     .flatten()
-                    .filter_map(|expr| ProjectConfigs::from_section_content_key(expr))
+                    .filter_map(ProjectConfigs::from_section_content_key)
                     .group_by(|x| x.project_id)
                     .into_iter()
                     .map(|(pid, project_configs)| {
@@ -112,7 +112,7 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                     .iter()
                     .filter_map(|sect| section_content!(sect, "ProjectConfiguration"))
                     .flatten()
-                    .filter_map(|expr| ProjectConfigs::from_section_content(expr))
+                    .filter_map(ProjectConfigs::from_section_content)
                     .group_by(|x| x.project_id)
                     .into_iter()
                     .map(|(pid, project_configs)| {
