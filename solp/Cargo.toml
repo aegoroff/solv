@@ -17,9 +17,9 @@ lalrpop = "0.19"
 lalrpop-util = "0.19"
 regex = "1"
 jwalk = "0.6"
-phf = { version = "0.8", features = ["macros"] }
+phf = { version = "0.10", features = ["macros"] }
 itertools = "0.10"
-petgraph = "0.5"
+petgraph = "0.6"
 num_cpus = "1.13.0"
 nom = "7"
 

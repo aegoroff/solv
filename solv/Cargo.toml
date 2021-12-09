@@ -19,7 +19,7 @@ humantime = "2.1"
 clap = "2"
 fnv = "1"
 solp = { path = "../solp/", version = "0.4.1"}
-petgraph = "0.5"
+petgraph = "0.6"
 num-format = "0.4"
 
 [dev-dependencies]
