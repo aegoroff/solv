@@ -168,8 +168,10 @@ mod tests {
         // Assert
         assert_that(&result).is_some();
         let solution = result.unwrap();
-        assert_that(&solution.projects.len()).is_equal_to(solution.dependencies.node_count());
-        assert_that(&solution.dependencies.edge_count()).is_equal_to(4);
+        assert_that!(solution.projects.len()).is_equal_to(solution.dependencies.node_count());
+        assert_that!(solution.dependencies.edge_count()).is_equal_to(4);
+        assert_that!(solution.format).is_equal_to("12.00");
+        assert_that!(solution.product).is_equal_to("# Visual Studio 15");
         println!(
             "{:?}",
             Dot::with_config(&solution.dependencies, &[Config::EdgeNoLabel])
