@@ -91,7 +91,7 @@ impl Consume for Info {
         table.set_format(fmt);
 
         table.add_row(row!["Format", bF->solution.format]);
-        if solution.product != "" {
+        if !solution.product.is_empty() {
             table.add_row(row!["Product", bF->solution.product]);
         }
 
