@@ -141,7 +141,10 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                 sol.project_configs.extend(project_configs_platforms);
                 sol.project_configs.extend(project_configs);
             }
-            Expr::Comment(s) => sol.product = s,
+            Expr::Comment(s) => {
+                let skip: &[_] = &['#', ' '];
+                sol.product = s.trim_start_matches(skip)
+            }
             _ => {}
         }
     }
@@ -171,7 +174,7 @@ mod tests {
         assert_that!(solution.projects.len()).is_equal_to(solution.dependencies.node_count());
         assert_that!(solution.dependencies.edge_count()).is_equal_to(4);
         assert_that!(solution.format).is_equal_to("12.00");
-        assert_that!(solution.product).is_equal_to("# Visual Studio 15");
+        assert_that!(solution.product).is_equal_to("Visual Studio 15");
         println!(
             "{:?}",
             Dot::with_config(&solution.dependencies, &[Config::EdgeNoLabel])
