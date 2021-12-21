@@ -91,7 +91,9 @@ impl Consume for Info {
         table.set_format(fmt);
 
         table.add_row(row!["Format", bF->solution.format]);
-        table.add_row(row!["Product", bF->solution.product]);
+        if solution.product != "" {
+            table.add_row(row!["Product", bF->solution.product]);
+        }
 
         for version in &solution.versions {
             table.add_row(row![version.name, bF->version.ver]);
