@@ -183,13 +183,13 @@ impl<'input> Lexer<'input> {
             self.chars.next();
         }
 
+        if Lexer::is_close_element(&self.input[start..]) {
+            self.context = LexerContext::None;
+            return Some(Ok((start, Tok::Skip, start)));
+        }
+
         match self.context {
-            LexerContext::InsideSection => {
-                if Lexer::is_close_element(&self.input[start..]) {
-                    self.context = LexerContext::None;
-                    return Some(Ok((start, Tok::Skip, start)));
-                }
-            }
+            LexerContext::InsideSection => {}
             LexerContext::SectionDefinition => self.context = LexerContext::InsideSection,
             _ => return Some(Ok((start, Tok::Skip, start))),
         }
@@ -253,7 +253,11 @@ impl<'input> Lexer<'input> {
     }
 
     fn is_close_element(val: &str) -> bool {
-        &val[..END_PREFIX.len()] == END_PREFIX
+        if val.len() < END_PREFIX.len() {
+            false
+        } else {
+            &val[..END_PREFIX.len()] == END_PREFIX
+        }
     }
 
     fn trim_start(s: &str, mut i: usize) -> usize {
