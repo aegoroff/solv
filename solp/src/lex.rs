@@ -31,6 +31,8 @@ pub struct Lexer<'input> {
     context: LexerContext,
 }
 
+const END_PREFIX: &str = "End";
+
 impl<'input> Lexer<'input> {
     pub fn new(input: &'input str) -> Self {
         Lexer {
@@ -53,8 +55,7 @@ impl<'input> Lexer<'input> {
                         break;
                     }
                     _ => {
-                        let end_prefix = "End";
-                        if &self.input[i..i + end_prefix.len()] == end_prefix {
+                        if Lexer::is_close_element(&self.input[i..]) {
                             self.context = LexerContext::None;
                             return (Tok::CloseElement(&self.input[i..*j]), *j);
                         }
@@ -62,6 +63,9 @@ impl<'input> Lexer<'input> {
                     }
                 },
                 None => {
+                    if Lexer::is_close_element(&self.input[i..]) {
+                        return (Tok::CloseElement(&self.input[i..]), self.input.len());
+                    }
                     return (Tok::Id(&self.input[i..]), self.input.len());
                 }
             }
@@ -181,8 +185,7 @@ impl<'input> Lexer<'input> {
 
         match self.context {
             LexerContext::InsideSection => {
-                let end_prefix = "End";
-                if &self.input[start..start + end_prefix.len()] == end_prefix {
+                if Lexer::is_close_element(&self.input[start..]) {
                     self.context = LexerContext::None;
                     return Some(Ok((start, Tok::Skip, start)));
                 }
@@ -201,11 +204,13 @@ impl<'input> Lexer<'input> {
                     return Some(Ok((start, Tok::SectionKey(val), finish)));
                 }
                 None => {
-                    return Some(Ok((
-                        start,
-                        Tok::SectionKey(&self.input[start..]),
-                        self.input.len(),
-                    )));
+                    let val = &self.input[start..];
+
+                    if Lexer::is_close_element(val) {
+                        return Some(Ok((start, Tok::CloseElement(val), self.input.len())));
+                    }
+
+                    return Some(Ok((start, Tok::SectionKey(val), self.input.len())));
                 }
                 _ => {
                     self.chars.next();
@@ -245,6 +250,10 @@ impl<'input> Lexer<'input> {
             }
             _ => Some(Ok((i, Tok::Eq, i + 1))),
         }
+    }
+
+    fn is_close_element(val: &str) -> bool {
+        &val[..END_PREFIX.len()] == END_PREFIX
     }
 
     fn trim_start(s: &str, mut i: usize) -> usize {
@@ -326,7 +335,21 @@ mod tests {
 
     #[test]
     fn lex_solution() {
-        let input = r#"
+        let lexer = Lexer::new(REAL_SOLUTION);
+        for tok in lexer {
+            println!("{:#?}", tok);
+        }
+    }
+
+    #[test]
+    fn lex_solution_no_last_line_break() {
+        let lexer = Lexer::new(REAL_SOLUTION.trim_end());
+        for tok in lexer {
+            println!("{:#?}", tok);
+        }
+    }
+
+    const REAL_SOLUTION: &str = r#"
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.26403.0
@@ -472,9 +495,4 @@ Global
 	EndGlobalSection
 EndGlobal
          "#;
-        let lexer = Lexer::new(input);
-        for tok in lexer {
-            println!("{:#?}", tok);
-        }
-    }
 }

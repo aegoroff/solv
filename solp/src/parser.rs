@@ -169,7 +169,7 @@ mod tests {
         let result = parse_str(REAL_SOLUTION, false);
 
         // Assert
-        assert_that(&result).is_some();
+        assert_that!(result).is_some();
         let solution = result.unwrap();
         assert_that!(solution.projects.len()).is_equal_to(solution.dependencies.node_count());
         assert_that!(solution.dependencies.edge_count()).is_equal_to(4);
@@ -179,6 +179,18 @@ mod tests {
             "{:?}",
             Dot::with_config(&solution.dependencies, &[Config::EdgeNoLabel])
         );
+    }
+
+    #[test]
+    fn parser_no_line_break() {
+        // Arrange
+        let sln = REAL_SOLUTION.trim_end();
+
+        // Act
+        let result = parse_str(sln, false);
+
+        // Assert
+        assert_that!(&result).is_some();
     }
 
     #[test]
