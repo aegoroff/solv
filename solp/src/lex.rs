@@ -18,11 +18,17 @@ pub enum Tok<'input> {
     Skip,
 }
 
+enum LexerContext {
+    None,
+    SectionDefinition,
+    InsideSection,
+    InsideString,
+}
+
 pub struct Lexer<'input> {
     chars: std::iter::Peekable<CharIndices<'input>>,
     input: &'input str,
-    inside_str: bool,
-    tab_count: u32,
+    context: LexerContext,
 }
 
 impl<'input> Lexer<'input> {
@@ -30,8 +36,7 @@ impl<'input> Lexer<'input> {
         Lexer {
             chars: input.char_indices().peekable(),
             input,
-            inside_str: false,
-            tab_count: 0,
+            context: LexerContext::None,
         }
     }
 
@@ -48,9 +53,11 @@ impl<'input> Lexer<'input> {
                         break;
                     }
                     _ => {
-                        if &self.input[i..i + 3] == "End" {
+                        let end_prefix = "End";
+                        if &self.input[i..i + end_prefix.len()] == end_prefix {
+                            self.context = LexerContext::None;
                             return (Tok::CloseElement(&self.input[i..*j]), *j);
-                        };
+                        }
                         return (Tok::Id(&self.input[i..*j]), *j);
                     }
                 },
@@ -59,7 +66,13 @@ impl<'input> Lexer<'input> {
                 }
             }
         }
+        // Skip (
         self.chars.next();
+
+        let section_suffix = "Section";
+        if &self.input[(finish - section_suffix.len())..finish] == section_suffix {
+            self.context = LexerContext::SectionDefinition;
+        };
         (Tok::OpenElement(&self.input[i..finish]), finish)
     }
 
@@ -80,10 +93,12 @@ impl<'input> Lexer<'input> {
     }
 
     fn guid(&mut self, i: usize) -> Option<Spanned<Tok<'input>, usize, ()>> {
+        let finish;
         loop {
             match self.chars.peek() {
                 Some((j, '}')) => {
-                    return Some(Ok((i, Tok::Guid(&self.input[i..*j + 1]), *j)));
+                    finish = *j + 1;
+                    break;
                 }
                 None => {
                     return Some(Ok((i, Tok::Guid(&self.input[i..]), self.input.len())));
@@ -93,6 +108,9 @@ impl<'input> Lexer<'input> {
                 }
             }
         }
+        // Skip {
+        self.chars.next();
+        Some(Ok((i, Tok::Guid(&self.input[i..finish]), finish)))
     }
 
     fn digits_with_dots(&mut self, i: usize) -> Option<Spanned<Tok<'input>, usize, ()>> {
@@ -116,13 +134,16 @@ impl<'input> Lexer<'input> {
     }
 
     fn string(&mut self, i: usize) -> Option<Spanned<Tok<'input>, usize, ()>> {
-        if self.inside_str {
-            // Skip trailing
-            self.inside_str = false;
-            return Some(Ok((i, Tok::Skip, i + 1)));
-        } else {
-            self.inside_str = true;
+        match self.context {
+            LexerContext::InsideString => {
+                self.context = LexerContext::None;
+                return Some(Ok((i, Tok::Skip, i + 1)));
+            }
+            _ => {
+                self.context = LexerContext::InsideString;
+            }
         }
+
         let mut guid = false;
         loop {
             match self.chars.peek() {
@@ -140,9 +161,7 @@ impl<'input> Lexer<'input> {
                         Some(Ok((start, Tok::Str(&self.input[start..finish]), finish)))
                     };
                 }
-                None => {
-                    return Some(Ok((i, Tok::Str(&self.input[i..]), self.input.len())));
-                }
+                None => return Some(Ok((i, Tok::Str(&self.input[i..]), self.input.len()))),
                 _ => {
                     self.chars.next();
                 }
@@ -151,23 +170,35 @@ impl<'input> Lexer<'input> {
     }
 
     fn section_key(&mut self, i: usize) -> Option<Spanned<Tok<'input>, usize, ()>> {
-        self.tab_count += 1;
+        let mut start = i;
+
+        while let Some((j, '\r')) | Some((j, '\n')) | Some((j, '\t')) | Some((j, ' ')) =
+            self.chars.peek()
+        {
+            start = *j + 1;
+            self.chars.next();
+        }
+
+        match self.context {
+            LexerContext::InsideSection => {
+                let end_prefix = "End";
+                if &self.input[start..start + end_prefix.len()] == end_prefix {
+                    self.context = LexerContext::None;
+                    return Some(Ok((start, Tok::Skip, start)));
+                }
+            }
+            LexerContext::SectionDefinition => self.context = LexerContext::InsideSection,
+            _ => return Some(Ok((start, Tok::Skip, start))),
+        }
 
         loop {
-            // Skip first
-            if self.tab_count == 1 {
-                return Some(Ok((i, Tok::Skip, i + 1)));
-            }
-            let start = i + 1;
             match self.chars.peek() {
                 Some((j, '=')) => {
                     let finish = Lexer::trim_end(self.input, *j);
 
-                    return Some(Ok((
-                        start,
-                        Tok::SectionKey(&self.input[start..finish]),
-                        finish,
-                    )));
+                    let val = &self.input[start..finish];
+
+                    return Some(Ok((start, Tok::SectionKey(val), finish)));
                 }
                 None => {
                     return Some(Ok((
@@ -184,34 +215,35 @@ impl<'input> Lexer<'input> {
     }
 
     fn section_value(&mut self, i: usize) -> Option<Spanned<Tok<'input>, usize, ()>> {
-        if self.tab_count <= 1 {
-            Some(Ok((i, Tok::Eq, i + 1)))
-        } else {
-            let start = Lexer::trim_start(self.input, i + 1);
+        match self.context {
+            LexerContext::InsideSection => {
+                // i + 1 skips equal sign (=)
+                let start = Lexer::trim_start(self.input, i + 1);
 
-            loop {
-                match self.chars.peek() {
-                    Some((j, '\r')) | Some((j, '\n')) => {
-                        self.tab_count = 0;
-                        let finish = *j;
-                        return Some(Ok((
-                            start,
-                            Tok::SectionValue(&self.input[start..finish]),
-                            finish,
-                        )));
-                    }
-                    None => {
-                        return Some(Ok((
-                            start,
-                            Tok::SectionValue(&self.input[start..]),
-                            self.input.len(),
-                        )));
-                    }
-                    _ => {
-                        self.chars.next();
+                loop {
+                    match self.chars.peek() {
+                        Some((j, '\r')) | Some((j, '\n')) => {
+                            let finish = *j;
+                            return Some(Ok((
+                                start,
+                                Tok::SectionValue(&self.input[start..finish]),
+                                finish,
+                            )));
+                        }
+                        None => {
+                            return Some(Ok((
+                                start,
+                                Tok::SectionValue(&self.input[start..]),
+                                self.input.len(),
+                            )));
+                        }
+                        _ => {
+                            self.chars.next();
+                        }
                     }
                 }
             }
+            _ => Some(Ok((i, Tok::Eq, i + 1))),
         }
     }
 
@@ -231,7 +263,7 @@ impl<'input> Lexer<'input> {
 
     fn current(&mut self, i: usize, ch: char) -> Option<Spanned<Tok<'input>, usize, ()>> {
         match ch {
-            '\t' => return self.section_key(i),
+            '\r' | '\n' => return self.section_key(i),
             '=' => return self.section_value(i),
             ',' => return Some(Ok((i, Tok::Comma, i + 1))),
             ')' => return Some(Ok((i, Tok::Skip, i + 1))),
@@ -257,8 +289,7 @@ impl<'input> Iterator for Lexer<'input> {
             let (i, c) = self.chars.next()?;
 
             match c {
-                ' ' | '\n' | '\r' | '}' => {
-                    self.tab_count = 0;
+                ' ' | '\t' => {
                     continue;
                 }
                 _ => {}
