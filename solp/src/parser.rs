@@ -161,27 +161,29 @@ mod tests {
     use spectral::prelude::*;
 
     #[test]
-    fn parser_debug() {
+    fn parse_str_debug() {
         parse_str(REAL_SOLUTION, true);
     }
 
     #[rstest]
-    #[case("ZZ(1Z\t22\"2", false)]
-    #[case("Z\u{1}\u{365}\u{b}\n\u{0}\u{0}", false)]
-    #[case("\rXZZ,\rM2Section(\r    =2     =2", false)]
-    #[case("ZZ\t)X\t)X,\t0#  溾\n\t\t)E(Z)E#溾", false)]
-    #[case("\rYXZZ,\rM2)Section()\r\r))ZZ,\u{1}\t)X9Z)Z\u{fa970}Tz\u{1}\u{fa970}`\u{1}\u{fa970}Tz\u{1}\u{ea970}=\u{1}\u{11}\u{0}MZG\u{0}\u{1}\u{11}\u{0}\u{1}\u{fa970}Tz\u{1}\u{fa970}`\u{1}\u{fa970}Tz\u{1}\u{fa970}\non()\r)YA,\rM1\rKg\u{17}Y)\u{6}", false)]
+    #[case("")]
+    #[case("123243")]
+    #[case("ZZ(1Z\t22\"2")]
+    #[case("Z\u{1}\u{365}\u{b}\n\u{0}\u{0}")]
+    #[case("\rXZZ,\rM2Section(\r    =2     =2")]
+    #[case("ZZ\t)X\t)X,\t0#  溾\n\t\t)E(Z)E#溾")]
+    #[case("\rYXZZ,\rM2)Section()\r\r))ZZ,\u{1}\t)X9Z)Z\u{fa970}Tz\u{1}\u{fa970}`\u{1}\u{fa970}Tz\u{1}\u{ea970}=\u{1}\u{11}\u{0}MZG\u{0}\u{1}\u{11}\u{0}\u{1}\u{fa970}Tz\u{1}\u{fa970}`\u{1}\u{fa970}Tz\u{1}\u{fa970}\non()\r)YA,\rM1\rKg\u{17}Y)\u{6}")]
     #[trace]
-    fn parser_arbitrary(#[case] content: &str, #[case] expected: bool) {
+    fn parse_str_crashes_found_by_fuzz(#[case] content: &str) {
         // Act
         let result = parse_str(content, false);
 
         // Assert
-        assert_that!(result.is_some()).is_equal_to(expected);
+        assert_that!(result).is_none();
     }
 
     #[test]
-    fn parser_no_debug() {
+    fn parse_str_real_solution() {
         // Act
         let result = parse_str(REAL_SOLUTION, false);
 
@@ -200,7 +202,7 @@ mod tests {
     }
 
     #[test]
-    fn parser_no_line_break() {
+    fn parse_str_no_line_break() {
         // Arrange
         let sln = REAL_SOLUTION.trim_end();
 
@@ -212,7 +214,8 @@ mod tests {
     }
 
     #[test]
-    fn parser_incorrect() {
+    fn parse_str_incorrect_debug() {
+        // Arrange
         let input = r#"
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
@@ -226,31 +229,8 @@ Global
     EndGlobalSection
 EndGlobal
 "#;
+        // Act
         parse_str(input, true);
-    }
-
-    #[test]
-    fn parser_empty() {
-        // Arrange
-        let input = r#""#;
-
-        // Act
-        let sln = parse_str(input, false);
-
-        // Assert
-        assert_that!(sln).is_none();
-    }
-
-    #[test]
-    fn parser_trash() {
-        // Arrange
-        let input = r#"123243"#;
-
-        // Act
-        let sln = parse_str(input, false);
-
-        // Assert
-        assert_that!(sln).is_none();
     }
 
     #[test]
@@ -273,7 +253,7 @@ EndGlobal
     }
 
     #[test]
-    fn parser_apr_generated_solution() {
+    fn parse_str_apr_generated_solution() {
         // Arrange
 
         // Act
@@ -284,7 +264,7 @@ EndGlobal
     }
 
     #[test]
-    fn parser_apr_generated_solution_debug() {
+    fn parse_str_apr_generated_solution_debug() {
         // Arrange
 
         // Act

@@ -266,20 +266,17 @@ impl<'input> Lexer<'input> {
     }
 
     fn trim_start(s: &str, mut i: usize) -> usize {
-        i += &s[i..]
-            .chars()
-            .take_while(|c| ' ' == *c || '\t' == *c)
-            .count();
+        i += Lexer::count_whitespaces(s[i..].chars());
         i
     }
 
     fn trim_end(s: &str, mut i: usize) -> usize {
-        i -= &s[..i]
-            .chars()
-            .rev()
-            .take_while(|c| ' ' == *c || '\t' == *c)
-            .count();
+        i -= Lexer::count_whitespaces(s[..i].chars().rev());
         i
+    }
+
+    fn count_whitespaces<I: Iterator<Item = char>>(it: I) -> usize {
+        it.take_while(|c| ' ' == *c || '\t' == *c).count()
     }
 
     fn current(&mut self, i: usize, ch: char) -> Option<Spanned<Tok<'input>, usize, ()>> {
