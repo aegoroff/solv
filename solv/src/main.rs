@@ -37,7 +37,7 @@ fn main() {
         if let Some(path) = cmd.value_of("PATH") {
             let is_info = cmd.is_present("info");
             let mut consumer = solv::new_consumer(debug, !is_info, false);
-            solp::parse(path, consumer.as_consume());
+            solp::parse_file(path, consumer.as_consume());
         }
     }
 }

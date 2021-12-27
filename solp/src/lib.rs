@@ -38,18 +38,22 @@ pub trait Consume {
     fn is_debug(&self) -> bool;
 }
 
-/// parse parses single solution file specified by path.
-pub fn parse(path: &str, consumer: &mut dyn Consume) {
+/// parse_file parses single solution file specified by path.
+pub fn parse_file(path: &str, consumer: &mut dyn Consume) {
     match fs::read_to_string(path) {
         Ok(contents) => {
-            if let Some(solution) = parser::parse_str(&contents, consumer.is_debug()) {
-                consumer.ok(path, &solution);
-            } else {
-                consumer.err(path);
+            match parse(consumer, &contents) {
+                None => consumer.err(path),
+                Some(solution) => consumer.ok(path, &solution)
             }
         }
         Err(e) => eprintln!("{} - {}", path, e),
     }
+}
+
+/// parse parses solution content.
+pub fn parse<'a>(consumer: &mut dyn Consume, contents: &'a str) -> Option<Solution<'a>> {
+    parser::parse_str(contents, consumer.is_debug())
 }
 
 /// scan parses directory specified by path. recursively
@@ -77,6 +81,6 @@ pub fn scan(path: &str, extension: &str, consumer: &mut dyn Consume) -> usize {
             };
         })
         .map(|f| f.to_str().unwrap_or("").to_string())
-        .inspect(|fp| parse(fp, consumer))
+        .inspect(|fp| parse_file(fp, consumer))
         .count()
 }
