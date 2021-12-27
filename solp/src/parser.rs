@@ -157,11 +157,27 @@ mod tests {
     use super::*;
     use crate::lex::Lexer;
     use petgraph::dot::{Config, Dot};
+    use rstest::*;
     use spectral::prelude::*;
 
     #[test]
     fn parser_debug() {
         parse_str(REAL_SOLUTION, true);
+    }
+
+    #[rstest]
+    #[case("ZZ(1Z\t22\"2", false)]
+    #[case("Z\u{1}\u{365}\u{b}\n\u{0}\u{0}", false)]
+    #[case("\rXZZ,\rM2Section(\r    =2     =2", false)]
+    #[case("ZZ\t)X\t)X,\t0#  溾\n\t\t)E(Z)E#溾", false)]
+    #[case("\rYXZZ,\rM2)Section()\r\r))ZZ,\u{1}\t)X9Z)Z\u{fa970}Tz\u{1}\u{fa970}`\u{1}\u{fa970}Tz\u{1}\u{ea970}=\u{1}\u{11}\u{0}MZG\u{0}\u{1}\u{11}\u{0}\u{1}\u{fa970}Tz\u{1}\u{fa970}`\u{1}\u{fa970}Tz\u{1}\u{fa970}\non()\r)YA,\rM1\rKg\u{17}Y)\u{6}", false)]
+    #[trace]
+    fn parser_arbitrary(#[case] content: &str, #[case] expected: bool) {
+        // Act
+        let result = parse_str(content, false);
+
+        // Assert
+        assert_that!(result.is_some()).is_equal_to(expected);
     }
 
     #[test]
@@ -172,7 +188,8 @@ mod tests {
         // Assert
         assert_that!(result).is_some();
         let solution = result.unwrap();
-        assert_that!(solution.projects.len()).is_equal_to(solution.dependencies.node_count());
+        assert_that!(solution.projects.len()).is_equal_to(10);
+        assert_that!(solution.dependencies.node_count()).is_equal_to(10);
         assert_that!(solution.dependencies.edge_count()).is_equal_to(4);
         assert_that!(solution.format).is_equal_to("12.00");
         assert_that!(solution.product).is_equal_to("Visual Studio 15");

@@ -74,7 +74,13 @@ impl<'input> Lexer<'input> {
         self.chars.next();
 
         let section_suffix = "Section";
-        if &self.input[(finish - section_suffix.len())..finish] == section_suffix {
+        let sub: String = self.input[i..finish]
+            .chars()
+            .rev()
+            .take(section_suffix.len())
+            .collect();
+        let sub: String = sub.chars().rev().collect();
+        if sub == section_suffix {
             self.context = LexerContext::SectionDefinition;
         };
         (Tok::OpenElement(&self.input[i..finish]), finish)
@@ -198,9 +204,11 @@ impl<'input> Lexer<'input> {
             match self.chars.peek() {
                 Some((j, '=')) => {
                     let finish = Lexer::trim_end(self.input, *j);
-
-                    let val = &self.input[start..finish];
-
+                    let val = if finish < start {
+                        ""
+                    } else {
+                        &self.input[start..finish]
+                    };
                     return Some(Ok((start, Tok::SectionKey(val), finish)));
                 }
                 None => {
@@ -253,24 +261,24 @@ impl<'input> Lexer<'input> {
     }
 
     fn is_close_element(val: &str) -> bool {
-        if val.len() < END_PREFIX.len() {
-            false
-        } else {
-            &val[..END_PREFIX.len()] == END_PREFIX
-        }
+        let substr: String = val.chars().take(END_PREFIX.len()).collect();
+        &substr == END_PREFIX
     }
 
     fn trim_start(s: &str, mut i: usize) -> usize {
-        while let " " | "\t" = &s[i..i + 1] {
-            i += 1;
-        }
+        i += &s[i..]
+            .chars()
+            .take_while(|c| ' ' == *c || '\t' == *c)
+            .count();
         i
     }
 
     fn trim_end(s: &str, mut i: usize) -> usize {
-        while let " " | "\t" = &s[i - 1..i] {
-            i -= 1;
-        }
+        i -= &s[..i]
+            .chars()
+            .rev()
+            .take_while(|c| ' ' == *c || '\t' == *c)
+            .count();
         i
     }
 
@@ -324,6 +332,8 @@ impl<'input> Iterator for Lexer<'input> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::*;
+    use spectral::*;
 
     #[test]
     fn lexer() {
@@ -351,6 +361,27 @@ mod tests {
         for tok in lexer {
             println!("{:#?}", tok);
         }
+    }
+
+    #[rstest]
+    #[case("1 ", 1)]
+    #[case("1", 1)]
+    #[case("  1", 3)]
+    #[case(" ", 0)]
+    #[case("  ", 0)]
+    #[case(" \t", 0)]
+    #[case("", 0)]
+    #[case("          ", 0)]
+    #[trace]
+    fn trim_end_tests(#[case] content: &str, #[case] expected: usize) {
+        // Arrange
+        let i: usize = content.len();
+
+        // Act
+        let actual = Lexer::trim_end(content, i);
+
+        // Assert
+        assert_that!(actual).is_equal_to(expected);
     }
 
     const REAL_SOLUTION: &str = r#"
