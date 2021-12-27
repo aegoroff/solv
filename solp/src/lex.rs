@@ -262,7 +262,7 @@ impl<'input> Lexer<'input> {
 
     fn is_close_element(val: &str) -> bool {
         let substr: String = val.chars().take(END_PREFIX.len()).collect();
-        &substr == END_PREFIX
+        substr == END_PREFIX
     }
 
     fn trim_start(s: &str, mut i: usize) -> usize {
