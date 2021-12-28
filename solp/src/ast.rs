@@ -132,9 +132,10 @@ impl<'input> Project<'input> {
     pub fn from_begin(head: &Expr<'input>) -> Option<Self> {
         if let Expr::ProjectBegin(project_type, name, path, id) = head {
             let prj = Project::from(project_type, name, path, id);
-            return Some(prj);
+            Some(prj)
+        } else {
+            None
         }
-        None
     }
 
     pub fn from(
