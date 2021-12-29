@@ -5,18 +5,19 @@ use std::option::Option::Some;
 
 extern crate itertools;
 
-pub fn parse_str(contents: &str, debug: bool) -> Option<Solution> {
-    let input;
+const UTF8_SIG: &[u8] = b"\xEF\xBB\xBF";
 
-    let cb = contents.as_bytes();
+pub fn parse_str(contents: &str, debug: bool) -> Option<Solution> {
     if contents.len() < 3 {
         return None;
     }
-    if cb[0] == b'\xEF' && cb[1] == b'\xBB' && cb[2] == b'\xBF' {
-        input = &contents[3..];
+    let cb = contents.as_bytes();
+    // Skip UTF-8 signature if necessary
+    let input = if &cb[0..UTF8_SIG.len()] == UTF8_SIG {
+        &contents[UTF8_SIG.len()..]
     } else {
-        input = contents;
-    }
+        contents
+    };
     let lexer = crate::lex::Lexer::new(input);
     match crate::solp::SolutionParser::new().parse(input, lexer) {
         Ok(ast) => {
@@ -203,6 +204,21 @@ mod tests {
 
     #[test]
     fn parse_str_no_line_break() {
+        // Arrange
+        let mut binary = Vec::new();
+        binary.extend_from_slice(UTF8_SIG);
+        binary.extend_from_slice(REAL_SOLUTION.as_bytes());
+        let sln = String::from_utf8(binary).unwrap();
+
+        // Act
+        let result = parse_str(&sln, false);
+
+        // Assert
+        assert_that!(&result).is_some();
+    }
+
+    #[test]
+    fn parse_str_start_from_utf_8_signature() {
         // Arrange
         let sln = REAL_SOLUTION.trim_end();
 
