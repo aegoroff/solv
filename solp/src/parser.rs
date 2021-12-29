@@ -71,23 +71,19 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                     sol.dependencies.add_node(p.id);
                 }
 
-                // Crash if no projects
-                let last_id = sol
-                    .projects
-                    .last()
-                    .expect("No project collected but it must. Stop program")
-                    .id;
-                let edges = sections
-                    .iter()
-                    .filter_map(|sect| section_content!(sect, "ProjectDependencies"))
-                    .flatten()
-                    .filter_map(|expr| match expr {
-                        Expr::SectionContent(left, _) => Some(left.string()),
-                        _ => None,
-                    })
-                    .map(|from| (from, last_id));
+                if let Some(last_project) = sol.projects.last() {
+                    let edges = sections
+                        .iter()
+                        .filter_map(|sect| section_content!(sect, "ProjectDependencies"))
+                        .flatten()
+                        .filter_map(|expr| match expr {
+                            Expr::SectionContent(left, _) => Some(left.string()),
+                            _ => None,
+                        })
+                        .map(|from| (from, last_project.id));
 
-                sol.dependencies.extend(edges);
+                    sol.dependencies.extend(edges);
+                }
             }
             Expr::Version(name, val) => {
                 let version = Version::from(&name, &val);
