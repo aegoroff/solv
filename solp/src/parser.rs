@@ -53,10 +53,11 @@ macro_rules! section_content {
 fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'input> {
     let (head, lines) = solution;
 
-    let mut version = "";
-    if let Expr::FirstLine(ver) = head {
-        version = ver.digit_or_dot();
-    }
+    let version = if let Expr::FirstLine(ver) = head {
+        ver.digit_or_dot()
+    } else {
+        ""
+    };
 
     let mut sol = Solution {
         format: version,
