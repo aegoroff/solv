@@ -164,11 +164,11 @@ impl<'input> Lexer<'input> {
                 }
                 Some((j, '"')) => {
                     let start = i + 1;
+                    let val = &self.input[start..*j];
                     return if guid {
-                        Some(Ok((start, Tok::Guid(&self.input[start..*j]), *j - 1)))
+                        Some(Ok((start, Tok::Guid(val), *j - 1)))
                     } else {
-                        let finish = *j;
-                        Some(Ok((start, Tok::Str(&self.input[start..finish]), finish)))
+                        Some(Ok((start, Tok::Str(val), *j)))
                     };
                 }
                 None => return Some(Ok((i, Tok::Str(&self.input[i..]), self.input.len()))),
