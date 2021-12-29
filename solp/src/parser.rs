@@ -5,10 +5,10 @@ use std::option::Option::Some;
 
 extern crate itertools;
 
-const UTF8_SIG: &[u8] = b"\xEF\xBB\xBF";
+const UTF8_SIG: &[u8; 3] = b"\xEF\xBB\xBF";
 
 pub fn parse_str(contents: &str, debug: bool) -> Option<Solution> {
-    if contents.len() < 3 {
+    if contents.len() < UTF8_SIG.len() {
         return None;
     }
     let cb = contents.as_bytes();
@@ -70,7 +70,13 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                     sol.projects.push(p);
                     sol.dependencies.add_node(p.id);
                 }
-                let last_id = &sol.projects[sol.projects.len() - 1].id;
+
+                // Crash if no projects
+                let last_id = sol
+                    .projects
+                    .last()
+                    .expect("No project collected but it must. Stop program")
+                    .id;
                 let edges = sections
                     .iter()
                     .filter_map(|sect| section_content!(sect, "ProjectDependencies"))
@@ -79,7 +85,7 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                         Expr::SectionContent(left, _) => Some(left.string()),
                         _ => None,
                     })
-                    .map(|from| (from, *last_id));
+                    .map(|from| (from, last_id));
 
                 sol.dependencies.extend(edges);
             }
