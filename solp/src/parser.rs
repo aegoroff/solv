@@ -5,16 +5,16 @@ use std::option::Option::Some;
 
 extern crate itertools;
 
-const UTF8_SIG: &[u8; 3] = b"\xEF\xBB\xBF";
+const UTF8_BOM: &[u8; 3] = b"\xEF\xBB\xBF";
 
 pub fn parse_str(contents: &str, debug: bool) -> Option<Solution> {
-    if contents.len() < UTF8_SIG.len() {
+    if contents.len() < UTF8_BOM.len() {
         return None;
     }
     let cb = contents.as_bytes();
     // Skip UTF-8 signature if necessary
-    let input = if &cb[0..UTF8_SIG.len()] == UTF8_SIG {
-        &contents[UTF8_SIG.len()..]
+    let input = if &cb[0..UTF8_BOM.len()] == UTF8_BOM {
+        &contents[UTF8_BOM.len()..]
     } else {
         contents
     };
@@ -209,7 +209,7 @@ mod tests {
     fn parse_str_no_line_break() {
         // Arrange
         let mut binary = Vec::new();
-        binary.extend_from_slice(UTF8_SIG);
+        binary.extend_from_slice(UTF8_BOM);
         binary.extend_from_slice(REAL_SOLUTION.as_bytes());
         let sln = String::from_utf8(binary).unwrap();
 
