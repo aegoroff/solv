@@ -1,4 +1,4 @@
-use clap::{App, AppSettings, Arg, SubCommand};
+use clap::{App, AppSettings, Arg};
 use std::time::Instant;
 
 #[macro_use]
@@ -42,70 +42,70 @@ fn main() {
     }
 }
 
-fn build_cli() -> App<'static, 'static> {
+fn build_cli() -> App<'static> {
     return App::new(crate_name!())
         .setting(AppSettings::ArgRequiredElseHelp)
         .version(crate_version!())
         .author("egoroff <egoroff@gmail.com>")
         .about("SOLution Validation tool that analyzes Microsoft Visual Studio solutions")
         .arg(
-            Arg::with_name("debug")
+            Arg::new("debug")
                 .long("debug")
-                .short("d")
+                .short('d')
                 .takes_value(false)
                 .help("debug mode - just printing AST and parsing errors if any")
                 .required(false),
         )
         .subcommand(
-            SubCommand::with_name("d")
+            App::new("d")
                 .aliases(&["dir", "directory"])
                 .about("Analyse all solutions within directory specified")
                 .arg(
-                    Arg::with_name("PATH")
+                    Arg::new("PATH")
                         .help("Sets directory path to find solutions")
                         .required(true)
                         .index(1),
                 )
                 .arg(
-                    Arg::with_name("info")
+                    Arg::new("info")
                         .long("info")
-                        .short("i")
+                        .short('i')
                         .takes_value(false)
                         .help("show solutions info without validation")
                         .required(false),
                 )
                 .arg(
-                    Arg::with_name("ext")
+                    Arg::new("ext")
                         .long("ext")
-                        .short("e")
+                        .short('e')
                         .takes_value(true)
                         .default_value("sln")
                         .help("Visual Studio solution extension")
                         .required(false),
                 )
                 .arg(
-                    Arg::with_name("problems")
+                    Arg::new("problems")
                         .long("problems")
-                        .short("p")
+                        .short('p')
                         .takes_value(false)
                         .help("Show only solutions with problems. Correct solutions will not be shown.")
                         .required(false),
                 ),
         )
         .subcommand(
-            SubCommand::with_name("s")
+            App::new("s")
                 .aliases(&["solution", "single"])
                 .about("Analyse solution specified")
                 .arg(
-                    Arg::with_name("info")
+                    Arg::new("info")
                         .long("info")
-                        .short("i")
+                        .short('i')
                         .takes_value(false)
                         .help("show solution info without validation")
                         .required(false),
                 )
                 .arg(
-                    Arg::with_name("PATH")
+                    Arg::new("PATH")
                         .help("Sets solution path to analyze")
                         .required(true)
                         .index(1),
