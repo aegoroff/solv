@@ -42,8 +42,8 @@ pub trait Consume {
 pub fn parse_file(path: &str, consumer: &mut dyn Consume) {
     match fs::read_to_string(path) {
         Ok(contents) => match parse(consumer, &contents) {
-            None => consumer.err(path),
             Some(solution) => consumer.ok(path, &solution),
+            None => consumer.err(path),
         },
         Err(e) => eprintln!("{} - {}", path, e),
     }

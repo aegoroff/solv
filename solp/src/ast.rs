@@ -306,13 +306,16 @@ fn tag_terminated<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
 where
     E: ParseError<&'a str> + std::fmt::Debug,
 {
+    const ACTIVE_CFG_TAG: &str = ".ActiveCfg";
+    const BUILD_TAG: &str = ".Build.0";
+    const DEPLOY_TAG: &str = ".Deploy.0";
     sequence::terminated(
         alt((
-            take_until(".ActiveCfg"),
-            take_until(".Build.0"),
-            take_until(".Deploy.0"),
+            take_until(ACTIVE_CFG_TAG),
+            take_until(BUILD_TAG),
+            take_until(DEPLOY_TAG),
         )),
-        alt((tag(".ActiveCfg"), tag(".Build.0"), tag(".Deploy.0"))),
+        alt((tag(ACTIVE_CFG_TAG), tag(BUILD_TAG), tag(DEPLOY_TAG))),
     )(input)
 }
 
