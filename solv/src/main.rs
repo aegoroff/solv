@@ -29,7 +29,7 @@ fn main() {
             println!(
                 "{:>20} {}",
                 "elapsed:",
-                humantime::format_duration(now.elapsed()).to_string()
+                humantime::format_duration(now.elapsed())
             );
         }
     }
