@@ -330,7 +330,6 @@ where
 mod tests {
     use super::*;
     use rstest::*;
-    use spectral::prelude::*;
 
     #[rstest]
     #[case("Release|Any CPU", Conf { config: "Release", platform: "Any CPU" })]
@@ -345,7 +344,7 @@ mod tests {
         let c = Conf::from(i);
 
         // Assert
-        assert_that!(c).is_equal_to(expected);
+        assert_eq!(c, expected);
     }
 
     #[test]
@@ -357,12 +356,12 @@ mod tests {
         let c = ProjectConfigs::from_project_configuration_platform(s);
 
         // Assert
-        assert_that!(c).is_some();
+        assert!(c.is_some());
         let c = c.unwrap();
-        assert_that!(c.project_id).is_equal_to("{27060CA7-FB29-42BC-BA66-7FC80D498354}");
-        assert_that!(c.configs).has_length(1);
-        assert_that!(c.configs[0].config).is_equal_to("Debug");
-        assert_that!(c.configs[0].platform).is_equal_to("Any CPU");
+        assert_eq!(c.project_id, "{27060CA7-FB29-42BC-BA66-7FC80D498354}");
+        assert_eq!(c.configs.len(), 1);
+        assert_eq!(c.configs[0].config, "Debug");
+        assert_eq!(c.configs[0].platform, "Any CPU");
     }
 
     #[test]
@@ -374,12 +373,12 @@ mod tests {
         let c = ProjectConfigs::from_project_configuration_platform(s);
 
         // Assert
-        assert_that!(c).is_some();
+        assert!(c.is_some());
         let c = c.unwrap();
-        assert_that!(c.project_id).is_equal_to("{27060CA7-FB29-42BC-BA66-7FC80D498354}");
-        assert_that!(c.configs).has_length(1);
-        assert_that!(c.configs[0].config).is_equal_to("Debug .NET 4.0");
-        assert_that!(c.configs[0].platform).is_equal_to("Any CPU");
+        assert_eq!(c.project_id, "{27060CA7-FB29-42BC-BA66-7FC80D498354}");
+        assert_eq!(c.configs.len(), 1);
+        assert_eq!(c.configs[0].config, "Debug .NET 4.0");
+        assert_eq!(c.configs[0].platform, "Any CPU");
     }
 
     #[test]
@@ -391,12 +390,12 @@ mod tests {
         let c = ProjectConfigs::from_project_configuration_platform(s);
 
         // Assert
-        assert_that!(c).is_some();
+        assert!(c.is_some());
         let c = c.unwrap();
-        assert_that!(c.project_id).is_equal_to("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}");
-        assert_that!(c.configs).has_length(1);
-        assert_that!(c.configs[0].config).is_equal_to("Release");
-        assert_that!(c.configs[0].platform).is_equal_to(".NET");
+        assert_eq!(c.project_id, "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}");
+        assert_eq!(c.configs.len(), 1);
+        assert_eq!(c.configs[0].config, "Release");
+        assert_eq!(c.configs[0].platform, ".NET");
     }
 
     #[test]
@@ -408,7 +407,7 @@ mod tests {
         let c = ProjectConfigs::from_project_configuration_platform(s);
 
         // Assert
-        assert_that!(c).is_none();
+        assert!(c.is_none());
     }
 
     #[test]
@@ -420,10 +419,13 @@ mod tests {
         let result = guid::<VerboseError<&str>>(s);
 
         // Assert
-        assert_that!(result).is_equal_to(Ok((
-            ".Release|.NET.Build.0",
-            "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}",
-        )));
+        assert_eq!(
+            result,
+            Ok((
+                ".Release|.NET.Build.0",
+                "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}",
+            ))
+        );
     }
 
     #[rstest]
@@ -437,7 +439,7 @@ mod tests {
         let result = tag_terminated::<VerboseError<&str>>(i);
 
         // Assert
-        assert_that!(result).is_equal_to(Ok(("", expected)));
+        assert_eq!(result, Ok(("", expected)));
     }
 
     #[rstest]
@@ -455,7 +457,7 @@ mod tests {
         let result = ProjectConfigs::parse_project_configuration_platform::<VerboseError<&str>>(i);
 
         // Assert
-        assert_that!(result).is_equal_to(Ok(("", expected)));
+        assert_eq!(result, Ok(("", expected)));
     }
 
     #[rstest]
@@ -472,6 +474,6 @@ mod tests {
         let result = ProjectConfigs::parse_project_configuration::<VerboseError<&str>>(k, v);
 
         // Assert
-        assert_that!(result).is_equal_to(Ok(("", expected)));
+        assert_eq!(result, Ok(("", expected)));
     }
 }

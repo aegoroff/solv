@@ -162,7 +162,6 @@ mod tests {
     use crate::lex::Lexer;
     use petgraph::dot::{Config, Dot};
     use rstest::*;
-    use spectral::prelude::*;
 
     #[test]
     fn parse_str_debug() {
@@ -183,7 +182,7 @@ mod tests {
         let result = parse_str(content, false);
 
         // Assert
-        assert_that!(result).is_none();
+        assert!(result.is_none());
     }
 
     #[test]
@@ -192,13 +191,13 @@ mod tests {
         let result = parse_str(REAL_SOLUTION, false);
 
         // Assert
-        assert_that!(result).is_some();
+        assert!(result.is_some());
         let solution = result.unwrap();
-        assert_that!(solution.projects.len()).is_equal_to(10);
-        assert_that!(solution.dependencies.node_count()).is_equal_to(10);
-        assert_that!(solution.dependencies.edge_count()).is_equal_to(4);
-        assert_that!(solution.format).is_equal_to("12.00");
-        assert_that!(solution.product).is_equal_to("Visual Studio 15");
+        assert_eq!(solution.projects.len(), 10);
+        assert_eq!(solution.dependencies.node_count(), 10);
+        assert_eq!(solution.dependencies.edge_count(), 4);
+        assert_eq!(solution.format, "12.00");
+        assert_eq!(solution.product, "Visual Studio 15");
         println!(
             "{:?}",
             Dot::with_config(&solution.dependencies, &[Config::EdgeNoLabel])
@@ -217,7 +216,7 @@ mod tests {
         let result = parse_str(&sln, false);
 
         // Assert
-        assert_that!(&result).is_some();
+        assert!(result.is_some());
     }
 
     #[test]
@@ -229,7 +228,7 @@ mod tests {
         let result = parse_str(sln, false);
 
         // Assert
-        assert_that!(&result).is_some();
+        assert!(result.is_some());
     }
 
     #[test]
@@ -260,7 +259,7 @@ EndGlobal
         let sln = parse_str(VERSION8_SOLUTION, false);
 
         // Assert
-        assert_that!(sln).is_some();
+        assert!(sln.is_some());
     }
 
     #[test]
@@ -279,7 +278,7 @@ EndGlobal
         let sln = parse_str(APR_SOLUTION, false);
 
         // Assert
-        assert_that!(sln).is_some();
+        assert!(sln.is_some());
     }
 
     #[test]
@@ -290,7 +289,7 @@ EndGlobal
         let sln = parse_str(APR_SOLUTION, true);
 
         // Assert
-        assert_that!(sln).is_none();
+        assert!(sln.is_none());
     }
 
     #[test]

@@ -213,7 +213,6 @@ fn search_missing<'a>(solution: &'a Solution<'a>) -> Vec<(&'a str, Vec<&'a Conf>
 mod tests {
     use super::*;
     use rstest::*;
-    use spectral::prelude::*;
 
     #[rstest]
     #[case("/base", "x", "/base/x")]
@@ -228,6 +227,6 @@ mod tests {
         let actual = make_path(&d, path);
 
         // Assert
-        assert_that!(actual.to_str().unwrap()).is_equal_to(expected);
+        assert_eq!(actual.to_str().unwrap(), expected);
     }
 }

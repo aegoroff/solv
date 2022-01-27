@@ -330,7 +330,6 @@ impl<'input> Iterator for Lexer<'input> {
 mod tests {
     use super::*;
     use rstest::*;
-    use spectral::*;
 
     #[test]
     fn lexer() {
@@ -378,7 +377,7 @@ mod tests {
         let actual = Lexer::trim_end(content, i);
 
         // Assert
-        assert_that!(actual).is_equal_to(expected);
+        assert_eq!(actual, expected);
     }
 
     const REAL_SOLUTION: &str = r#"

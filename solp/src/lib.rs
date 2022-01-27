@@ -16,10 +16,6 @@ extern crate nom;
 extern crate petgraph;
 
 #[cfg(test)] // <-- not needed in integration tests
-#[macro_use]
-extern crate spectral;
-
-#[cfg(test)] // <-- not needed in integration tests
 extern crate rstest;
 
 lalrpop_mod!(
