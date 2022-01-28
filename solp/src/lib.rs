@@ -119,6 +119,7 @@ mod tests {
     #[case("", "")]
     #[case("/", "/")]
     #[case("d:", "d:\\")]
+    #[case("dd:", "dd:")]
     #[trace]
     fn decorate_path_tests(#[case] raw_path: &str, #[case] expected: &str) {
         // Arrange
