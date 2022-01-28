@@ -56,7 +56,9 @@ pub fn parse<'a>(consumer: &mut dyn Consume, contents: &'a str) -> Option<Soluti
 pub fn scan(path: &str, extension: &str, consumer: &mut dyn Consume) -> usize {
     let parallelism = Parallelism::RayonNewPool(num_cpus::get_physical());
 
-    let iter = WalkDir::new(path)
+    let root = decorate_path(path);
+
+    let iter = WalkDir::new(root)
         .skip_hidden(false)
         .follow_links(false)
         .parallelism(parallelism);
@@ -77,4 +79,54 @@ pub fn scan(path: &str, extension: &str, consumer: &mut dyn Consume) -> usize {
         .map(|f| f.to_str().unwrap_or("").to_string())
         .inspect(|fp| parse_file(fp, consumer))
         .count()
+}
+
+fn decorate_path(path: &str) -> String {
+    #[cfg(target_os = "windows")]
+    if path.len() == 2 && path.ends_with(':') {
+        format!("{}\\", path)
+    } else {
+        String::from(path)
+    }
+    #[cfg(not(target_os = "windows"))]
+    String::from(path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::*;
+
+    #[cfg(not(target_os = "windows"))]
+    #[rstest]
+    #[case("", "")]
+    #[case("/", "/")]
+    #[case("/home", "/home")]
+    #[case("d:", "d:")]
+    #[trace]
+    fn decorate_path_tests(#[case] raw_path: &str, #[case] expected: &str) {
+        // Arrange
+
+        // Act
+        let actual = decorate_path(raw_path);
+
+        // Assert
+        assert_eq!(actual, expected);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[rstest]
+    #[case("", "")]
+    #[case("/", "/")]
+    #[case("d:", "d:\\")]
+    #[trace]
+    fn decorate_path_tests(#[case] raw_path: &str, #[case] expected: &str) {
+        // Arrange
+
+        // Act
+        let actual = decorate_path(raw_path);
+
+        // Assert
+        assert_eq!(actual, expected);
+    }
 }
