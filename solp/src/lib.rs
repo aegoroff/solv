@@ -81,14 +81,19 @@ pub fn scan(path: &str, extension: &str, consumer: &mut dyn Consume) -> usize {
         .count()
 }
 
+/// On Windows added trailing back slash \ if volume and colon passed so as to paths look more pleasant
+#[cfg(target_os = "windows")]
 fn decorate_path(path: &str) -> String {
-    #[cfg(target_os = "windows")]
     if path.len() == 2 && path.ends_with(':') {
         format!("{}\\", path)
     } else {
         String::from(path)
     }
-    #[cfg(not(target_os = "windows"))]
+}
+
+/// On Unix just passthrough as is
+#[cfg(not(target_os = "windows"))]
+fn decorate_path(path: &str) -> String {
     String::from(path)
 }
 
