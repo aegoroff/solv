@@ -1,4 +1,4 @@
-use clap::{App, AppSettings, Arg};
+use clap::{command, Command};
 use std::time::Instant;
 
 #[macro_use]
@@ -42,73 +42,63 @@ fn main() {
     }
 }
 
-fn build_cli() -> App<'static> {
-    return App::new(crate_name!())
-        .setting(AppSettings::ArgRequiredElseHelp)
+fn build_cli() -> Command<'static> {
+    return command!(crate_name!())
+        .arg_required_else_help(true)
         .version(crate_version!())
-        .author("egoroff <egoroff@gmail.com>")
-        .about("SOLution Validation tool that analyzes Microsoft Visual Studio solutions")
+        .author(crate_authors!("\n"))
+        .about(crate_description!())
         .arg(
-            Arg::new("debug")
-                .long("debug")
-                .short('d')
+            arg!(-d --debug)
+                .required(false)
                 .takes_value(false)
-                .help("debug mode - just printing AST and parsing errors if any")
-                .required(false),
+                .help("debug mode - just printing AST and parsing errors if any"),
         )
         .subcommand(
-            App::new("d")
+            Command::new("d")
                 .aliases(&["dir", "directory"])
                 .about("Analyse all solutions within directory specified")
                 .arg(
-                    Arg::new("PATH")
+                    arg!([PATH])
                         .help("Sets directory path to find solutions")
-                        .required(true)
-                        .index(1),
+                        .required(true),
                 )
                 .arg(
-                    Arg::new("info")
-                        .long("info")
-                        .short('i')
+                    arg!(-i --info)
+                        .required(false)
                         .takes_value(false)
-                        .help("show solutions info without validation")
-                        .required(false),
+                        .help("show solutions info without validation"),
                 )
                 .arg(
-                    Arg::new("ext")
-                        .long("ext")
-                        .short('e')
+                    arg!(-e --ext <EXTENSION>)
+                        .required(false)
                         .takes_value(true)
                         .default_value("sln")
-                        .help("Visual Studio solution extension")
-                        .required(false),
+                        .help("Visual Studio solution extension"),
                 )
                 .arg(
-                    Arg::new("problems")
-                        .long("problems")
-                        .short('p')
+                    arg!(-p --problems)
+                        .required(false)
                         .takes_value(false)
-                        .help("Show only solutions with problems. Correct solutions will not be shown.")
-                        .required(false),
+                        .help(
+                        "Show only solutions with problems. Correct solutions will not be shown.",
+                    ),
                 ),
         )
         .subcommand(
-            App::new("s")
+            Command::new("s")
                 .aliases(&["solution", "single"])
                 .about("Analyse solution specified")
                 .arg(
-                    Arg::new("info")
-                        .long("info")
-                        .short('i')
+                    arg!(-i --info)
+                        .required(false)
                         .takes_value(false)
-                        .help("show solution info without validation")
-                        .required(false),
+                        .help("show solution info without validation"),
                 )
                 .arg(
-                    Arg::new("PATH")
+                    arg!([PATH])
                         .help("Sets solution path to analyze")
-                        .required(true)
-                        .index(1),
+                        .required(true),
                 ),
         );
 }
