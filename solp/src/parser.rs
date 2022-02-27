@@ -107,7 +107,7 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                     .group_by(|x| x.project_id)
                     .into_iter()
                     .map(|(pid, project_configs)| {
-                        let c = project_configs.map(|c| c.configs).flatten().collect();
+                        let c = project_configs.flat_map(|c| c.configs).collect();
                         ProjectConfigs::from_id_and_configs(pid, c)
                     })
                     .collect::<Vec<ProjectConfigs<'input>>>();
@@ -120,7 +120,7 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                     .group_by(|x| x.project_id)
                     .into_iter()
                     .map(|(pid, project_configs)| {
-                        let c = project_configs.map(|c| c.configs).flatten().collect();
+                        let c = project_configs.flat_map(|c| c.configs).collect();
                         ProjectConfigs::from_id_and_configs(pid, c)
                     })
                     .collect::<Vec<ProjectConfigs<'input>>>();
@@ -137,8 +137,7 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
 
                 let from_project_configurations = project_configs
                     .iter()
-                    .map(|pc| pc.configs.iter())
-                    .flatten()
+                    .flat_map(|pc| pc.configs.iter())
                     .filter(|c| solution_configurations.contains(c.config));
                 sol.solution_configs.extend(from_project_configurations);
 
