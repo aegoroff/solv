@@ -170,9 +170,10 @@ impl<'input> Version<'input> {
 impl<'input> From<&'input str> for Conf<'input> {
     fn from(s: &'input str) -> Self {
         let r = pipe_terminated::<VerboseError<&str>>(s);
-        match r {
-            Ok((platform, config)) => Self { config, platform },
-            _ => Default::default(),
+        if let Ok((platform, config)) = r {
+            Self { config, platform }
+        } else {
+            Default::default()
         }
     }
 }
@@ -241,18 +242,17 @@ impl<'input> ProjectConfigs<'input> {
     fn new(
         r: IResult<&'input str, ProjectConfig<'input>, VerboseError<&'input str>>,
     ) -> Option<Self> {
-        match r {
-            Ok((_, project_config)) => {
-                let mut configs = Vec::new();
+        if let Ok((_, project_config)) = r {
+            let mut configs = Vec::new();
 
-                let config = Conf::new(project_config.configuration, project_config.platform);
-                configs.push(config);
-                Some(Self {
-                    project_id: project_config.id,
-                    configs,
-                })
-            }
-            Err(_) => None,
+            let config = Conf::new(project_config.configuration, project_config.platform);
+            configs.push(config);
+            Some(Self {
+                project_id: project_config.id,
+                configs,
+            })
+        } else {
+            None
         }
     }
 
