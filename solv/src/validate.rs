@@ -140,6 +140,7 @@ impl Display for Validate {
 
 #[cfg(not(target_os = "windows"))]
 fn make_path(dir: &Path, relative: &str) -> PathBuf {
+    // Converts all possible Windows paths into Unix ones
     relative
         .split('\\')
         .fold(PathBuf::from(&dir), |pb, s| pb.join(s))
