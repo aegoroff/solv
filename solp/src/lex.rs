@@ -31,8 +31,6 @@ pub struct Lexer<'input> {
     context: LexerContext,
 }
 
-const END_PREFIX: &str = "End";
-
 impl<'input> Lexer<'input> {
     pub fn new(input: &'input str) -> Self {
         Lexer {
@@ -261,8 +259,21 @@ impl<'input> Lexer<'input> {
     }
 
     fn is_close_element(val: &str) -> bool {
-        let substr: String = val.chars().take(END_PREFIX.len()).collect();
-        substr == END_PREFIX
+        // This implementation is ugly equivalent of:
+        // let substr: String = val.chars().take("End".len()).collect();
+        // substr == "End"
+        // but without allocations
+        let mut it = val.chars();
+
+        let mut next_char_is = |c: char| -> bool {
+            if let Some(x) = it.next() {
+                x == c
+            } else {
+                false
+            }
+        };
+
+        next_char_is('E') && next_char_is('n') && next_char_is('d')
     }
 
     fn trim_start(s: &str, mut i: usize) -> usize {
