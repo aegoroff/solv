@@ -306,11 +306,8 @@ impl<'input> Iterator for Lexer<'input> {
         loop {
             let (i, c) = self.chars.next()?;
 
-            match c {
-                ' ' | '\t' => {
-                    continue;
-                }
-                _ => {}
+            if let ' ' | '\t' = c {
+                continue;
             }
 
             let tok = self.current(i, c)?;
