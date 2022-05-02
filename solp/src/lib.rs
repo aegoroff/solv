@@ -88,14 +88,14 @@ fn decorate_path(path: &str) -> String {
     if path.len() == 2 && path.ends_with(':') {
         format!("{}\\", path)
     } else {
-        String::from(path)
+        path.to_owned()
     }
 }
 
 /// On Unix just passthrough as is
 #[cfg(not(target_os = "windows"))]
 fn decorate_path(path: &str) -> String {
-    String::from(path)
+    path.to_owned()
 }
 
 #[cfg(test)]
