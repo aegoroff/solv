@@ -81,7 +81,8 @@ pub fn scan(path: &str, extension: &str, consumer: &mut dyn Consume) -> usize {
         .count()
 }
 
-/// On Windows added trailing back slash \ if volume and colon passed so as to paths look more pleasant
+/// On Windows trailing back slash (\) to be added if volume and colon passed (like c:).
+/// It needed paths look to be more pleasant
 #[cfg(target_os = "windows")]
 fn decorate_path(path: &str) -> String {
     if path.len() == 2 && path.ends_with(':') {
