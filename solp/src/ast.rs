@@ -1,13 +1,13 @@
 use crate::msbuild;
-use nom::branch::alt;
-use nom::bytes::complete::{is_not, tag, take_until};
-use nom::character::complete;
-use nom::character::complete::char;
-use nom::combinator::recognize;
-use nom::error::ParseError;
-use nom::error::VerboseError;
-use nom::sequence::pair;
-use nom::{combinator, sequence, IResult};
+use nom::{
+    branch::alt,
+    bytes::complete::{is_not, tag, take_until},
+    character::complete::{self, char},
+    combinator::{self, recognize},
+    error::{ParseError, VerboseError},
+    sequence::{self, pair},
+    IResult,
+};
 use petgraph::prelude::*;
 
 #[derive(Debug)]
