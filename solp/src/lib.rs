@@ -71,9 +71,10 @@ pub fn scan(path: &str, extension: &str, consumer: &mut dyn Consume) -> usize {
         .filter(|f| f.file_type().is_file())
         .map(|f| f.path())
         .filter(|p| {
-            return match p.extension() {
-                Some(s) => s == ext,
-                None => false,
+            return if let Some(s) = p.extension() {
+                s == ext
+            } else {
+                false
             };
         })
         .map(|f| f.to_str().unwrap_or("").to_string())
