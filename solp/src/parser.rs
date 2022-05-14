@@ -18,8 +18,10 @@ pub fn parse_str(contents: &str, debug: bool) -> Option<Solution> {
     } else {
         contents
     };
+
+    let parser = crate::solp::SolutionParser::new();
     let lexer = crate::lex::Lexer::new(input);
-    match crate::solp::SolutionParser::new().parse(input, lexer) {
+    match parser.parse(input, lexer) {
         Ok(ast) => {
             if debug {
                 println!("result {:#?}", ast);
