@@ -8,15 +8,16 @@ fn main() {
     let app = build_cli();
     let matches = app.get_matches();
 
-    let debug = matches.is_present("debug");
+    let debug = matches.contains_id("debug");
+    let empty = String::default();
 
     if let Some(cmd) = matches.subcommand_matches("d") {
-        if let Some(path) = cmd.value_of("PATH") {
+        if let Some(path) = cmd.get_one::<String>("PATH") {
             let now = Instant::now();
-            let only_problems = cmd.is_present("problems");
-            let extension = cmd.value_of("ext").unwrap_or("");
+            let only_problems = cmd.contains_id("problems");
+            let extension = cmd.get_one::<String>("ext").unwrap_or(&empty);
 
-            let is_info = cmd.is_present("info");
+            let is_info = cmd.contains_id("info");
             let mut consumer = solv::new_consumer(debug, !is_info, only_problems);
             let scanned = solp::scan(path, extension, consumer.as_consume());
 
@@ -34,8 +35,8 @@ fn main() {
         }
     }
     if let Some(cmd) = matches.subcommand_matches("s") {
-        if let Some(path) = cmd.value_of("PATH") {
-            let is_info = cmd.is_present("info");
+        if let Some(path) = cmd.get_one::<String>("PATH") {
+            let is_info = cmd.contains_id("info");
             let mut consumer = solv::new_consumer(debug, !is_info, false);
             solp::parse_file(path, consumer.as_consume());
         }
