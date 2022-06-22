@@ -24,4 +24,4 @@ num_cpus = "1.13.1"
 nom = "7"
 
 [dev-dependencies]
-rstest = "0.13.0"
+rstest = "0.14.0"
