@@ -17,11 +17,11 @@ lalrpop = "0.19"
 lalrpop-util = "0.19"
 regex = "1"
 jwalk = "0.6"
-phf = { version = "0.10.1", features = ["macros"] }
+phf = { version = "0.11.0", features = ["macros"] }
 itertools = "0.10"
 petgraph = "0.6"
 num_cpus = "1.13.1"
 nom = "7"
 
 [dev-dependencies]
-rstest = "0.14.0"
+rstest = "0.15.0"
