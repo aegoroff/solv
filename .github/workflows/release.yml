@@ -38,8 +38,8 @@ jobs:
         id: get_version
         shell: bash
         run: |
-          echo "using version tag ${GITHUB_REF:10}"
-          echo ::set-output name=version::"${GITHUB_REF:10}"
+          echo "using version tag ${GITHUB_REF:11}"
+          echo ::set-output name=version::"${GITHUB_REF:11}"
 
       - name: Install Rust
         if: matrix.rust
@@ -81,8 +81,22 @@ jobs:
       - name: Create tarball (Linux)
         if: matrix.build == 'linux'
         run: |
-          mv ./target/${{ env.LINUX_TARGET }}/release/${{ env.RELEASE_BIN }} ./dist/${{ env.RELEASE_BIN }}
+          cp ./target/${{ env.LINUX_TARGET }}/release/${{ env.RELEASE_BIN }} ./dist/${{ env.RELEASE_BIN }}
           7z a -ttar -so -an ./dist/* | 7z a -si ./${{ env.RELEASE_DIR }}/${{ env.RELEASE_BIN }}-${{ steps.get_version.outputs.VERSION }}-${{ env.LINUX_TARGET }}.tar.gz
+
+      - name: Build Debian release (x86-64)
+        if: matrix.build == 'linux'
+        run: |
+          cargo install cargo-deb
+          cargo deb --no-build --target ${{ env.LINUX_TARGET }}
+          cp ./target/${{ env.LINUX_TARGET }}/debian/${{ env.RELEASE_BIN }}_*.deb ./${{ env.RELEASE_DIR }}/
+
+      - name: Build RPM release (x86-64)
+        if: matrix.build == 'linux'
+        run: |
+          cargo install cargo-generate-rpm
+          cargo generate-rpm --target ${{ env.LINUX_TARGET }}
+          cp ./target/${{ env.LINUX_TARGET }}/generate-rpm/${{ env.RELEASE_BIN }}-*.rpm ./${{ env.RELEASE_DIR }}/ 
 
       - name: Create tarball (Windows)
         if: matrix.build == 'windows'
@@ -113,8 +127,8 @@ jobs:
         id: get_version
         shell: bash
         run: |
-          echo "using version tag ${GITHUB_REF:10}"
-          echo ::set-output name=version::"${GITHUB_REF:10}"
+          echo "using version tag ${GITHUB_REF:11}"
+          echo ::set-output name=version::"${GITHUB_REF:11}"
 
       - name: Create Release
         id: create_release
@@ -182,6 +196,26 @@ jobs:
           asset_path: ./linux/${{ env.RELEASE_BIN }}-${{ steps.get_version.outputs.VERSION }}-${{ env.LINUX_TARGET }}.tar.gz
           asset_content_type: application/gzip
           asset_name: ${{ env.RELEASE_BIN }}-${{ steps.get_version.outputs.VERSION }}-${{ env.LINUX_TARGET }}.tar.gz
+
+      - name: Release DEB package 
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./linux/${{ env.RELEASE_BIN }}_${{ steps.get_version.outputs.VERSION }}_amd64.deb
+          asset_content_type: application/vnd.debian.binary-package
+          asset_name: ${{ env.RELEASE_BIN }}_${{ steps.get_version.outputs.VERSION }}_amd64.deb
+
+      - name: Release RPM package
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./linux/${{ env.RELEASE_BIN }}-${{ steps.get_version.outputs.VERSION }}-1.x86_64.rpm
+          asset_content_type: application/octet-stream
+          asset_name: ${{ env.RELEASE_BIN }}-${{ steps.get_version.outputs.VERSION }}-1.x86_64.rpm
 
       - name: Release Windows tarball
         uses: actions/upload-release-asset@v1

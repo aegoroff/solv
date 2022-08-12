@@ -17,7 +17,7 @@ lalrpop = "0.19"
 lalrpop-util = "0.19"
 regex = "1"
 jwalk = "0.6"
-phf = { version = "0.11.0", features = ["macros"] }
+phf = { version = "0.11.1", features = ["macros"] }
 itertools = "0.10"
 petgraph = "0.6"
 num_cpus = "1.13.1"
@@ -25,3 +25,8 @@ nom = "7"
 
 [dev-dependencies]
 rstest = "0.15.0"
+
+[package.metadata.generate-rpm]
+assets = [
+    { source = "target/x86_64-unknown-linux-musl/release/solv", dest = "/usr/bin/solv", mode = "0755" },
+]
