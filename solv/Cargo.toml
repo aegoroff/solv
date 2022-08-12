@@ -14,7 +14,7 @@ workspace = ".."
 
 [dependencies]
 prettytable-rs = "^0.8"
-crossterm = "0.24.0"
+crossterm = "0.25.0"
 humantime = "2.1"
 clap = { version = "3.2.16", features = ["std", "color", "suggestions", "cargo"] }
 fnv = "1"
@@ -28,3 +28,6 @@ rstest = "0.15.0"
 [profile.release]
 lto = 'fat'
 strip = true
+
+[package.metadata.deb]
+extended-description = "SOLution Validation tool that analyzes Microsoft Visual Studio solutions"
