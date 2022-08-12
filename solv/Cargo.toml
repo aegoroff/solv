@@ -30,4 +30,11 @@ lto = 'fat'
 strip = true
 
 [package.metadata.deb]
-extended-description = "SOLution Validation tool that analyzes Microsoft Visual Studio solutions"
+assets = [
+    ["target/x86_64-unknown-linux-musl/release/solv", "usr/bin/", "755"],
+]
+
+[package.metadata.generate-rpm]
+assets = [
+    { source = "target/x86_64-unknown-linux-musl/release/solv", dest = "/usr/bin/solv", mode = "0755" },
+]
