@@ -31,10 +31,10 @@ strip = true
 
 [package.metadata.deb]
 assets = [
-    ["target/x86_64-unknown-linux-musl/release/solv", "usr/bin/", "755"],
+    ["../target/x86_64-unknown-linux-musl/release/solv", "usr/bin/", "755"],
 ]
 
 [package.metadata.generate-rpm]
 assets = [
-    { source = "target/x86_64-unknown-linux-musl/release/solv", dest = "/usr/bin/solv", mode = "0755" },
+    { source = "../target/x86_64-unknown-linux-musl/release/solv", dest = "/usr/bin/solv", mode = "0755" },
 ]
