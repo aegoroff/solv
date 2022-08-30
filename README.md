@@ -33,4 +33,4 @@ scoop install solv
 **manually**:
 
 Download the pre-compiled binaries from the [releases](https://github.com/aegoroff/solv/releases) and
-copy to the desired location.
+copy to the desired location. RPM and DEB packages are available to install under RedHat or Debian based Linux distros.
