@@ -66,8 +66,7 @@ pub fn scan(path: &str, extension: &str, consumer: &mut dyn Consume) -> usize {
     let ext = extension.trim_start_matches('.');
 
     iter.into_iter()
-        .filter(Result::is_ok)
-        .map(Result::unwrap)
+        .filter_map(|x| x.ok())
         .filter(|f| f.file_type().is_file())
         .map(|f| f.path())
         .filter(|p| {
