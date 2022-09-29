@@ -1,4 +1,4 @@
-use clap::{command, Command};
+use clap::{command, Command, ArgAction};
 use std::time::Instant;
 
 #[macro_use]
@@ -8,16 +8,16 @@ fn main() {
     let app = build_cli();
     let matches = app.get_matches();
 
-    let debug = matches.contains_id("debug");
+    let debug = matches.get_flag("debug");
     let empty = String::default();
 
     if let Some(cmd) = matches.subcommand_matches("d") {
         if let Some(path) = cmd.get_one::<String>("PATH") {
             let now = Instant::now();
-            let only_problems = cmd.contains_id("problems");
+            let only_problems = cmd.get_flag("problems");
             let extension = cmd.get_one::<String>("ext").unwrap_or(&empty);
 
-            let is_info = cmd.contains_id("info");
+            let is_info = cmd.get_flag("info");
             let mut consumer = solv::new_consumer(debug, !is_info, only_problems);
             let scanned = solp::scan(path, extension, consumer.as_consume());
 
@@ -36,15 +36,15 @@ fn main() {
     }
     if let Some(cmd) = matches.subcommand_matches("s") {
         if let Some(path) = cmd.get_one::<String>("PATH") {
-            let is_info = cmd.contains_id("info");
+            let is_info = cmd.get_flag("info");
             let mut consumer = solv::new_consumer(debug, !is_info, false);
             solp::parse_file(path, consumer.as_consume());
         }
     }
 }
 
-fn build_cli() -> Command<'static> {
-    return command!(crate_name!())
+fn build_cli() -> Command {
+    command!(crate_name!())
         .arg_required_else_help(true)
         .version(crate_version!())
         .author(crate_authors!("\n"))
@@ -52,12 +52,12 @@ fn build_cli() -> Command<'static> {
         .arg(
             arg!(-d --debug)
                 .required(false)
-                .takes_value(false)
+                .action(ArgAction::SetTrue)
                 .help("debug mode - just printing AST and parsing errors if any"),
         )
         .subcommand(
             Command::new("d")
-                .aliases(&["dir", "directory"])
+                .aliases(["dir", "directory"])
                 .about("Analyse all solutions within directory specified")
                 .arg(
                     arg!([PATH])
@@ -67,20 +67,19 @@ fn build_cli() -> Command<'static> {
                 .arg(
                     arg!(-i --info)
                         .required(false)
-                        .takes_value(false)
+                        .action(ArgAction::SetTrue)
                         .help("show solutions info without validation"),
                 )
                 .arg(
                     arg!(-e --ext <EXTENSION>)
                         .required(false)
-                        .takes_value(true)
                         .default_value("sln")
                         .help("Visual Studio solution extension"),
                 )
                 .arg(
                     arg!(-p --problems)
                         .required(false)
-                        .takes_value(false)
+                        .action(ArgAction::SetTrue)
                         .help(
                         "Show only solutions with problems. Correct solutions will not be shown.",
                     ),
@@ -88,12 +87,12 @@ fn build_cli() -> Command<'static> {
         )
         .subcommand(
             Command::new("s")
-                .aliases(&["solution", "single"])
+                .aliases(["solution", "single"])
                 .about("Analyse solution specified")
                 .arg(
                     arg!(-i --info)
                         .required(false)
-                        .takes_value(false)
+                        .action(ArgAction::SetTrue)
                         .help("show solution info without validation"),
                 )
                 .arg(
@@ -101,5 +100,5 @@ fn build_cli() -> Command<'static> {
                         .help("Sets solution path to analyze")
                         .required(true),
                 ),
-        );
+        )
 }
