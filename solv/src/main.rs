@@ -4,6 +4,9 @@ use std::time::Instant;
 #[macro_use]
 extern crate clap;
 
+const PATH: &str = "PATH";
+const INFO_FLAG: &str = "info";
+
 fn main() {
     let app = build_cli();
     let matches = app.get_matches();
@@ -12,12 +15,12 @@ fn main() {
     let empty = String::default();
 
     if let Some(cmd) = matches.subcommand_matches("d") {
-        if let Some(path) = cmd.get_one::<String>("PATH") {
+        if let Some(path) = cmd.get_one::<String>(PATH) {
             let now = Instant::now();
             let only_problems = cmd.get_flag("problems");
             let extension = cmd.get_one::<String>("ext").unwrap_or(&empty);
 
-            let is_info = cmd.get_flag("info");
+            let is_info = cmd.get_flag(INFO_FLAG);
             let mut consumer = solv::new_consumer(debug, !is_info, only_problems);
             let scanned = solp::scan(path, extension, consumer.as_consume());
 
@@ -35,8 +38,8 @@ fn main() {
         }
     }
     if let Some(cmd) = matches.subcommand_matches("s") {
-        if let Some(path) = cmd.get_one::<String>("PATH") {
-            let is_info = cmd.get_flag("info");
+        if let Some(path) = cmd.get_one::<String>(PATH) {
+            let is_info = cmd.get_flag(INFO_FLAG);
             let mut consumer = solv::new_consumer(debug, !is_info, false);
             solp::parse_file(path, consumer.as_consume());
         }
