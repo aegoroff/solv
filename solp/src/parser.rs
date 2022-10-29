@@ -150,7 +150,8 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                 sol.project_configs.extend(project_configs);
             }
             Expr::Comment(s) => {
-                let skip: &[_] = &['#', ' '];
+				// Only comment text without sharp sign and spacess
+                let skip: &[_] = &['#', ' ', '\t'];
                 sol.product = s.trim_start_matches(skip)
             }
             _ => {}
