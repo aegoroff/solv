@@ -16,8 +16,8 @@ workspace = ".."
 prettytable-rs = "0.9.0"
 crossterm = "0.25.0"
 humantime = "2.1"
-clap = { version = "4.0.18", features = ["std", "color", "suggestions", "cargo"] }
-clap_complete = "4.0.3"
+clap = { version = "4.0.26", features = ["std", "color", "suggestions", "cargo"] }
+clap_complete = "4.0.5"
 fnv = "1"
 solp = { path = "../solp/", version = "0.6.1" }
 petgraph = "0.6"
