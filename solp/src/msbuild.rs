@@ -7,7 +7,7 @@ pub fn is_solution_folder(id: &str) -> bool {
 /// or id itself if it's not match any
 pub fn describe_project(id: &str) -> &str {
     if let Some(type_name) = PROJECT_TYPES.get(id) {
-        *type_name
+        type_name
     } else {
         id
     }
