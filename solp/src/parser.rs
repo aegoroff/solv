@@ -41,11 +41,7 @@ pub fn parse_str(contents: &str, debug: bool) -> Option<Solution> {
 macro_rules! section_content {
     ($s:ident, $n:expr) => {{
         if let Expr::Section(begin, content) = $s {
-            if begin.is_section($n) {
-                Some(content)
-            } else {
-                None
-            }
+			begin.is_section($n).then_some(content)
         } else {
             None
         }
