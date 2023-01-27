@@ -1,6 +1,6 @@
 use clap::{command, ArgAction, ArgMatches, Command};
 use clap_complete::{generate, Shell};
-use std::{io, time::Instant};
+use std::{io, time::{Instant, Duration}};
 
 #[macro_use]
 extern crate clap;
@@ -47,10 +47,12 @@ fn scan_directory(cmd: &ArgMatches, debug: bool) {
 
         println!("{:>20} {}", "solutions scanned:", scanned);
 
+        let duration = now.elapsed().as_millis();
+        let duration = Duration::from_millis(duration as u64);
         println!(
             "{:>20} {}",
             "elapsed:",
-            humantime::format_duration(now.elapsed())
+            humantime::format_duration(duration)
         );
     }
 }
