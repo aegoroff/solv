@@ -86,7 +86,7 @@ pub fn scan(path: &str, extension: &str, consumer: &mut dyn Consume) -> usize {
 #[cfg(target_os = "windows")]
 fn decorate_path(path: &str) -> String {
     if path.len() == 2 && path.ends_with(':') {
-        format!("{}\\", path)
+        format!("{path}\\")
     } else {
         path.to_owned()
     }
