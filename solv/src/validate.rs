@@ -55,7 +55,7 @@ impl Consume for Validate {
                     b: 0xAA,
                 })
                 .bold();
-            println!(" {}", path);
+            println!(" {path}");
         }
 
         let mut no_problems = true;

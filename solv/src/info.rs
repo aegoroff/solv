@@ -78,7 +78,7 @@ impl Consume for Info {
                 b: 0xAA,
             })
             .bold();
-        println!(" {}", path);
+        println!(" {path}");
 
         let mut table = Table::new();
 
@@ -166,9 +166,9 @@ impl Display for Info {
             table.add_row(row![
                 key,
                 *value.to_formatted_string(&Locale::en),
-                format!("{:.2}%", proj_percent),
+                format!("{proj_percent:.2}%"),
                 r->*in_sols.to_formatted_string(&Locale::en),
-                format!("{:.2}%", sol_percent)
+                format!("{sol_percent:.2}%")
             ]);
         }
         table.printstd();

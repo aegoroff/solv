@@ -24,14 +24,14 @@ pub fn parse_str(contents: &str, debug: bool) -> Option<Solution> {
     match parser.parse(input, lexer) {
         Ok(ast) => {
             if debug {
-                println!("result {:#?}", ast);
+                println!("result {ast:#?}");
             } else {
                 return Some(analyze(ast));
             }
         }
         Err(e) => {
             if debug {
-                eprintln!("error {:#?}", e);
+                eprintln!("error {e:#?}");
             }
         }
     }

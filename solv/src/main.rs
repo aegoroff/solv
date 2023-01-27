@@ -43,7 +43,7 @@ fn scan_directory(cmd: &ArgMatches, debug: bool) {
 
         println!();
 
-        print!("{}", consumer);
+        print!("{consumer}");
 
         println!("{:>20} {}", "solutions scanned:", scanned);
 

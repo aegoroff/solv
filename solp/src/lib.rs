@@ -41,7 +41,7 @@ pub fn parse_file(path: &str, consumer: &mut dyn Consume) {
             Some(solution) => consumer.ok(path, &solution),
             None => consumer.err(path),
         },
-        Err(e) => eprintln!("{} - {}", path, e),
+        Err(e) => eprintln!("{path} - {e}"),
     }
 }
 
