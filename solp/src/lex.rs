@@ -265,15 +265,9 @@ impl<'input> Lexer<'input> {
         // but without allocations
         let mut it = val.chars();
 
-        let mut next_char_is = |c: char| -> bool {
-            if let Some(x) = it.next() {
-                x == c
-            } else {
-                false
-            }
-        };
+        let mut next_is = |c: char| -> bool { it.next().map(|x| x == c).unwrap_or_default() };
 
-        next_char_is('E') && next_char_is('n') && next_char_is('d')
+        next_is('E') && next_is('n') && next_is('d')
     }
 
     fn trim_start(s: &str, mut i: usize) -> usize {

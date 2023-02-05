@@ -58,10 +58,10 @@ impl<'input> Expr<'input> {
 
     pub fn is_section(&self, name: &str) -> bool {
         if let Expr::SectionBegin(names, _) = self {
-            return names.iter().any(|n| n.identifier() == name);
+            names.iter().any(|n| n.identifier() == name)
+        } else {
+            false
         }
-
-        false
     }
 }
 
@@ -169,12 +169,9 @@ impl<'input> Version<'input> {
 
 impl<'input> From<&'input str> for Conf<'input> {
     fn from(s: &'input str) -> Self {
-        let r = pipe_terminated::<VerboseError<&str>>(s);
-        if let Ok((platform, config)) = r {
-            Self { config, platform }
-        } else {
-            Default::default()
-        }
+        pipe_terminated::<VerboseError<&str>>(s)
+            .map(|(platform, config)| Self { config, platform })
+            .unwrap_or_default()
     }
 }
 
@@ -242,18 +239,13 @@ impl<'input> ProjectConfigs<'input> {
     fn new(
         r: IResult<&'input str, ProjectConfig<'input>, VerboseError<&'input str>>,
     ) -> Option<Self> {
-        if let Ok((_, project_config)) = r {
-            let mut configs = Vec::new();
-
-            let config = Conf::new(project_config.configuration, project_config.platform);
-            configs.push(config);
+        r.map(|(_, pc)| {
             Some(Self {
-                project_id: project_config.id,
-                configs,
+                project_id: pc.id,
+                configs: vec![Conf::new(pc.configuration, pc.platform)],
             })
-        } else {
-            None
-        }
+        })
+        .unwrap_or(None)
     }
 
     fn parse_project_configuration_platform<'a, E>(
