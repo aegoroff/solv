@@ -69,11 +69,7 @@ pub fn scan(path: &str, extension: &str, consumer: &mut dyn Consume) -> usize {
         .filter_map(|x| x.ok())
         .filter(|f| f.file_type().is_file())
         .map(|f| f.path())
-        .filter(|p| {
-            p.extension()
-                .and_then(|s| Some(s == ext))
-                .unwrap_or_default()
-        })
+        .filter(|p| p.extension().map(|s| s == ext).unwrap_or_default())
         .map(|f| f.to_str().unwrap_or("").to_string())
         .inspect(|fp| parse_file(fp, consumer))
         .count()
