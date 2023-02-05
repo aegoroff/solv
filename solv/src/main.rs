@@ -1,6 +1,9 @@
 use clap::{command, ArgAction, ArgMatches, Command};
 use clap_complete::{generate, Shell};
-use std::{io, time::{Instant, Duration}};
+use std::{
+    io,
+    time::{Duration, Instant},
+};
 
 #[macro_use]
 extern crate clap;

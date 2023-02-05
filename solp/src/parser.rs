@@ -41,7 +41,7 @@ pub fn parse_str(contents: &str, debug: bool) -> Option<Solution> {
 macro_rules! section_content {
     ($s:ident, $n:expr) => {{
         if let Expr::Section(begin, content) = $s {
-			begin.is_section($n).then_some(content)
+            begin.is_section($n).then_some(content)
         } else {
             None
         }
@@ -146,7 +146,7 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                 sol.project_configs.extend(project_configs);
             }
             Expr::Comment(s) => {
-				// Only comment text without sharp sign and spacess
+                // Only comment text without sharp sign and spacess
                 let skip: &[_] = &['#', ' ', '\t'];
                 sol.product = s.trim_start_matches(skip)
             }
@@ -162,6 +162,7 @@ mod tests {
     use super::*;
     use crate::lex::Lexer;
     use petgraph::dot::{Config, Dot};
+    use proptest::prelude::*;
     use rstest::*;
 
     #[test]
@@ -187,6 +188,17 @@ mod tests {
 
         // Assert
         assert!(result.is_none());
+    }
+
+    proptest! {
+        #[test]
+        fn parse_arbitrary_str(s in "\\PC*") {
+            // Act
+            let result = parse_str(&s, false);
+
+            // Assert
+            assert!(result.is_none());
+        }
     }
 
     #[test]

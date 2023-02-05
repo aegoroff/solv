@@ -14,10 +14,10 @@ workspace = ".."
 
 [dependencies]
 prettytable-rs = "0.10.0"
-crossterm = "0.25.0"
+crossterm = "0.26.0"
 humantime = "2.1"
-clap = { version = "4.1.1", features = ["std", "color", "suggestions", "cargo"] }
-clap_complete = "4.1.0"
+clap = { version = "4.1.4", features = ["std", "color", "suggestions", "cargo"] }
+clap_complete = "4.1.1"
 fnv = "1"
 solp = { path = "../solp/", version = "0.6.3" }
 petgraph = "0.6"
