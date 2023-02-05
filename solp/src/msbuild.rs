@@ -6,11 +6,7 @@ pub fn is_solution_folder(id: &str) -> bool {
 /// Returns human readable description
 /// or id itself if it's not match any
 pub fn describe_project(id: &str) -> &str {
-    if let Some(type_name) = PROJECT_TYPES.get(id) {
-        type_name
-    } else {
-        id
-    }
+    PROJECT_TYPES.get(id).unwrap_or(&id)
 }
 
 const ID_SOLUTION_FOLDER: &str = "{2150E333-8FDC-42A3-9474-1A3956D46DE8}";
