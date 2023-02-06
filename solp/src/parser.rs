@@ -7,7 +7,7 @@ extern crate itertools;
 
 const UTF8_BOM: &[u8; 3] = b"\xEF\xBB\xBF";
 
-pub fn parse_str(contents: &str, debug: bool) -> Option<Solution> {
+pub fn parse_str(contents: &str) -> Option<Solution> {
     if contents.len() < UTF8_BOM.len() {
         return None;
     }
@@ -21,21 +21,7 @@ pub fn parse_str(contents: &str, debug: bool) -> Option<Solution> {
 
     let parser = crate::solp::SolutionParser::new();
     let lexer = crate::lex::Lexer::new(input);
-    match parser.parse(input, lexer) {
-        Ok(ast) => {
-            if debug {
-                println!("result {ast:#?}");
-            } else {
-                return Some(analyze(ast));
-            }
-        }
-        Err(e) => {
-            if debug {
-                eprintln!("error {e:#?}");
-            }
-        }
-    }
-    None
+    parser.parse(input, lexer).ok().map(analyze)
 }
 
 macro_rules! section_content {
@@ -165,11 +151,6 @@ mod tests {
     use proptest::prelude::*;
     use rstest::*;
 
-    #[test]
-    fn parse_str_debug() {
-        parse_str(REAL_SOLUTION, true);
-    }
-
     #[rstest]
     #[case("")]
     #[case("123243")]
@@ -184,7 +165,7 @@ mod tests {
     #[trace]
     fn parse_str_crashes_found_by_fuzz(#[case] content: &str) {
         // Act
-        let result = parse_str(content, false);
+        let result = parse_str(content);
 
         // Assert
         assert!(result.is_none());
@@ -194,7 +175,7 @@ mod tests {
         #[test]
         fn parse_arbitrary_str(s in "\\PC*") {
             // Act
-            let result = parse_str(&s, false);
+            let result = parse_str(&s);
 
             // Assert
             assert!(result.is_none());
@@ -204,7 +185,7 @@ mod tests {
     #[test]
     fn parse_str_real_solution() {
         // Act
-        let result = parse_str(REAL_SOLUTION, false);
+        let result = parse_str(REAL_SOLUTION);
 
         // Assert
         assert!(result.is_some());
@@ -229,7 +210,7 @@ mod tests {
         let sln = String::from_utf8(binary).unwrap();
 
         // Act
-        let result = parse_str(&sln, false);
+        let result = parse_str(&sln);
 
         // Assert
         assert!(result.is_some());
@@ -241,30 +222,10 @@ mod tests {
         let sln = REAL_SOLUTION.trim_end();
 
         // Act
-        let result = parse_str(sln, false);
+        let result = parse_str(sln);
 
         // Assert
         assert!(result.is_some());
-    }
-
-    #[test]
-    fn parse_str_incorrect_debug() {
-        // Arrange
-        let input = r#"
-Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 14
-VisualStudioVersion = 14.0.22528.0
-MinimumVisualStudioVersion = 10.0.40219.1
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Folder1", "Folder1", "{F619A230-72A6-45B8-95FD-75073969017B}"
-EndProject
-Global
-    GlobalSection(SolutionProperties) = preSolution
-        HideSolutionNode = FALSE
-    EndGlobalSection
-EndGlobal
-"#;
-        // Act
-        parse_str(input, true);
     }
 
     #[test]
@@ -272,7 +233,7 @@ EndGlobal
         // Arrange
 
         // Act
-        let sln = parse_str(VERSION8_SOLUTION, false);
+        let sln = parse_str(VERSION8_SOLUTION);
 
         // Assert
         assert!(sln.is_some());
@@ -291,21 +252,10 @@ EndGlobal
         // Arrange
 
         // Act
-        let sln = parse_str(APR_SOLUTION, false);
+        let sln = parse_str(APR_SOLUTION);
 
         // Assert
         assert!(sln.is_some());
-    }
-
-    #[test]
-    fn parse_str_apr_generated_solution_debug() {
-        // Arrange
-
-        // Act
-        let sln = parse_str(APR_SOLUTION, true);
-
-        // Assert
-        assert!(sln.is_none());
     }
 
     #[test]

@@ -33,21 +33,14 @@ impl ConsumeDisplay for Validate {
 // Trait casting code end
 
 // Factory method
-pub fn new_consumer(
-    debug: bool,
-    only_validate: bool,
-    only_problems: bool,
-) -> Box<dyn ConsumeDisplay> {
+pub fn new_consumer(only_validate: bool, only_problems: bool) -> Box<dyn ConsumeDisplay> {
     if only_validate {
-        Validate::new_box(debug, only_problems)
+        Validate::new_box(only_problems)
     } else {
-        Info::new_box(debug)
+        Info::new_box()
     }
 }
 
-fn err(debug: bool, path: &str) {
-    if debug {
-        return;
-    }
+fn err(path: &str) {
     eprintln!("Error parsing {} solution", path.red());
 }

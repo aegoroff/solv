@@ -16,15 +16,11 @@ extern crate petgraph;
 
 pub struct Validate {
     show_only_problems: bool,
-    debug: bool,
 }
 
 impl Validate {
-    pub fn new_box(debug: bool, show_only_problems: bool) -> Box<dyn ConsumeDisplay> {
-        Box::new(Self {
-            show_only_problems,
-            debug,
-        })
+    pub fn new_box(show_only_problems: bool) -> Box<dyn ConsumeDisplay> {
+        Box::new(Self { show_only_problems })
     }
 }
 
@@ -124,11 +120,7 @@ impl Consume for Validate {
     }
 
     fn err(&self, path: &str) {
-        crate::err(self.debug, path);
-    }
-
-    fn is_debug(&self) -> bool {
-        self.debug
+        crate::err(path);
     }
 }
 

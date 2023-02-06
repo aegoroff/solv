@@ -12,16 +12,14 @@ use std::fmt::Display;
 extern crate num_format;
 
 pub struct Info {
-    debug: bool,
     total_projects: BTreeMap<String, i32>,
     projects_in_solutions: BTreeMap<String, i32>,
     solutions: i32,
 }
 
 impl Info {
-    pub fn new_box(debug: bool) -> Box<dyn ConsumeDisplay> {
+    pub fn new_box() -> Box<dyn ConsumeDisplay> {
         Box::new(Self {
-            debug,
             total_projects: BTreeMap::new(),
             projects_in_solutions: BTreeMap::new(),
             solutions: 0,
@@ -137,11 +135,7 @@ impl Consume for Info {
     }
 
     fn err(&self, path: &str) {
-        crate::err(self.debug, path);
-    }
-
-    fn is_debug(&self) -> bool {
-        self.debug
+        crate::err(path);
     }
 }
 

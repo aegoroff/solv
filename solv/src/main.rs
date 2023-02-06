@@ -15,25 +15,23 @@ fn main() {
     let app = build_cli();
     let matches = app.get_matches();
 
-    let debug = matches.get_flag("debug");
-
     match matches.subcommand() {
-        Some(("d", cmd)) => scan_directory(cmd, debug),
-        Some(("s", cmd)) => scan_file(cmd, debug),
+        Some(("d", cmd)) => scan_directory(cmd),
+        Some(("s", cmd)) => scan_file(cmd),
         Some(("completion", cmd)) => print_completions(cmd),
         _ => {}
     }
 }
 
-fn scan_file(cmd: &ArgMatches, debug: bool) {
+fn scan_file(cmd: &ArgMatches) {
     if let Some(path) = cmd.get_one::<String>(PATH) {
         let is_info = cmd.get_flag(INFO_FLAG);
-        let mut consumer = solv::new_consumer(debug, !is_info, false);
+        let mut consumer = solv::new_consumer(!is_info, false);
         solp::parse_file(path, consumer.as_consume());
     }
 }
 
-fn scan_directory(cmd: &ArgMatches, debug: bool) {
+fn scan_directory(cmd: &ArgMatches) {
     let empty = String::default();
     if let Some(path) = cmd.get_one::<String>(PATH) {
         let now = Instant::now();
@@ -41,7 +39,7 @@ fn scan_directory(cmd: &ArgMatches, debug: bool) {
         let extension = cmd.get_one::<String>("ext").unwrap_or(&empty);
 
         let is_info = cmd.get_flag(INFO_FLAG);
-        let mut consumer = solv::new_consumer(debug, !is_info, only_problems);
+        let mut consumer = solv::new_consumer(!is_info, only_problems);
         let scanned = solp::scan(path, extension, consumer.as_consume());
 
         println!();
@@ -74,12 +72,6 @@ fn build_cli() -> Command {
         .version(crate_version!())
         .author(crate_authors!("\n"))
         .about(crate_description!())
-        .arg(
-            arg!(-d --debug)
-                .required(false)
-                .action(ArgAction::SetTrue)
-                .help("debug mode - just printing AST and parsing errors if any"),
-        )
         .subcommand(
             Command::new("d")
                 .aliases(["dir", "directory"])

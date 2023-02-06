@@ -30,14 +30,12 @@ pub trait Consume {
     fn ok(&mut self, path: &str, solution: &Solution);
     /// Called on error
     fn err(&self, path: &str);
-    /// Whether to use debug mode (usually just print AST into console)
-    fn is_debug(&self) -> bool;
 }
 
 /// parse_file parses single solution file specified by path.
 pub fn parse_file(path: &str, consumer: &mut dyn Consume) {
     match fs::read_to_string(path) {
-        Ok(contents) => match parse(consumer, &contents) {
+        Ok(contents) => match parse(&contents) {
             Some(solution) => consumer.ok(path, &solution),
             None => consumer.err(path),
         },
@@ -46,8 +44,8 @@ pub fn parse_file(path: &str, consumer: &mut dyn Consume) {
 }
 
 /// parse parses solution content.
-pub fn parse<'a>(consumer: &mut dyn Consume, contents: &'a str) -> Option<Solution<'a>> {
-    parser::parse_str(contents, consumer.is_debug())
+pub fn parse(contents: &str) -> Option<Solution> {
+    parser::parse_str(contents)
 }
 
 /// scan parses directory specified by path. recursively
