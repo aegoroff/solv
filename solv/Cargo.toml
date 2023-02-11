@@ -26,10 +26,6 @@ num-format = "0.4"
 [dev-dependencies]
 rstest = "0.16.0"
 
-[profile.release]
-lto = 'fat'
-strip = true
-
 [package.metadata.deb]
 assets = [
     ["../target/x86_64-unknown-linux-musl/release/solv", "usr/bin/", "755"],

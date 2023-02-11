@@ -5,3 +5,4 @@ default-members = ["solv"]
 [profile.release]
 panic = 'abort'
 lto = true
+strip = true
