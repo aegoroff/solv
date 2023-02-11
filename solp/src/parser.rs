@@ -149,7 +149,7 @@ mod tests {
     use crate::lex::Lexer;
     use petgraph::dot::{Config, Dot};
     use proptest::prelude::*;
-    use rstest::*;
+    use rstest::rstest;
 
     #[rstest]
     #[case("")]
@@ -243,7 +243,7 @@ mod tests {
     fn lex_version8_solution() {
         let lexer = Lexer::new(VERSION8_SOLUTION);
         for tok in lexer {
-            println!("{:#?}", tok);
+            println!("{tok:#?}");
         }
     }
 
@@ -262,7 +262,7 @@ mod tests {
     fn lex_apr_generated_solution() {
         let lexer = Lexer::new(APR_SOLUTION);
         for tok in lexer {
-            println!("{:#?}", tok);
+            println!("{tok:#?}");
         }
     }
 

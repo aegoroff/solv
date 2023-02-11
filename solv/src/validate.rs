@@ -98,7 +98,7 @@ impl Consume for Validate {
             table.set_format(fmt);
             table.set_titles(row![bF=> "Project ID", "Configuration|Platform"]);
 
-            for (id, configs) in missings.iter() {
+            for (id, configs) in &missings {
                 for config in configs.iter() {
                     table.add_row(row![*id, format!("{}|{}", config.config, config.platform)]);
                 }
@@ -205,7 +205,7 @@ fn search_missing<'a>(solution: &'a Solution<'a>) -> Vec<(&'a str, Vec<&'a Conf>
 #[cfg(not(target_os = "windows"))]
 mod tests {
     use super::*;
-    use rstest::*;
+    use rstest::rstest;
 
     #[rstest]
     #[case("/base", "x", "/base/x")]
@@ -217,7 +217,7 @@ mod tests {
         let d = Path::new(base);
 
         // Act
-        let actual = make_path(&d, path);
+        let actual = make_path(d, path);
 
         // Assert
         assert_eq!(actual.to_str().unwrap(), expected);

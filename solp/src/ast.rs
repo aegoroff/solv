@@ -38,7 +38,7 @@ pub enum Expr<'input> {
 macro_rules! impl_str_getters {
     ($(($name:ident, $variant:ident)),*) => {
         $(
-            pub fn $name(&self) -> &'input str {
+            #[must_use] pub fn $name(&self) -> &'input str {
                 if let Expr::$variant(s) = self {
                     return *s;
                 }
@@ -56,6 +56,7 @@ impl<'input> Expr<'input> {
         (guid, Guid)
     );
 
+    #[must_use]
     pub fn is_section(&self, name: &str) -> bool {
         if let Expr::SectionBegin(names, _) = self {
             names.iter().any(|n| n.identifier() == name)
@@ -118,6 +119,7 @@ impl<'input> Default for Solution<'input> {
 }
 
 impl<'input> Project<'input> {
+    #[must_use]
     pub fn new(id: &'input str, type_id: &'input str) -> Self {
         let type_descr = msbuild::describe_project(type_id);
 
@@ -129,6 +131,7 @@ impl<'input> Project<'input> {
         }
     }
 
+    #[must_use]
     pub fn from_begin(head: &Expr<'input>) -> Option<Self> {
         if let Expr::ProjectBegin(project_type, name, path, id) = head {
             let prj = Project::from(project_type, name, path, id);
@@ -138,6 +141,7 @@ impl<'input> Project<'input> {
         }
     }
 
+    #[must_use]
     pub fn from(
         project_type: &Expr<'input>,
         name: &Expr<'input>,
@@ -156,10 +160,12 @@ impl<'input> Project<'input> {
 }
 
 impl<'input> Version<'input> {
+    #[must_use]
     pub fn new(name: &'input str, ver: &'input str) -> Self {
         Self { name, ver }
     }
 
+    #[must_use]
     pub fn from(name: &Expr<'input>, val: &Expr<'input>) -> Self {
         let n = name.identifier();
         let v = val.digit_or_dot();
@@ -176,6 +182,7 @@ impl<'input> From<&'input str> for Conf<'input> {
 }
 
 impl<'input> Conf<'input> {
+    #[must_use]
     pub fn new(configuration: &'input str, platform: &'input str) -> Self {
         Self {
             config: configuration,
@@ -183,6 +190,7 @@ impl<'input> Conf<'input> {
         }
     }
 
+    #[must_use]
     pub fn from_expr(expr: &Expr<'input>) -> Option<Self> {
         if let Expr::SectionContent(left, _) = expr {
             let conf = Conf::from(left.string());
@@ -201,6 +209,7 @@ struct ProjectConfig<'input> {
 }
 
 impl<'input> ProjectConfigs<'input> {
+    #[must_use]
     pub fn from_id_and_configs(project_id: &'input str, configs: Vec<Conf<'input>>) -> Self {
         let mut configurations = Vec::new();
         configurations.extend(configs);
@@ -210,6 +219,7 @@ impl<'input> ProjectConfigs<'input> {
         }
     }
 
+    #[must_use]
     pub fn from_section_content_key(expr: &Expr<'input>) -> Option<Self> {
         if let Expr::SectionContent(left, _) = expr {
             ProjectConfigs::from_project_configuration_platform(left.string())
@@ -218,6 +228,7 @@ impl<'input> ProjectConfigs<'input> {
         }
     }
 
+    #[must_use]
     pub fn from_section_content(expr: &Expr<'input>) -> Option<Self> {
         if let Expr::SectionContent(left, right) = expr {
             ProjectConfigs::from_project_configuration(left.string(), right.string())
@@ -321,7 +332,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rstest::*;
+    use rstest::rstest;
 
     #[rstest]
     #[case("Release|Any CPU", Conf { config: "Release", platform: "Any CPU" })]

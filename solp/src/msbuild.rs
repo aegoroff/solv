@@ -1,3 +1,4 @@
+#[must_use]
 pub fn is_solution_folder(id: &str) -> bool {
     id == ID_SOLUTION_FOLDER
 }
@@ -5,6 +6,7 @@ pub fn is_solution_folder(id: &str) -> bool {
 /// Describes project by id.
 /// Returns human readable description
 /// or id itself if it's not match any
+#[must_use]
 pub fn describe_project(id: &str) -> &str {
     PROJECT_TYPES.get(id).unwrap_or(&id)
 }

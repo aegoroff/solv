@@ -33,6 +33,7 @@ impl ConsumeDisplay for Validate {
 // Trait casting code end
 
 // Factory method
+#[must_use]
 pub fn new_consumer(only_validate: bool, only_problems: bool) -> Box<dyn ConsumeDisplay> {
     if only_validate {
         Validate::new_box(only_problems)

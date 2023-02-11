@@ -32,7 +32,7 @@ pub trait Consume {
     fn err(&self, path: &str);
 }
 
-/// parse_file parses single solution file specified by path.
+/// `parse_file` parses single solution file specified by path.
 pub fn parse_file(path: &str, consumer: &mut dyn Consume) {
     match fs::read_to_string(path) {
         Ok(contents) => match parse(&contents) {
@@ -44,6 +44,7 @@ pub fn parse_file(path: &str, consumer: &mut dyn Consume) {
 }
 
 /// parse parses solution content.
+#[must_use]
 pub fn parse(contents: &str) -> Option<Solution> {
     parser::parse_str(contents)
 }
@@ -64,7 +65,7 @@ pub fn scan(path: &str, extension: &str, consumer: &mut dyn Consume) -> usize {
     let ext = extension.trim_start_matches('.');
 
     iter.into_iter()
-        .filter_map(|x| x.ok())
+        .filter_map(std::result::Result::ok)
         .filter(|f| f.file_type().is_file())
         .map(|f| f.path())
         .filter(|p| p.extension().map(|s| s == ext).unwrap_or_default())
@@ -93,7 +94,7 @@ fn decorate_path(path: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rstest::*;
+    use rstest::rstest;
 
     #[cfg(not(target_os = "windows"))]
     #[rstest]

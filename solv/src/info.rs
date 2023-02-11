@@ -49,7 +49,7 @@ impl Info {
         table.set_format(fmt);
         table.set_titles(row![bF=> head]);
 
-        for item in set.iter() {
+        for item in &set {
             table.add_row(row![*item]);
         }
 
@@ -106,7 +106,7 @@ impl Consume for Info {
         table.set_format(fmt);
         table.set_titles(row![bF=> "Project type", "Count"]);
 
-        for (key, value) in projects_by_type.iter() {
+        for (key, value) in &projects_by_type {
             *self.total_projects.entry(String::from(*key)).or_insert(0) += *value;
             *self
                 .projects_in_solutions
@@ -153,10 +153,10 @@ impl Display for Info {
 
         let projects = self.total_projects.iter().fold(0, |total, p| total + *p.1);
 
-        for (key, value) in self.total_projects.iter() {
-            let proj_percent = (*value as f64 / projects as f64) * 100_f64;
+        for (key, value) in &self.total_projects {
+            let proj_percent = (f64::from(*value) / f64::from(projects)) * 100_f64;
             let in_sols = self.projects_in_solutions.get(key).unwrap();
-            let sol_percent = (*in_sols as f64 / self.solutions as f64) * 100_f64;
+            let sol_percent = (f64::from(*in_sols) / f64::from(self.solutions)) * 100_f64;
             table.add_row(row![
                 key,
                 *value.to_formatted_string(&Locale::en),

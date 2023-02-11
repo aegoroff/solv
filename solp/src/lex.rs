@@ -87,7 +87,7 @@ impl<'input> Lexer<'input> {
     fn comment(&mut self, i: usize) -> Option<Spanned<Tok<'input>, usize, ()>> {
         loop {
             match self.chars.peek() {
-                Some((j, '\n')) | Some((j, '\r')) => {
+                Some((j, '\n' | '\r')) => {
                     return Some(Ok((i, Tok::Comment(&self.input[i..*j]), *j)));
                 }
                 None => {
@@ -180,9 +180,7 @@ impl<'input> Lexer<'input> {
     fn section_key(&mut self, i: usize) -> Option<Spanned<Tok<'input>, usize, ()>> {
         let mut start = i;
 
-        while let Some((j, '\r')) | Some((j, '\n')) | Some((j, '\t')) | Some((j, ' ')) =
-            self.chars.peek()
-        {
+        while let Some((j, '\r' | '\n' | '\t' | ' ')) = self.chars.peek() {
             start = *j + 1;
             self.chars.next();
         }
@@ -233,7 +231,7 @@ impl<'input> Lexer<'input> {
 
                 loop {
                     match self.chars.peek() {
-                        Some((j, '\r')) | Some((j, '\n')) => {
+                        Some((j, '\r' | '\n')) => {
                             let finish = *j;
                             return Some(Ok((
                                 start,
@@ -331,7 +329,7 @@ impl<'input> Iterator for Lexer<'input> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rstest::*;
+    use rstest::rstest;
 
     #[test]
     fn lexer() {
@@ -341,7 +339,7 @@ mod tests {
          "{CFBAE2FB-6E3F-44CF-9FC9-372D6EA8DD3D}" "str" x = y  "#;
         let lexer = Lexer::new(input);
         for tok in lexer {
-            println!("{:#?}", tok);
+            println!("{tok:#?}");
         }
     }
 
@@ -349,7 +347,7 @@ mod tests {
     fn lex_solution() {
         let lexer = Lexer::new(REAL_SOLUTION);
         for tok in lexer {
-            println!("{:#?}", tok);
+            println!("{tok:#?}");
         }
     }
 
@@ -357,7 +355,7 @@ mod tests {
     fn lex_solution_no_last_line_break() {
         let lexer = Lexer::new(REAL_SOLUTION.trim_end());
         for tok in lexer {
-            println!("{:#?}", tok);
+            println!("{tok:#?}");
         }
     }
 
