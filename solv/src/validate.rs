@@ -74,7 +74,7 @@ impl Consume for Validate {
                     .bold()
             );
             println!();
-            Info::print_one_column_table("Project ID", danglings);
+            Info::print_one_column_table("Project ID", &danglings);
             no_problems = false;
         }
 
@@ -84,7 +84,7 @@ impl Consume for Validate {
                 "  Solution contains unexist projects:".dark_yellow().bold()
             );
             println!();
-            Info::print_one_column_table("Path", not_found);
+            Info::print_one_column_table("Path", &not_found);
             no_problems = false;
         }
 

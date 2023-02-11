@@ -39,7 +39,7 @@ impl Info {
             .build()
     }
 
-    pub fn print_one_column_table(head: &str, set: BTreeSet<&str>) {
+    pub fn print_one_column_table(head: &str, set: &BTreeSet<&str>) {
         if set.is_empty() {
             return;
         }
@@ -49,7 +49,7 @@ impl Info {
         table.set_format(fmt);
         table.set_titles(row![bF=> head]);
 
-        for item in &set {
+        for item in set {
             table.add_row(row![*item]);
         }
 
@@ -130,8 +130,8 @@ impl Consume for Info {
             .map(|c| c.platform)
             .collect::<BTreeSet<&str>>();
 
-        Info::print_one_column_table("Configuration", configurations);
-        Info::print_one_column_table("Platform", platforms);
+        Info::print_one_column_table("Configuration", &configurations);
+        Info::print_one_column_table("Platform", &platforms);
     }
 
     fn err(&self, path: &str) {

@@ -43,8 +43,8 @@ impl<'input> Lexer<'input> {
     fn identifier(&mut self, i: usize) -> (Tok<'input>, usize) {
         let finish;
         loop {
-            match self.chars.peek() {
-                Some((j, c)) => match *c {
+            if let Some((j, c)) = self.chars.peek() {
+                match *c {
                     'a'..='z' | 'A'..='Z' => {
                         self.chars.next();
                     }
@@ -59,13 +59,12 @@ impl<'input> Lexer<'input> {
                         }
                         return (Tok::Id(&self.input[i..*j]), *j);
                     }
-                },
-                None => {
-                    if Lexer::is_close_element(&self.input[i..]) {
-                        return (Tok::CloseElement(&self.input[i..]), self.input.len());
-                    }
-                    return (Tok::Id(&self.input[i..]), self.input.len());
                 }
+            } else {
+                if Lexer::is_close_element(&self.input[i..]) {
+                    return (Tok::CloseElement(&self.input[i..]), self.input.len());
+                }
+                return (Tok::Id(&self.input[i..]), self.input.len());
             }
         }
         // Skip (
@@ -100,7 +99,7 @@ impl<'input> Lexer<'input> {
         }
     }
 
-    fn guid(&mut self, i: usize) -> Option<Spanned<Tok<'input>, usize, ()>> {
+    fn guid(&mut self, i: usize) -> (usize, Tok<'input>, usize) {
         let finish;
         loop {
             match self.chars.peek() {
@@ -109,7 +108,7 @@ impl<'input> Lexer<'input> {
                     break;
                 }
                 None => {
-                    return Some(Ok((i, Tok::Guid(&self.input[i..]), self.input.len())));
+                    return (i, Tok::Guid(&self.input[i..]), self.input.len());
                 }
                 _ => {
                     self.chars.next();
@@ -118,7 +117,7 @@ impl<'input> Lexer<'input> {
         }
         // Skip {
         self.chars.next();
-        Some(Ok((i, Tok::Guid(&self.input[i..finish]), finish)))
+        (i, Tok::Guid(&self.input[i..finish]), finish)
     }
 
     fn digits_with_dots(&mut self, i: usize) -> Option<Spanned<Tok<'input>, usize, ()>> {
@@ -289,7 +288,7 @@ impl<'input> Lexer<'input> {
             ',' => return Some(Ok((i, Tok::Comma, i + 1))),
             ')' => return Some(Ok((i, Tok::Skip, i + 1))),
             '0'..='9' => return self.digits_with_dots(i),
-            '{' => return self.guid(i),
+            '{' => return Some(Ok(self.guid(i))),
             '"' => return self.string(i),
             '#' => return self.comment(i),
             'a'..='z' | 'A'..='Z' => {
@@ -317,8 +316,7 @@ impl<'input> Iterator for Lexer<'input> {
 
             match tok {
                 Ok(_x @ (_, Tok::Skip, _)) => continue,
-                Ok(_) => {}
-                Err(_) => {}
+                Ok(_) | Err(_) => {}
             }
 
             return Some(tok);

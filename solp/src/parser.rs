@@ -134,7 +134,7 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
             Expr::Comment(s) => {
                 // Only comment text without sharp sign and spacess
                 let skip: &[_] = &['#', ' ', '\t'];
-                sol.product = s.trim_start_matches(skip)
+                sol.product = s.trim_start_matches(skip);
             }
             _ => {}
         }
