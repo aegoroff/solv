@@ -8,17 +8,19 @@ options:
     filters:
       Type:
         - feat
+        - feat!
         - fix
         - perf
         - refactor
   commit_groups:
     title_maps:
       feat: Features
+      feat!: Features (BREAKING CHANGE)
       fix: Bug Fixes
       perf: Performance Improvements
       refactor: Code Refactoring
   header:
-    pattern: "^(\\w*)\\:\\s(.*)$"
+    pattern: "^([a-zA-Z!_]*)\\:\\s(.*)$"
     pattern_maps:
       - Type
       - Subject
