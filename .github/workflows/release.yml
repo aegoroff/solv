@@ -145,16 +145,19 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: linux
+          path: linux
 
       - name: Download Windows tarball
         uses: actions/download-artifact@v3
         with:
           name: windows
+          path: windows
 
       - name: Download MacOS tarball
         uses: actions/download-artifact@v3
         with:
           name: macos
+          path: macos
 
       - name: Install Rust
         run: |
