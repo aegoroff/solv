@@ -61,14 +61,10 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                         .iter()
                         .filter_map(|sect| section_content!(sect, "ProjectDependencies"))
                         .flatten()
-                        .filter_map(|expr| {
-                            if let Expr::SectionContent(left, _) = expr {
-                                Some(left.string())
-                            } else {
-                                None
-                            }
-                        })
-                        .map(|from| (from, last_project.id));
+                        .filter_map(|expr| match expr {
+                            Expr::SectionContent(left, _) => Some((left.string(), last_project.id)),
+                            _ => None,
+                        });
 
                     sol.dependencies.extend(edges);
                 }
