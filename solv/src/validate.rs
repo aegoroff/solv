@@ -169,8 +169,13 @@ fn search_dangling_configs<'a>(
     solution
         .project_configs
         .iter()
-        .filter(|pc| !projects.contains_key(&pc.project_id.to_uppercase()))
-        .map(|pc| pc.project_id)
+        .filter_map(|pc| {
+            if projects.contains_key(&pc.project_id.to_uppercase()) {
+                None
+            } else {
+                Some(pc.project_id)
+            }
+        })
         .collect()
 }
 
