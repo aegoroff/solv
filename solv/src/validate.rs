@@ -149,16 +149,26 @@ fn new_projects_paths_map(path: &str, solution: &Solution) -> FnvHashMap<String,
     solution
         .projects
         .iter()
-        .filter(|p| !msbuild::is_solution_folder(p.type_id))
-        .map(|p| (p.id.to_uppercase(), make_path(dir, p.path)))
+        .filter_map(|p| {
+            if msbuild::is_solution_folder(p.type_id) {
+                None
+            } else {
+                Some((p.id.to_uppercase(), make_path(dir, p.path)))
+            }
+        })
         .collect()
 }
 
 fn search_not_found(projects: &FnvHashMap<String, PathBuf>) -> BTreeSet<&str> {
     projects
         .iter()
-        .filter(|(_, path)| path.canonicalize().is_err())
-        .filter_map(|(_, pb)| pb.as_path().to_str())
+        .filter_map(|(_, path)| {
+            if path.canonicalize().is_ok() {
+                None
+            } else {
+                path.as_path().to_str()
+            }
+        })
         .collect()
 }
 
