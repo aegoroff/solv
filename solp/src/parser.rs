@@ -93,7 +93,7 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                         let c = project_configs.flat_map(|c| c.configs).collect();
                         ProjectConfigs::from_id_and_configs(pid, c)
                     })
-                    .collect::<Vec<ProjectConfigs<'input>>>();
+                    .collect_vec();
 
                 let project_configs = sections
                     .iter()
@@ -106,7 +106,7 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                         let c = project_configs.flat_map(|c| c.configs).collect();
                         ProjectConfigs::from_id_and_configs(pid, c)
                     })
-                    .collect::<Vec<ProjectConfigs<'input>>>();
+                    .collect_vec();
 
                 let solution_configurations = sections
                     .iter()
