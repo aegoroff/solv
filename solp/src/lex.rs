@@ -31,6 +31,8 @@ pub struct Lexer<'input> {
     context: LexerContext,
 }
 
+const SECTION_SUFFIX: &str = "Section";
+
 impl<'input> Lexer<'input> {
     pub fn new(input: &'input str) -> Self {
         Lexer {
@@ -70,16 +72,13 @@ impl<'input> Lexer<'input> {
         // Skip (
         self.chars.next();
 
-        let section_suffix = "Section";
-        let sub: String = self.input[i..finish]
-            .chars()
-            .rev()
-            .take(section_suffix.len())
-            .collect();
-        let sub: String = sub.chars().rev().collect();
-        if sub == section_suffix {
-            self.context = LexerContext::SectionDefinition;
-        };
+        let sub = &self.input[i..finish];
+        if sub.len() > SECTION_SUFFIX.len() {
+            let start = sub.len() - SECTION_SUFFIX.len();
+            if &sub[start..] == SECTION_SUFFIX {
+                self.context = LexerContext::SectionDefinition;
+            };
+        }
         (Tok::OpenElement(&self.input[i..finish]), finish)
     }
 
