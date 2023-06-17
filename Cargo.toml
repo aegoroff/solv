@@ -1,5 +1,5 @@
 [workspace]
-members = ["solv", "solp", ]
+members = ["solv", "solp", "solp/fuzz" ]
 default-members = ["solv"]
 
 [profile.release]
