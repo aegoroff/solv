@@ -1,3 +1,4 @@
+#![warn(unused_extern_crates)]
 mod info;
 mod validate;
 
@@ -6,11 +7,8 @@ use crate::validate::Validate;
 use crossterm::style::Stylize;
 use solp::Consume;
 
-extern crate humantime;
-extern crate solp;
 #[macro_use]
 extern crate prettytable;
-extern crate crossterm;
 
 pub trait ConsumeDisplay: Consume + std::fmt::Display {
     fn as_consume(&mut self) -> &mut dyn Consume;

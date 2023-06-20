@@ -1,3 +1,5 @@
+#![warn(unused_extern_crates)]
+
 use std::fs;
 
 use crate::ast::Solution;
@@ -11,9 +13,6 @@ mod parser;
 
 #[macro_use]
 extern crate lalrpop_util;
-extern crate jwalk;
-extern crate nom;
-extern crate petgraph;
 
 #[cfg(test)] // <-- not needed in integration tests
 extern crate rstest;

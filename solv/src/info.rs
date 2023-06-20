@@ -8,9 +8,6 @@ use solp::{msbuild, Consume};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::fmt::Display;
-
-extern crate num_format;
-
 pub struct Info {
     total_projects: BTreeMap<String, i32>,
     projects_in_solutions: BTreeMap<String, i32>,

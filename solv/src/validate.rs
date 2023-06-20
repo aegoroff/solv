@@ -1,8 +1,8 @@
-use self::petgraph::algo::DfsSpace;
 use crate::info::Info;
 use crate::{Consume, ConsumeDisplay};
 use crossterm::style::{style, Color, Stylize};
 use fnv::{FnvHashMap, FnvHashSet};
+use petgraph::algo::DfsSpace;
 use prettytable::Table;
 use solp::ast::{Conf, Solution};
 use solp::msbuild;
@@ -10,9 +10,6 @@ use std::collections::BTreeSet;
 use std::fmt;
 use std::fmt::Display;
 use std::path::{Path, PathBuf};
-
-extern crate fnv;
-extern crate petgraph;
 
 pub struct Validate {
     show_only_problems: bool,

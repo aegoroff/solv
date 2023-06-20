@@ -3,8 +3,6 @@ use itertools::Itertools;
 use std::collections::HashSet;
 use std::option::Option::Some;
 
-extern crate itertools;
-
 const UTF8_BOM: &[u8; 3] = b"\xEF\xBB\xBF";
 
 pub fn parse_str(contents: &str) -> Option<Solution> {
