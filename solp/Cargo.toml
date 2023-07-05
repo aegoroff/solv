@@ -22,6 +22,9 @@ itertools = "0.11"
 petgraph = "0.6"
 num_cpus = "1.15.0"
 nom = "7"
+serde = { version = "1.0.166", features = ["derive"] }
+serde-xml-rs = "0.6.0"
+anyhow = "1.0.71"
 
 [dev-dependencies]
 rstest = "0.17.0"
