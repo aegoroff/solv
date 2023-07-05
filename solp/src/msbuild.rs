@@ -1,3 +1,9 @@
+use anyhow::Result;
+use std::{fs::File, io::Read, path::Path};
+
+use serde::{Deserialize, Serialize};
+use serde_xml_rs::from_reader;
+
 #[must_use]
 pub fn is_solution_folder(id: &str) -> bool {
     id == ID_SOLUTION_FOLDER
@@ -9,6 +15,37 @@ pub fn is_solution_folder(id: &str) -> bool {
 #[must_use]
 pub fn describe_project(id: &str) -> &str {
     PROJECT_TYPES.get(id).unwrap_or(&id)
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Project {
+    #[serde(rename = "Sdk", default)]
+    pub sdk: Option<String>,
+
+    #[serde(rename = "ItemGroup", default)]
+    pub item_group: Option<Vec<ItemGroup>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ItemGroup {
+    #[serde(rename = "ProjectReference", default)]
+    pub project_reference: Option<Vec<ProjectReference>>,
+    #[serde(rename = "PackageReference", default)]
+    pub package_reference: Option<Vec<PackageReference>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ProjectReference {
+    #[serde(rename = "Include", default)]
+    pub include: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PackageReference {
+    #[serde(rename = "Include", default)]
+    pub include: String,
+    #[serde(rename = "Version", default)]
+    pub version: String,
 }
 
 const ID_SOLUTION_FOLDER: &str = "{2150E333-8FDC-42A3-9474-1A3956D46DE8}";
@@ -84,3 +121,79 @@ static PROJECT_TYPES: phf::Map<&'static str, &'static str> = phf::phf_map! {
     "{E53339B2-1760-4266-BCC7-CA923CBCF16C}" => "Docker Application",
     "{00D1A9C2-B5F0-4AF3-8072-F6C62B433612}" => "SQL Server Database",
 };
+
+pub fn read_project<P: AsRef<Path>>(path: P) -> Result<Project> {
+    let file = File::open(path)?;
+    read_project_from_reader(file)
+}
+
+pub fn read_project_from_reader<R: Read>(reader: R) -> Result<Project> {
+    let project: Project = from_reader(reader)?;
+    Ok(project)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Cursor;
+
+    use super::*;
+
+    #[test]
+    fn read_project_from_reader_test() {
+        // Arrange
+        let rdr = Cursor::new(REAL_SDK_PROJECT);
+
+        // Act
+        let p = read_project_from_reader(rdr).unwrap();
+
+        // Assert
+        assert!(p.item_group.is_some());
+        assert_eq!(1, p.item_group.as_ref().unwrap().len());
+        assert_eq!(
+            13,
+            p.item_group.as_ref().unwrap()[0]
+                .package_reference
+                .as_ref()
+                .unwrap()
+                .len()
+        );
+    }
+
+    const REAL_SDK_PROJECT: &str = r#"<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+      <TargetFramework>net6.0</TargetFramework>
+      <ProjectTypeGuids>{3AC096D0-A1C2-E12C-1390-A8335801FDAB};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
+      <TestProjectType>UnitTest</TestProjectType>
+      <AssemblyTitle>_tst.net</AssemblyTitle>
+      <Company>Egoroff</Company>
+      <Product>_tst.net</Product>
+      <Copyright>Copyright © 2009-2022 Alexander Egorov</Copyright>
+      <OutputPath>bin\$(Configuration)\</OutputPath>
+      <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    </PropertyGroup>
+    <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+      <DebugType>portable</DebugType>
+    </PropertyGroup>
+    <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+      <DebugType>portable</DebugType>
+    </PropertyGroup>
+    <ItemGroup>
+      <PackageReference Include="FluentAssertions" Version="6.7.0" />
+      <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.0.0" />
+      <PackageReference Include="System.Threading.Tasks.Extensions" Version="4.5.4" />
+      <PackageReference Include="System.ValueTuple" Version="4.5.0" />
+      <PackageReference Include="xunit" Version="2.4.1" />
+      <PackageReference Include="xunit.abstractions" Version="2.0.3" />
+      <PackageReference Include="xunit.analyzers" Version="0.10.0" />
+      <PackageReference Include="xunit.assert" Version="2.4.1" />
+      <PackageReference Include="xunit.core" Version="2.4.1" />
+      <PackageReference Include="xunit.extensibility.core" Version="2.4.1" />
+      <PackageReference Include="xunit.extensibility.execution" Version="2.4.1" />
+      <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.2.0" />
+      <PackageReference Include="xunit.runner.visualstudio" Version="2.4.5">
+        <PrivateAssets>all</PrivateAssets>
+        <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      </PackageReference>
+    </ItemGroup>
+  </Project>"#;
+}
