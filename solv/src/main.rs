@@ -41,7 +41,8 @@ fn info(cmd: &ArgMatches) {
 }
 
 fn nuget(cmd: &ArgMatches) {
-    let consumer = Nuget::new();
+    let only_mismatched = cmd.get_flag("mismatch");
+    let consumer = Nuget::new(only_mismatched);
     scan_path(cmd, consumer);
 }
 
@@ -132,6 +133,14 @@ fn build_cli() -> Command {
                         .required(false)
                         .default_value("sln")
                         .help("Visual Studio solution extension"),
+                )
+                .arg(
+                    arg!(-m --mismatch)
+                        .required(false)
+                        .action(ArgAction::SetTrue)
+                        .help(
+                        "Find packages to consolidate i.e. packages with different versions in the same solution",
+                    ),
                 )
                 .arg(
                     arg!([PATH])

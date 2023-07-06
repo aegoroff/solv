@@ -14,6 +14,7 @@ pub struct Validate {
 }
 
 impl Validate {
+    #[must_use]
     pub fn new(show_only_problems: bool) -> Self {
         Self { show_only_problems }
     }

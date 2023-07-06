@@ -21,6 +21,7 @@ fn err(path: &str) {
     eprintln!("Error parsing {} solution", path.red());
 }
 
+#[must_use]
 pub fn new_projects_paths_map(
     path: &str,
     solution: &Solution,

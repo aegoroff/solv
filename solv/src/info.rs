@@ -14,6 +14,7 @@ pub struct Info {
 }
 
 impl Info {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             total_projects: BTreeMap::new(),
@@ -22,6 +23,7 @@ impl Info {
         }
     }
 
+    #[must_use]
     pub fn new_format() -> TableFormat {
         format::FormatBuilder::new()
             .column_separator(' ')

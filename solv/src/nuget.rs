@@ -7,17 +7,16 @@ use prettytable::Table;
 
 use crate::{info::Info, Consume, MsbuildProject};
 
-pub struct Nuget {}
-
-impl Nuget {
-    pub fn new() -> Self {
-        Self {}
-    }
+pub struct Nuget {
+    show_only_mismatched: bool,
 }
 
-impl Default for Nuget {
-    fn default() -> Self {
-        Self::new()
+impl Nuget {
+    #[must_use]
+    pub fn new(show_only_mismatched: bool) -> Self {
+        Self {
+            show_only_mismatched,
+        }
     }
 }
 
@@ -27,6 +26,16 @@ impl Consume for Nuget {
 
         let nugets = nugets(&projects);
         if nugets.is_empty() {
+            return;
+        }
+
+        if self.show_only_mismatched
+            && nugets
+                .iter()
+                .filter(|(_, versions)| versions.len() > 1)
+                .count()
+                == 0
+        {
             return;
         }
 
@@ -45,10 +54,12 @@ impl Consume for Nuget {
             .bold();
         println!(" {path}");
 
-        nugets.iter().for_each(|(pkg, versions)| {
-            let versions = versions.iter().join(",");
-            table.add_row(row![pkg, iF->versions]);
-        });
+        for (pkg, versions) in &nugets {
+            if self.show_only_mismatched && versions.len() > 1 {
+                let versions = versions.iter().join(",");
+                table.add_row(row![pkg, iF->versions]);
+            }
+        }
         table.printstd();
         println!();
     }
