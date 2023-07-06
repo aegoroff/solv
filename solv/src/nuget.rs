@@ -53,8 +53,13 @@ impl Consume for Nuget {
             .filter(|(_, versions)| !self.show_only_mismatched || versions.len() > 1)
             .sorted_by(|(a, _), (b, _)| Ord::cmp(&a.to_lowercase(), &b.to_lowercase()))
             .for_each(|(pkg, versions)| {
+                let mismatch = versions.len() > 1;
                 let versions = versions.iter().join(", ");
-                table.add_row(row![pkg, iF->versions]);
+                if mismatch {
+                    table.add_row(row![pkg, iFr->versions]);
+                } else {
+                    table.add_row(row![pkg, iF->versions]);
+                }
             });
         table.printstd();
         println!();
