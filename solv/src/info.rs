@@ -1,4 +1,3 @@
-use crate::ConsumeDisplay;
 use crossterm::style::{style, Color, Stylize};
 use num_format::{Locale, ToFormattedString};
 use prettytable::format::TableFormat;
@@ -15,12 +14,12 @@ pub struct Info {
 }
 
 impl Info {
-    pub fn new_box() -> Box<dyn ConsumeDisplay> {
-        Box::new(Self {
+    pub fn new() -> Self {
+        Self {
             total_projects: BTreeMap::new(),
             projects_in_solutions: BTreeMap::new(),
             solutions: 0,
-        })
+        }
     }
 
     pub fn new_format() -> TableFormat {
@@ -52,6 +51,12 @@ impl Info {
 
         table.printstd();
         println!();
+    }
+}
+
+impl Default for Info {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

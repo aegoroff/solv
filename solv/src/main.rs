@@ -1,5 +1,10 @@
 use clap::{command, ArgAction, ArgMatches, Command};
 use clap_complete::{generate, Shell};
+use solp::Consume;
+use solv::info::Info;
+use solv::nuget::Nuget;
+use solv::validate::Validate;
+use std::fs;
 use std::{
     io,
     time::{Duration, Instant},
@@ -9,52 +14,58 @@ use std::{
 extern crate clap;
 
 const PATH: &str = "PATH";
-const INFO_FLAG: &str = "info";
 
 fn main() {
     let app = build_cli();
     let matches = app.get_matches();
 
     match matches.subcommand() {
-        Some(("d", cmd)) => scan_directory(cmd),
-        Some(("s", cmd)) => scan_file(cmd),
+        Some(("validate", cmd)) => validate(cmd),
+        Some(("info", cmd)) => info(cmd),
+        Some(("nuget", cmd)) => nuget(cmd),
         Some(("completion", cmd)) => print_completions(cmd),
         _ => {}
     }
 }
 
-fn scan_file(cmd: &ArgMatches) {
-    if let Some(path) = cmd.get_one::<String>(PATH) {
-        let is_info = cmd.get_flag(INFO_FLAG);
-        let mut consumer = solv::new_consumer(!is_info, false);
-        solp::parse_file(path, consumer.as_consume());
-    }
+fn validate(cmd: &ArgMatches) {
+    let only_problems = cmd.get_flag("problems");
+
+    let consumer = Validate::new(only_problems);
+    scan_path(cmd, consumer);
 }
 
-fn scan_directory(cmd: &ArgMatches) {
-    let empty = String::default();
+fn info(cmd: &ArgMatches) {
+    let consumer = Info::new();
+    scan_path(cmd, consumer);
+}
+
+fn nuget(cmd: &ArgMatches) {
+    let consumer = Nuget::new();
+    scan_path(cmd, consumer);
+}
+
+fn scan_path<C: Consume>(cmd: &ArgMatches, mut consumer: C) {
     if let Some(path) = cmd.get_one::<String>(PATH) {
-        let now = Instant::now();
-        let only_problems = cmd.get_flag("problems");
-        let extension = cmd.get_one::<String>("ext").unwrap_or(&empty);
+        if let Ok(metadata) = fs::metadata(path) {
+            if metadata.is_dir() {
+                let now = Instant::now();
+                let empty = String::default();
+                let extension = cmd.get_one::<String>("ext").unwrap_or(&empty);
+                let scanned = solp::scan(path, extension, &mut consumer);
+                println!("{:>20} {}", "solutions scanned:", scanned);
 
-        let is_info = cmd.get_flag(INFO_FLAG);
-        let mut consumer = solv::new_consumer(!is_info, only_problems);
-        let scanned = solp::scan(path, extension, consumer.as_consume());
-
-        println!();
-
-        print!("{consumer}");
-
-        println!("{:>20} {}", "solutions scanned:", scanned);
-
-        let duration = now.elapsed().as_millis();
-        let duration = Duration::from_millis(duration as u64);
-        println!(
-            "{:>20} {}",
-            "elapsed:",
-            humantime::format_duration(duration)
-        );
+                let duration = now.elapsed().as_millis();
+                let duration = Duration::from_millis(duration as u64);
+                println!(
+                    "{:>20} {}",
+                    "elapsed:",
+                    humantime::format_duration(duration)
+                );
+            } else {
+                solp::parse_file(path, &mut consumer);
+            }
+        };
     }
 }
 
@@ -73,19 +84,13 @@ fn build_cli() -> Command {
         .author(crate_authors!("\n"))
         .about(crate_description!())
         .subcommand(
-            Command::new("d")
-                .aliases(["dir", "directory"])
-                .about("Analyse all solutions within directory specified")
+            Command::new("validate")
+                .aliases(["va"])
+                .about("Validates solutions within directory or file specified")
                 .arg(
                     arg!([PATH])
-                        .help("Sets directory path to find solutions")
+                        .help("Sets solution path to analyze")
                         .required(true),
-                )
-                .arg(
-                    arg!(-i --info)
-                        .required(false)
-                        .action(ArgAction::SetTrue)
-                        .help("show solutions info without validation"),
                 )
                 .arg(
                     arg!(-e --ext <EXTENSION>)
@@ -103,14 +108,30 @@ fn build_cli() -> Command {
                 ),
         )
         .subcommand(
-            Command::new("s")
-                .aliases(["solution", "single"])
-                .about("Analyse solution specified")
+            Command::new("info")
+                .aliases(["i"])
+                .about("Get information about found solutions")
                 .arg(
-                    arg!(-i --info)
+                    arg!(-e --ext <EXTENSION>)
                         .required(false)
-                        .action(ArgAction::SetTrue)
-                        .help("show solution info without validation"),
+                        .default_value("sln")
+                        .help("Visual Studio solution extension"),
+                )
+                .arg(
+                    arg!([PATH])
+                        .help("Sets solution path to analyze")
+                        .required(true),
+                ),
+        )
+        .subcommand(
+            Command::new("nuget")
+                .aliases(["nu"])
+                .about("Get nuget packages information within solutions")
+                .arg(
+                    arg!(-e --ext <EXTENSION>)
+                        .required(false)
+                        .default_value("sln")
+                        .help("Visual Studio solution extension"),
                 )
                 .arg(
                     arg!([PATH])
