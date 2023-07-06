@@ -2,7 +2,7 @@ use std::collections::{BTreeSet, HashMap};
 
 use crossterm::style::{style, Color, Stylize};
 use fnv::FnvHashMap;
-use itertools::Itertools;
+use itertools::{any, Itertools};
 use prettytable::Table;
 
 use crate::{info::Info, Consume, MsbuildProject};
@@ -29,13 +29,7 @@ impl Consume for Nuget {
             return;
         }
 
-        if self.show_only_mismatched
-            && nugets
-                .iter()
-                .filter(|(_, versions)| versions.len() > 1)
-                .count()
-                == 0
-        {
+        if self.show_only_mismatched && !any(&nugets, |(_, versions)| versions.len() > 1) {
             return;
         }
 
@@ -54,12 +48,14 @@ impl Consume for Nuget {
             .bold();
         println!(" {path}");
 
-        for (pkg, versions) in &nugets {
-            if self.show_only_mismatched && versions.len() > 1 {
+        nugets
+            .iter()
+            .filter(|(_, versions)| !self.show_only_mismatched || versions.len() > 1)
+            .sorted_by(|(a, _), (b, _)| Ord::cmp(&a.to_lowercase(), &b.to_lowercase()))
+            .for_each(|(pkg, versions)| {
                 let versions = versions.iter().join(", ");
                 table.add_row(row![pkg, iF->versions]);
-            }
-        }
+            });
         table.printstd();
         println!();
     }
