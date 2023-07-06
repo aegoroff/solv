@@ -56,7 +56,7 @@ impl Consume for Nuget {
 
         for (pkg, versions) in &nugets {
             if self.show_only_mismatched && versions.len() > 1 {
-                let versions = versions.iter().join(",");
+                let versions = versions.iter().join(", ");
                 table.add_row(row![pkg, iF->versions]);
             }
         }
