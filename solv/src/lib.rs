@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 
 use crossterm::style::Stylize;
 use fnv::FnvHashMap;
-use solp::{ast::Solution, msbuild, Consume};
+use solp::{ast::Solution, msbuild::{self, Project}, Consume};
 
 #[macro_use]
 extern crate prettytable;
@@ -36,7 +36,7 @@ pub fn new_projects_paths_map(
                 None
             } else {
                 let project_path = make_path(dir, p.path);
-                let project = msbuild::read_project(&project_path).ok();
+                let project = Project::from_path(&project_path).ok();
                 Some((
                     p.id.to_uppercase(),
                     MsbuildProject {

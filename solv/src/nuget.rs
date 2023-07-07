@@ -4,6 +4,7 @@ use crossterm::style::{style, Color, Stylize};
 use fnv::FnvHashMap;
 use itertools::{any, Itertools};
 use prettytable::Table;
+use solp::msbuild::PackagesConfig;
 
 use crate::{info::Info, Consume, MsbuildProject};
 
@@ -24,9 +25,16 @@ impl Consume for Nuget {
     fn ok(&mut self, path: &str, solution: &solp::ast::Solution) {
         let projects = crate::new_projects_paths_map(path, solution);
 
-        let nugets = nugets(&projects);
-        if nugets.is_empty() {
+        let mut nugets = nugets(&projects);
+        let nugets_from_packages_config = nugets_from_projects_configs(&projects);
+        if nugets.is_empty() && nugets_from_packages_config.is_empty() {
             return;
+        }
+        for (k, v) in &nugets_from_packages_config {
+            let versions = nugets.entry(k).or_insert(BTreeSet::new());
+            for ver in v {
+                versions.insert(ver);
+            }
         }
 
         if self.show_only_mismatched && !any(&nugets, |(_, versions)| versions.len() > 1) {
@@ -78,9 +86,27 @@ fn nugets(projects: &FnvHashMap<String, MsbuildProject>) -> HashMap<&String, BTr
         .flatten()
         .filter_map(|ig| ig.package_reference.as_ref())
         .flatten()
-        .into_grouping_map_by(|c| &c.include)
+        .into_grouping_map_by(|c| &c.name)
         .fold(BTreeSet::new(), |mut acc, _key, val| {
             acc.insert(&val.version);
+            acc
+        })
+}
+
+fn nugets_from_projects_configs(
+    projects: &FnvHashMap<String, MsbuildProject>,
+) -> HashMap<String, BTreeSet<String>> {
+    projects
+        .iter()
+        .filter_map(|(_, mp)| {
+            let parent = mp.path.parent()?;
+            let packages_config = parent.join("packages.config");
+            PackagesConfig::from_path(packages_config).ok()
+        })
+        .flat_map(|p| p.packages)
+        .into_grouping_map_by(|p| p.name.clone())
+        .fold(BTreeSet::new(), |mut acc, _key, val| {
+            acc.insert(val.version);
             acc
         })
 }

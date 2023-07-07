@@ -46,8 +46,21 @@ pub struct ProjectReference {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PackageReference {
     #[serde(rename = "Include", default)]
-    pub include: String,
+    pub name: String,
     #[serde(rename = "Version", default)]
+    pub version: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PackagesConfig {
+    #[serde(rename = "package", default)]
+    pub packages: Vec<Package>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Package {
+    #[serde(rename = "id", default)]
+    pub name: String,
     pub version: String,
 }
 
@@ -137,23 +150,40 @@ static PROJECT_TYPES: phf::Map<&'static str, &'static str> = phf::phf_map! {
     "{00D1A9C2-B5F0-4AF3-8072-F6C62B433612}" => "SQL Server Database",
 };
 
-pub fn read_project<P: AsRef<Path>>(path: P) -> Result<Project> {
-    let file = File::open(path)?;
-    read_project_from_reader(file)
-}
-
-pub fn read_project_from_reader<R: Read>(reader: R) -> Result<Project> {
+pub fn read_packages_from_reader<R: Read>(reader: R) -> Result<Project> {
     let project: Project = from_reader(reader)?;
     Ok(project)
 }
 
 impl Project {
+    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Project> {
+        let file = File::open(path)?;
+        Project::from_reader(file)
+    }
+
+    pub fn from_reader<R: Read>(reader: R) -> Result<Project> {
+        let project: Project = from_reader(reader)?;
+        Ok(project)
+    }
+
     pub fn is_sdk_project(&self) -> bool {
         self.sdk.is_some()
             || self
                 .imports
                 .iter()
                 .any(|i| i.iter().any(|elt| elt.sdk.is_some()))
+    }
+}
+
+impl PackagesConfig {
+    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<PackagesConfig> {
+        let file = File::open(path)?;
+        PackagesConfig::from_reader(file)
+    }
+
+    pub fn from_reader<R: Read>(reader: R) -> Result<PackagesConfig> {
+        let config: PackagesConfig = from_reader(reader)?;
+        Ok(config)
     }
 }
 
@@ -164,12 +194,27 @@ mod tests {
     use super::*;
 
     #[test]
+    fn read_packages_config_from_reader_test() {
+        // Arrange
+        let rdr = Cursor::new(PACKAGES_CONFIG);
+
+        // Act
+        let p = PackagesConfig::from_reader(rdr).unwrap();
+
+        // Assert
+        //assert!(p.packages.is_some());
+        assert_eq!(3, p.packages.len());
+        assert_eq!("YaccLexTools", p.packages[0].name);
+        assert_eq!("0.2.2", p.packages[0].version);
+    }
+
+    #[test]
     fn read_project_from_reader_test() {
         // Arrange
         let rdr = Cursor::new(REAL_SDK_PROJECT);
 
         // Act
-        let p = read_project_from_reader(rdr).unwrap();
+        let p = Project::from_reader(rdr).unwrap();
 
         // Assert
         assert!(p.item_group.is_some());
@@ -236,7 +281,7 @@ mod tests {
         // Assert
         assert!(actual);
     }
-    
+
     #[test]
     fn sdk_project_one_import_without_sdk_elt_set() {
         // Arrange
@@ -295,4 +340,11 @@ mod tests {
       </PackageReference>
     </ItemGroup>
   </Project>"#;
+
+    const PACKAGES_CONFIG: &str = r#"<?xml version="1.0" encoding="utf-8"?>
+    <packages>
+      <package id="YaccLexTools" version="0.2.2" targetFramework="net45" />
+      <package id="Enums.NET" version="4.0.0" targetFramework="net48" />
+      <package id="FluentValidation" version="9.5.2" targetFramework="net48" />
+    </packages>"#;
 }
