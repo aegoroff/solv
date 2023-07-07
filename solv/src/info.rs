@@ -163,10 +163,10 @@ impl Display for Info {
             let sol_percent = (f64::from(*in_sols) / f64::from(self.solutions)) * 100_f64;
             table.add_row(row![
                 key,
-                *value.to_formatted_string(&Locale::en),
-                format!("{proj_percent:.2}%"),
-                r->*in_sols.to_formatted_string(&Locale::en),
-                format!("{sol_percent:.2}%")
+                i->*value.to_formatted_string(&Locale::en),
+                i->format!("{proj_percent:.2}%"),
+                ir->*in_sols.to_formatted_string(&Locale::en),
+                i->format!("{sol_percent:.2}%")
             ]);
         }
         table.printstd();
@@ -178,11 +178,11 @@ impl Display for Info {
         table.set_format(fmt);
         table.add_row(row![
             "Total solutions",
-            self.solutions.to_formatted_string(&Locale::en),
+            i->self.solutions.to_formatted_string(&Locale::en),
         ]);
         table.add_row(row![
             "Total projects",
-            projects.to_formatted_string(&Locale::en),
+            i->projects.to_formatted_string(&Locale::en),
         ]);
         table.printstd();
 
