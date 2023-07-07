@@ -1,4 +1,7 @@
-use std::collections::{BTreeSet, HashMap};
+use std::{
+    collections::{BTreeSet, HashMap},
+    fmt::{self, Display},
+};
 
 use crossterm::style::{style, Color, Stylize};
 use fnv::FnvHashMap;
@@ -75,6 +78,12 @@ impl Consume for Nuget {
 
     fn err(&self, path: &str) {
         crate::err(path);
+    }
+}
+
+impl Display for Nuget {
+    fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Ok(())
     }
 }
 

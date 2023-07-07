@@ -4,6 +4,7 @@ use solp::Consume;
 use solv::info::Info;
 use solv::nuget::Nuget;
 use solv::validate::Validate;
+use std::fmt::Display;
 use std::fs;
 use std::{
     io,
@@ -46,7 +47,7 @@ fn nuget(cmd: &ArgMatches) {
     scan_path(cmd, consumer);
 }
 
-fn scan_path<C: Consume>(cmd: &ArgMatches, mut consumer: C) {
+fn scan_path<C: Consume + Display>(cmd: &ArgMatches, mut consumer: C) {
     if let Some(path) = cmd.get_one::<String>(PATH) {
         if let Ok(metadata) = fs::metadata(path) {
             if metadata.is_dir() {
@@ -54,6 +55,9 @@ fn scan_path<C: Consume>(cmd: &ArgMatches, mut consumer: C) {
                 let empty = String::default();
                 let extension = cmd.get_one::<String>("ext").unwrap_or(&empty);
                 let scanned = solp::scan(path, extension, &mut consumer);
+
+                print!("{consumer}");
+
                 println!("{:>20} {}", "solutions scanned:", scanned);
 
                 let duration = now.elapsed().as_millis();
