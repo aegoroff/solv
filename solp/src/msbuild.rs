@@ -166,6 +166,7 @@ impl Project {
         Ok(project)
     }
 
+    #[must_use]
     pub fn is_sdk_project(&self) -> bool {
         self.sdk.is_some()
             || self

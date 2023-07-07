@@ -1,4 +1,5 @@
 #![warn(unused_extern_crates)]
+#![allow(clippy::missing_errors_doc)]
 
 use std::fs;
 

@@ -1,4 +1,5 @@
 #![warn(unused_extern_crates)]
+#![allow(clippy::missing_errors_doc)]
 pub mod info;
 pub mod nuget;
 pub mod validate;
@@ -7,7 +8,11 @@ use std::path::{Path, PathBuf};
 
 use crossterm::style::Stylize;
 use fnv::FnvHashMap;
-use solp::{ast::Solution, msbuild::{self, Project}, Consume};
+use solp::{
+    ast::Solution,
+    msbuild::{self, Project},
+    Consume,
+};
 
 #[macro_use]
 extern crate prettytable;
