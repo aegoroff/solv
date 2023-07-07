@@ -24,6 +24,9 @@ pub struct Project {
 
     #[serde(rename = "ItemGroup", default)]
     pub item_group: Option<Vec<ItemGroup>>,
+
+    #[serde(rename = "Import", default)]
+    pub imports: Option<Vec<Import>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -46,6 +49,18 @@ pub struct PackageReference {
     pub include: String,
     #[serde(rename = "Version", default)]
     pub version: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Import {
+    #[serde(rename = "Project", default)]
+    pub project: String,
+    #[serde(rename = "Sdk", default)]
+    pub sdk: Option<String>,
+    #[serde(rename = "Condition", default)]
+    pub condition: Option<String>,
+    #[serde(rename = "Label", default)]
+    pub label: Option<String>,
 }
 
 const ID_SOLUTION_FOLDER: &str = "{2150E333-8FDC-42A3-9474-1A3956D46DE8}";
@@ -132,6 +147,16 @@ pub fn read_project_from_reader<R: Read>(reader: R) -> Result<Project> {
     Ok(project)
 }
 
+impl Project {
+    pub fn is_sdk_project(&self) -> bool {
+        self.sdk.is_some()
+            || self
+                .imports
+                .iter()
+                .any(|i| i.iter().any(|elt| elt.sdk.is_some()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::io::Cursor;
@@ -157,6 +182,80 @@ mod tests {
                 .unwrap()
                 .len()
         );
+    }
+
+    #[test]
+    fn sdk_project_default_project() {
+        // Arrange
+        let p = Project {
+            sdk: None,
+            item_group: None,
+            imports: None,
+        };
+
+        // Act
+        let actual = p.is_sdk_project();
+
+        // Assert
+        assert!(!actual);
+    }
+
+    #[test]
+    fn sdk_project_sdk_elt_set() {
+        // Arrange
+        let p = Project {
+            sdk: Some("1".to_owned()),
+            item_group: None,
+            imports: None,
+        };
+
+        // Act
+        let actual = p.is_sdk_project();
+
+        // Assert
+        assert!(actual);
+    }
+
+    #[test]
+    fn sdk_project_one_import_with_sdk_elt_set() {
+        // Arrange
+        let p = Project {
+            sdk: None,
+            item_group: None,
+            imports: Some(vec![Import {
+                project: "p1".to_owned(),
+                sdk: Some("1".to_owned()),
+                condition: None,
+                label: None,
+            }]),
+        };
+
+        // Act
+        let actual = p.is_sdk_project();
+
+        // Assert
+        assert!(actual);
+    }
+    
+    #[test]
+    fn sdk_project_one_import_without_sdk_elt_set() {
+        // Arrange
+        let p = Project {
+            sdk: None,
+            item_group: None,
+            imports: Some(vec![Import {
+                project: "p1".to_owned(),
+                sdk: None,
+                condition: None,
+                label: None,
+            }]),
+        };
+
+        // Act
+        let actual = p.is_sdk_project();
+
+        // Assert
+        assert!(!actual);
     }
 
     const REAL_SDK_PROJECT: &str = r#"<Project Sdk="Microsoft.NET.Sdk">
