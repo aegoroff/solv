@@ -74,7 +74,7 @@ pub struct Solution<'input> {
     pub versions: Vec<Version<'input>>,
     pub solution_configs: Vec<Conf<'input>>,
     pub project_configs: Vec<ProjectConfigs<'input>>,
-    pub dependencies: DiGraphMap<&'input str, i32>,
+    pub dependencies: DiGraphMap<&'input str, ()>,
 }
 
 #[derive(Debug, Copy, Clone)]
