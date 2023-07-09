@@ -250,13 +250,10 @@ impl<'input> ProjectConfigs<'input> {
     fn new(
         r: IResult<&'input str, ProjectConfig<'input>, VerboseError<&'input str>>,
     ) -> Option<Self> {
-        r.map(|(_, pc)| {
-            Some(Self {
-                project_id: pc.id,
-                configs: vec![Conf::new(pc.configuration, pc.platform)],
-            })
+        r.ok().map(|(_, pc)| Self {
+            project_id: pc.id,
+            configs: vec![Conf::new(pc.configuration, pc.platform)],
         })
-        .unwrap_or(None)
     }
 
     fn parse_project_configuration_platform<'a, E>(
