@@ -231,6 +231,35 @@ mod tests {
     }
 
     #[test]
+    fn read_project_with_nugets_and_project_refs_test() {
+        // Arrange
+        let rdr = Cursor::new(PROJECT_WITH_PKG_AND_REF);
+
+        // Act
+        let p = Project::from_reader(rdr).unwrap();
+
+        // Assert
+        assert!(p.item_group.is_some());
+        assert_eq!(2, p.item_group.as_ref().unwrap().len());
+        assert_eq!(
+            6,
+            p.item_group.as_ref().unwrap()[0]
+                .package_reference
+                .as_ref()
+                .unwrap()
+                .len()
+        );
+        assert_eq!(
+            1,
+            p.item_group.as_ref().unwrap()[1]
+                .project_reference
+                .as_ref()
+                .unwrap()
+                .len()
+        );
+    }
+
+    #[test]
     fn sdk_project_default_project() {
         // Arrange
         let p = Project {
@@ -348,4 +377,35 @@ mod tests {
       <package id="Enums.NET" version="4.0.0" targetFramework="net48" />
       <package id="FluentValidation" version="9.5.2" targetFramework="net48" />
     </packages>"#;
+
+    const PROJECT_WITH_PKG_AND_REF: &str = r#"<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net5.0</TargetFramework>
+
+        <IsPackable>false</IsPackable>
+        <LangVersion>latest</LangVersion>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FluentAssertions" Version="5.10.3" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.8.3" />
+        <PackageReference Include="Moq" Version="4.15.2" />
+        <PackageReference Include="xunit" Version="2.4.1" />
+        <PackageReference Include="xunit.runner.visualstudio" Version="2.4.3">
+          <PrivateAssets>all</PrivateAssets>
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="coverlet.collector" Version="1.3.0">
+          <PrivateAssets>all</PrivateAssets>
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Hiring\Hiring.csproj" />
+    </ItemGroup>
+
+</Project>
+"#;
 }
