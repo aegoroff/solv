@@ -62,7 +62,7 @@ impl Consume for Validate {
                     .bold()
             );
             println!();
-            ux::print_one_column_table("Project ID", &danglings);
+            ux::print_one_column_table("Project ID", danglings.into_iter());
             no_problems = false;
         }
 
@@ -72,7 +72,7 @@ impl Consume for Validate {
                 "  Solution contains unexist projects:".dark_yellow().bold()
             );
             println!();
-            ux::print_one_column_table("Path", &not_found);
+            ux::print_one_column_table("Path", not_found.into_iter());
             no_problems = false;
         }
 

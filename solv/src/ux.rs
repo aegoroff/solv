@@ -1,5 +1,3 @@
-use std::collections::BTreeSet;
-
 use crossterm::style::{style, Color, Stylize};
 use prettytable::{
     format::{self, TableFormat},
@@ -20,8 +18,8 @@ pub fn new_format() -> TableFormat {
         .build()
 }
 
-pub fn print_one_column_table(head: &str, set: &BTreeSet<&str>) {
-    if set.is_empty() {
+pub fn print_one_column_table<'a, I: ExactSizeIterator<Item = &'a str>>(head: &str, rows: I) {
+    if rows.len() == 0 {
         return;
     }
     let mut table = Table::new();
@@ -30,7 +28,7 @@ pub fn print_one_column_table(head: &str, set: &BTreeSet<&str>) {
     table.set_format(fmt);
     table.set_titles(row![bF=> head]);
 
-    for item in set {
+    for item in rows {
         table.add_row(row![*item]);
     }
 

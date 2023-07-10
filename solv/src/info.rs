@@ -96,8 +96,8 @@ impl Consume for Info {
             .map(|c| c.platform)
             .collect::<BTreeSet<&str>>();
 
-        ux::print_one_column_table("Configuration", &configurations);
-        ux::print_one_column_table("Platform", &platforms);
+        ux::print_one_column_table("Configuration", configurations.into_iter());
+        ux::print_one_column_table("Platform", platforms.into_iter());
     }
 
     fn err(&self, path: &str) {
