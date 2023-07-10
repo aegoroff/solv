@@ -1,12 +1,13 @@
-use crossterm::style::{style, Color, Stylize};
+use crossterm::style::Stylize;
 use num_format::{Locale, ToFormattedString};
-use prettytable::format::TableFormat;
 use prettytable::{format, Table};
 use solp::ast::Solution;
 use solp::{msbuild, Consume};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::fmt::Display;
+
+use crate::ux;
 pub struct Info {
     total_projects: BTreeMap<String, i32>,
     projects_in_solutions: BTreeMap<String, i32>,
@@ -21,38 +22,6 @@ impl Info {
             projects_in_solutions: BTreeMap::new(),
             solutions: 0,
         }
-    }
-
-    #[must_use]
-    pub fn new_format() -> TableFormat {
-        format::FormatBuilder::new()
-            .column_separator(' ')
-            .borders(' ')
-            .separators(
-                &[format::LinePosition::Title],
-                format::LineSeparator::new('-', ' ', ' ', ' '),
-            )
-            .indent(3)
-            .padding(0, 0)
-            .build()
-    }
-
-    pub fn print_one_column_table(head: &str, set: &BTreeSet<&str>) {
-        if set.is_empty() {
-            return;
-        }
-        let mut table = Table::new();
-
-        let fmt = Info::new_format();
-        table.set_format(fmt);
-        table.set_titles(row![bF=> head]);
-
-        for item in set {
-            table.add_row(row![*item]);
-        }
-
-        table.printstd();
-        println!();
     }
 }
 
@@ -73,14 +42,7 @@ impl Consume for Info {
             *projects_by_type.entry(prj.type_descr).or_insert(0) += 1;
         }
 
-        let path = style(path)
-            .with(Color::Rgb {
-                r: 0xAA,
-                g: 0xAA,
-                b: 0xAA,
-            })
-            .bold();
-        println!(" {path}");
+        ux::print_solution_path(path);
 
         let mut table = Table::new();
 
@@ -106,7 +68,7 @@ impl Consume for Info {
 
         let mut table = Table::new();
 
-        let fmt = Info::new_format();
+        let fmt = ux::new_format();
         table.set_format(fmt);
         table.set_titles(row![bF=> "Project type", "Count"]);
 
@@ -134,8 +96,8 @@ impl Consume for Info {
             .map(|c| c.platform)
             .collect::<BTreeSet<&str>>();
 
-        Info::print_one_column_table("Configuration", &configurations);
-        Info::print_one_column_table("Platform", &platforms);
+        ux::print_one_column_table("Configuration", &configurations);
+        ux::print_one_column_table("Platform", &platforms);
     }
 
     fn err(&self, path: &str) {
@@ -150,7 +112,7 @@ impl Display for Info {
 
         let mut table = Table::new();
 
-        let fmt = Info::new_format();
+        let fmt = ux::new_format();
         table.set_format(fmt);
         table
             .set_titles(row![bF->"Project type", bF->"Count", cbF->"%", bF->"Solutions", cbF->"%"]);
@@ -174,7 +136,7 @@ impl Display for Info {
         writeln!(f)?;
 
         let mut table = Table::new();
-        let fmt = Info::new_format();
+        let fmt = ux::new_format();
         table.set_format(fmt);
         table.add_row(row![
             "Total solutions",

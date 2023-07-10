@@ -1,6 +1,5 @@
-use crate::info::Info;
-use crate::{Consume, MsbuildProject};
-use crossterm::style::{style, Color, Stylize};
+use crate::{ux, Consume, MsbuildProject};
+use crossterm::style::Stylize;
 use fnv::{FnvHashMap, FnvHashSet};
 use petgraph::algo::DfsSpace;
 use prettytable::Table;
@@ -40,14 +39,7 @@ impl Consume for Validate {
             || cycle_detected
             || !self.show_only_problems
         {
-            let path = style(path)
-                .with(Color::Rgb {
-                    r: 0xAA,
-                    g: 0xAA,
-                    b: 0xAA,
-                })
-                .bold();
-            println!(" {path}");
+            ux::print_solution_path(path);
         }
 
         let mut no_problems = true;
@@ -70,7 +62,7 @@ impl Consume for Validate {
                     .bold()
             );
             println!();
-            Info::print_one_column_table("Project ID", &danglings);
+            ux::print_one_column_table("Project ID", &danglings);
             no_problems = false;
         }
 
@@ -80,7 +72,7 @@ impl Consume for Validate {
                 "  Solution contains unexist projects:".dark_yellow().bold()
             );
             println!();
-            Info::print_one_column_table("Path", &not_found);
+            ux::print_one_column_table("Path", &not_found);
             no_problems = false;
         }
 
@@ -90,7 +82,7 @@ impl Consume for Validate {
 
             let mut table = Table::new();
 
-            let fmt = Info::new_format();
+            let fmt = ux::new_format();
             table.set_format(fmt);
             table.set_titles(row![bF=> "Project ID", "Configuration|Platform"]);
 

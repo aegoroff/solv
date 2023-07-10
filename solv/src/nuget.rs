@@ -3,13 +3,12 @@ use std::{
     fmt::{self, Display},
 };
 
-use crossterm::style::{style, Color, Stylize};
 use fnv::FnvHashMap;
 use itertools::{any, Itertools};
 use prettytable::Table;
 use solp::msbuild::PackagesConfig;
 
-use crate::{info::Info, Consume, MsbuildProject};
+use crate::{ux, Consume, MsbuildProject};
 
 pub struct Nuget {
     show_only_mismatched: bool,
@@ -46,18 +45,11 @@ impl Consume for Nuget {
 
         let mut table = Table::new();
 
-        let fmt = Info::new_format();
+        let fmt = ux::new_format();
         table.set_format(fmt);
         table.set_titles(row![bF=> "Package", "Version(s)"]);
 
-        let path = style(path)
-            .with(Color::Rgb {
-                r: 0xAA,
-                g: 0xAA,
-                b: 0xAA,
-            })
-            .bold();
-        println!(" {path}");
+        ux::print_solution_path(path);
 
         nugets
             .iter()

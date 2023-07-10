@@ -3,6 +3,7 @@
 pub mod info;
 pub mod nuget;
 pub mod validate;
+pub mod ux;
 
 use std::path::{Path, PathBuf};
 
