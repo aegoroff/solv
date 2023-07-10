@@ -29,7 +29,7 @@ pub fn print_one_column_table<'a, I: ExactSizeIterator<Item = &'a str>>(head: &s
     table.set_titles(row![bF=> head]);
 
     for item in rows {
-        table.add_row(row![*item]);
+        table.add_row(row![item]);
     }
 
     table.printstd();
