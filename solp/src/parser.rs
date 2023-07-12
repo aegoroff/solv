@@ -19,7 +19,15 @@ pub fn parse_str(contents: &str) -> Option<Solution> {
 
     let parser = crate::solp::SolutionParser::new();
     let lexer = crate::lex::Lexer::new(input);
-    parser.parse(input, lexer).ok().map(analyze)
+    match parser.parse(input, lexer) {
+        Ok(parsed) => Some(analyze(parsed)),
+        Err(e) => {
+            if cfg!(debug_assertions) {
+                println!("{e}");
+            }
+            None
+        }
+    }
 }
 
 macro_rules! section_content {
