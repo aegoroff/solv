@@ -30,6 +30,25 @@ scoop bucket add aegoroff https://github.com/aegoroff/scoop-bucket.git
 scoop install solv
 ```
 
+**AUR (Arch Linux User Repository)**:
+
+install binary package:
+```sh
+ yay -S solv-bin
+```
+or if yay reports that package not found force updating repo info
+```sh
+yay -Syyu solv-bin
+```
+install using cargo so builiding on target machine:
+```sh
+ yay -S solv
+```
+or if yay reports that package not found force updating repo info
+```sh
+yay -Syyu solv
+```
+
 **manually**:
 
 Download the pre-compiled binaries from the [releases](https://github.com/aegoroff/solv/releases) and
