@@ -35,7 +35,7 @@ pub trait Consume {
 /// `parse_file` parses single solution file specified by path.
 pub fn parse_file(path: &str, consumer: &mut dyn Consume) {
     match fs::read_to_string(path) {
-        Ok(contents) => match parse(&contents) {
+        Ok(contents) => match parse_str(&contents) {
             Some(solution) => consumer.ok(path, &solution),
             None => consumer.err(path),
         },
@@ -43,16 +43,16 @@ pub fn parse_file(path: &str, consumer: &mut dyn Consume) {
     }
 }
 
-/// parse parses solution content.
+/// `parse_str` parses solution content in memory
 #[must_use]
-pub fn parse(contents: &str) -> Option<Solution> {
+pub fn parse_str(contents: &str) -> Option<Solution> {
     parser::parse_str(contents)
 }
 
-/// scan parses directory specified by path. recursively
-/// it finds all files with sln extension and parses them.
+/// `parse_dir` parses directory specified by path. recursively
+/// it finds all files with extension specified and parses them.
 /// returns the number of scanned solutions
-pub fn scan(path: &str, extension: &str, consumer: &mut dyn Consume) -> usize {
+pub fn parse_dir(path: &str, extension: &str, consumer: &mut dyn Consume) -> usize {
     let parallelism = Parallelism::RayonNewPool(num_cpus::get_physical());
 
     let root = decorate_path(path);

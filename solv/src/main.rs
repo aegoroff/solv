@@ -54,7 +54,7 @@ fn scan_path<C: Consume + Display>(cmd: &ArgMatches, mut consumer: C) {
                 let now = Instant::now();
                 let empty = String::default();
                 let extension = cmd.get_one::<String>("ext").unwrap_or(&empty);
-                let scanned = solp::scan(path, extension, &mut consumer);
+                let scanned = solp::parse_dir(path, extension, &mut consumer);
 
                 print!("{consumer}");
 
