@@ -35,12 +35,18 @@ pub trait Consume {
 /// `parse_file` parses single solution file specified by path.
 pub fn parse_file(path: &str, consumer: &mut dyn Consume) {
     match fs::read_to_string(path) {
-        Ok(contents) => match parser::parse_str(&contents) {
+        Ok(contents) => match parse(&contents) {
             Some(solution) => consumer.ok(path, &solution),
             None => consumer.err(path),
         },
         Err(e) => eprintln!("{path} - {e}"),
     }
+}
+
+/// parse parses solution content.
+#[must_use]
+pub fn parse(contents: &str) -> Option<Solution> {
+    parser::parse_str(contents)
 }
 
 /// scan parses directory specified by path. recursively
