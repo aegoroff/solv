@@ -1,6 +1,11 @@
-use std::str::CharIndices;
+use std::{str::CharIndices, fmt::Display};
 
 pub type Spanned<Tok, Loc, Error> = Result<(Loc, Tok, Loc), Error>;
+
+#[derive(Copy, Clone, Debug)]
+pub enum LexicalError {
+    // Not possible
+}
 
 #[derive(Copy, Clone, Debug)]
 pub enum Tok<'input> {
@@ -16,6 +21,18 @@ pub enum Tok<'input> {
     Comma,
     Eq,
     Skip,
+}
+
+impl<'input> Display for Tok<'input> {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Ok(())
+    }
+}
+
+impl Display for LexicalError {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Ok(())
+    }
 }
 
 enum LexerContext {
@@ -82,7 +99,7 @@ impl<'input> Lexer<'input> {
         (Tok::OpenElement(&self.input[i..finish]), finish)
     }
 
-    fn comment(&mut self, i: usize) -> Option<Spanned<Tok<'input>, usize, ()>> {
+    fn comment(&mut self, i: usize) -> Option<Spanned<Tok<'input>, usize, LexicalError>> {
         loop {
             match self.chars.peek() {
                 Some((j, '\n' | '\r')) => {
@@ -119,7 +136,7 @@ impl<'input> Lexer<'input> {
         (i, Tok::Guid(&self.input[i..finish]), finish)
     }
 
-    fn digits_with_dots(&mut self, i: usize) -> Option<Spanned<Tok<'input>, usize, ()>> {
+    fn digits_with_dots(&mut self, i: usize) -> Option<Spanned<Tok<'input>, usize, LexicalError>> {
         loop {
             match self.chars.peek() {
                 Some((j, c)) => match *c {
@@ -139,7 +156,7 @@ impl<'input> Lexer<'input> {
         }
     }
 
-    fn string(&mut self, i: usize) -> Option<Spanned<Tok<'input>, usize, ()>> {
+    fn string(&mut self, i: usize) -> Option<Spanned<Tok<'input>, usize, LexicalError>> {
         match self.context {
             LexerContext::InsideString => {
                 self.context = LexerContext::None;
@@ -175,7 +192,7 @@ impl<'input> Lexer<'input> {
         }
     }
 
-    fn section_key(&mut self, i: usize) -> Option<Spanned<Tok<'input>, usize, ()>> {
+    fn section_key(&mut self, i: usize) -> Option<Spanned<Tok<'input>, usize, LexicalError>> {
         let mut start = i;
 
         while let Some((j, '\r' | '\n' | '\t' | ' ')) = self.chars.peek() {
@@ -221,7 +238,7 @@ impl<'input> Lexer<'input> {
         }
     }
 
-    fn section_value(&mut self, i: usize) -> Option<Spanned<Tok<'input>, usize, ()>> {
+    fn section_value(&mut self, i: usize) -> Option<Spanned<Tok<'input>, usize, LexicalError>> {
         match self.context {
             LexerContext::InsideSection => {
                 // i + 1 skips equal sign (=)
@@ -280,7 +297,7 @@ impl<'input> Lexer<'input> {
         it.take_while(|c| ' ' == *c || '\t' == *c).count()
     }
 
-    fn current(&mut self, i: usize, ch: char) -> Option<Spanned<Tok<'input>, usize, ()>> {
+    fn current(&mut self, i: usize, ch: char) -> Option<Spanned<Tok<'input>, usize, LexicalError>> {
         match ch {
             '\r' | '\n' => return self.section_key(i),
             '=' => return self.section_value(i),
@@ -301,7 +318,7 @@ impl<'input> Lexer<'input> {
 }
 
 impl<'input> Iterator for Lexer<'input> {
-    type Item = Spanned<Tok<'input>, usize, ()>;
+    type Item = Spanned<Tok<'input>, usize, LexicalError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {

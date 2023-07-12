@@ -1,6 +1,6 @@
 
 use crate::ast::{Expr};
-use crate::lex::{Tok};
+use crate::lex::{Tok, LexicalError};
 
 grammar<'input>(input: &'input str);
 
@@ -61,7 +61,7 @@ SectionValue: Expr<'input> = "section_value" => Expr::Str(<>);
 
 extern {
     type Location = usize;
-    type Error = ();
+    type Error = LexicalError;
 
     enum Tok<'input> {
         "comment" => Tok::Comment(<&'input str>),
