@@ -42,7 +42,15 @@ impl Consume for Nuget {
             }
         }
 
-        if self.show_only_mismatched && !any(&nugets, |(_, versions)| versions.len() > 1) {
+        let mismatch_fn = |versions: &BTreeSet<(Option<&String>, &String)>| -> bool {
+            versions
+                .iter()
+                .into_group_map_by(|x| x.0)
+                .iter()
+                .any(|(_, v)| v.len() > 1)
+        };
+
+        if self.show_only_mismatched && !any(&nugets, |(_, versions)| mismatch_fn(versions)) {
             return;
         }
 
@@ -59,11 +67,7 @@ impl Consume for Nuget {
             .filter(|(_, versions)| !self.show_only_mismatched || versions.len() > 1)
             .sorted_by(|(a, _), (b, _)| Ord::cmp(&a.to_lowercase(), &b.to_lowercase()))
             .for_each(|(pkg, versions)| {
-                let mismatch = versions
-                    .iter()
-                    .into_group_map_by(|x| x.0)
-                    .iter()
-                    .any(|(_, v)| v.len() > 1);
+                let mismatch = mismatch_fn(versions);
 
                 self.mismatches_found |= mismatch;
 
