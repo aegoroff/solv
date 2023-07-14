@@ -38,7 +38,7 @@ impl Consume for Nuget {
         for (k, v) in &nugets_from_packages_config {
             let versions = nugets.entry(k).or_insert(BTreeSet::new());
             for ver in v {
-                versions.insert(ver);
+                versions.insert((None, ver));
             }
         }
 
@@ -59,14 +59,31 @@ impl Consume for Nuget {
             .filter(|(_, versions)| !self.show_only_mismatched || versions.len() > 1)
             .sorted_by(|(a, _), (b, _)| Ord::cmp(&a.to_lowercase(), &b.to_lowercase()))
             .for_each(|(pkg, versions)| {
-                let mismatch = versions.len() > 1;
-                let versions = versions.iter().join(", ");
+                let mismatch = versions
+                    .iter()
+                    .into_group_map_by(|x| x.0)
+                    .iter()
+                    .any(|(_, v)| v.len() > 1);
+
                 self.mismatches_found |= mismatch;
-                if mismatch {
-                    table.add_row(row![pkg, iFr->versions]);
-                } else {
-                    table.add_row(row![pkg, iF->versions]);
-                }
+
+                versions
+                    .iter()
+                    .into_group_map_by(|x| x.0)
+                    .iter()
+                    .for_each(|(c, v)| {
+                        let comma_separated = v.iter().map(|(_, v)| v).join(", ");
+                        let line = if c.is_some() {
+                            format!("{comma_separated} if {}", c.as_ref().unwrap())
+                        } else {
+                            comma_separated
+                        };
+                        if mismatch {
+                            table.add_row(row![pkg, iFr->line]);
+                        } else {
+                            table.add_row(row![pkg, iF->line]);
+                        }
+                    });
             });
         table.printstd();
         println!();
@@ -94,17 +111,26 @@ impl Display for Nuget {
     }
 }
 
-fn nugets(projects: &FnvHashMap<String, MsbuildProject>) -> HashMap<&String, BTreeSet<&String>> {
+fn nugets(
+    projects: &FnvHashMap<String, MsbuildProject>,
+) -> HashMap<&String, BTreeSet<(Option<&String>, &String)>> {
     projects
         .iter()
         .filter_map(|(_, p)| p.project.as_ref())
         .filter_map(|p| p.item_group.as_ref())
         .flatten()
-        .filter_map(|ig| ig.package_reference.as_ref())
+        .filter_map(|ig| {
+            Some(
+                ig.package_reference
+                    .as_ref()?
+                    .iter()
+                    .map(|p| (ig.condition.as_ref(), p)),
+            )
+        })
         .flatten()
-        .into_grouping_map_by(|c| &c.name)
-        .fold(BTreeSet::new(), |mut acc, _key, val| {
-            acc.insert(&val.version);
+        .into_grouping_map_by(|(_, pack)| &pack.name)
+        .fold(BTreeSet::new(), |mut acc, _key, (cond, val)| {
+            acc.insert((cond, &val.version));
             acc
         })
 }
