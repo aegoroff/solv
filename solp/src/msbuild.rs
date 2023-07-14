@@ -35,6 +35,8 @@ pub struct ItemGroup {
     pub project_reference: Option<Vec<ProjectReference>>,
     #[serde(rename = "PackageReference", default)]
     pub package_reference: Option<Vec<PackageReference>>,
+    #[serde(rename = "Condition", default)]
+    pub condition: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
