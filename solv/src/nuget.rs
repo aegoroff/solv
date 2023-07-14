@@ -3,6 +3,7 @@ use std::{
     fmt::{self, Display},
 };
 
+use crossterm::style::Stylize;
 use fnv::FnvHashMap;
 use itertools::{any, Itertools};
 use prettytable::Table;
@@ -12,6 +13,7 @@ use crate::{ux, Consume, MsbuildProject};
 
 pub struct Nuget {
     show_only_mismatched: bool,
+    pub mismatches_found: bool,
 }
 
 impl Nuget {
@@ -19,6 +21,7 @@ impl Nuget {
     pub fn new(show_only_mismatched: bool) -> Self {
         Self {
             show_only_mismatched,
+            mismatches_found: false,
         }
     }
 }
@@ -58,6 +61,7 @@ impl Consume for Nuget {
             .for_each(|(pkg, versions)| {
                 let mismatch = versions.len() > 1;
                 let versions = versions.iter().join(", ");
+                self.mismatches_found |= mismatch;
                 if mismatch {
                     table.add_row(row![pkg, iFr->versions]);
                 } else {
@@ -74,7 +78,18 @@ impl Consume for Nuget {
 }
 
 impl Display for Nuget {
-    fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.mismatches_found && !self.show_only_mismatched {
+            writeln!(
+                f,
+                "{}",
+                " Solutions with nuget packages inconsistenty found"
+                    .dark_red()
+                    .bold()
+            )?;
+            writeln!(f)?;
+        }
+
         Ok(())
     }
 }

@@ -15,6 +15,8 @@ use std::{
 extern crate clap;
 
 const PATH: &str = "PATH";
+const EXT_DESCR: &str = "Visual Studio solution extension";
+const DEFAULT_SOLUTION_EXT: &str = "sln";
 
 fn main() {
     let app = build_cli();
@@ -32,29 +34,33 @@ fn main() {
 fn validate(cmd: &ArgMatches) {
     let only_problems = cmd.get_flag("problems");
 
-    let consumer = Validate::new(only_problems);
-    scan_path(cmd, consumer);
+    let mut consumer = Validate::new(only_problems);
+    scan_path(cmd, &mut consumer);
 }
 
 fn info(cmd: &ArgMatches) {
-    let consumer = Info::new();
-    scan_path(cmd, consumer);
+    let mut consumer = Info::new();
+    scan_path(cmd, &mut consumer);
 }
 
 fn nuget(cmd: &ArgMatches) {
     let only_mismatched = cmd.get_flag("mismatch");
-    let consumer = Nuget::new(only_mismatched);
-    scan_path(cmd, consumer);
+    let fail_if_mismatched = cmd.get_flag("fail");
+    let mut consumer = Nuget::new(only_mismatched);
+    scan_path(cmd, &mut consumer);
+    if consumer.mismatches_found && fail_if_mismatched {
+        std::process::exit(exitcode::SOFTWARE);
+    }
 }
 
-fn scan_path<C: Consume + Display>(cmd: &ArgMatches, mut consumer: C) {
+fn scan_path<C: Consume + Display>(cmd: &ArgMatches, consumer: &mut C) {
     if let Some(path) = cmd.get_one::<String>(PATH) {
         if let Ok(metadata) = fs::metadata(path) {
             if metadata.is_dir() {
                 let now = Instant::now();
                 let empty = String::default();
                 let extension = cmd.get_one::<String>("ext").unwrap_or(&empty);
-                let scanned = solp::parse_dir(path, extension, &mut consumer);
+                let scanned = solp::parse_dir(path, extension, consumer);
 
                 print!("{consumer}");
 
@@ -68,7 +74,7 @@ fn scan_path<C: Consume + Display>(cmd: &ArgMatches, mut consumer: C) {
                     humantime::format_duration(duration)
                 );
             } else {
-                solp::parse_file(path, &mut consumer);
+                solp::parse_file(path, consumer);
             }
         };
     }
@@ -100,8 +106,8 @@ fn build_cli() -> Command {
                 .arg(
                     arg!(-e --ext <EXTENSION>)
                         .required(false)
-                        .default_value("sln")
-                        .help("Visual Studio solution extension"),
+                        .default_value(DEFAULT_SOLUTION_EXT)
+                        .help(EXT_DESCR),
                 )
                 .arg(
                     arg!(-p --problems)
@@ -119,8 +125,8 @@ fn build_cli() -> Command {
                 .arg(
                     arg!(-e --ext <EXTENSION>)
                         .required(false)
-                        .default_value("sln")
-                        .help("Visual Studio solution extension"),
+                        .default_value(DEFAULT_SOLUTION_EXT)
+                        .help(EXT_DESCR),
                 )
                 .arg(
                     arg!([PATH])
@@ -135,8 +141,8 @@ fn build_cli() -> Command {
                 .arg(
                     arg!(-e --ext <EXTENSION>)
                         .required(false)
-                        .default_value("sln")
-                        .help("Visual Studio solution extension"),
+                        .default_value(DEFAULT_SOLUTION_EXT)
+                        .help(EXT_DESCR),
                 )
                 .arg(
                     arg!(-m --mismatch)
@@ -145,6 +151,12 @@ fn build_cli() -> Command {
                         .help(
                         "Find packages to consolidate i.e. packages with different versions in the same solution",
                     ),
+                )
+                .arg(
+                    arg!(-f --fail)
+                        .required(false)
+                        .action(ArgAction::SetTrue)
+                        .help("Return not zero exit code if nuget mismatches found"),
                 )
                 .arg(
                     arg!([PATH])
