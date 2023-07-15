@@ -14,20 +14,20 @@ workspace = ".."
 lalrpop = "0.20.0"
 
 [dependencies]
-lalrpop-util = "0.20.0"
-jwalk = "0.8.1"
-phf = { version = "0.11.1", features = ["macros"] }
-itertools = "0.11"
-petgraph = "0.6"
-num_cpus = "1.15.0"
-nom = "7"
-serde = { version = "1.0.171", features = ["derive"] }
-serde-xml-rs = "0.6.0"
-anyhow = "1.0.71"
+lalrpop-util = "=0.20.0"
+jwalk = "=0.8.1"
+phf = { version = "=0.11.2", features = ["macros"] }
+itertools = "=0.11.0"
+petgraph = "=0.6.3"
+num_cpus = "=1.16.0"
+nom = "=7.1.3"
+serde = { version = "=1.0.171", features = ["derive"] }
+serde-xml-rs = "=0.6.0"
+anyhow = "=1.0.71"
 
 [dev-dependencies]
-rstest = "0.18.1"
-proptest = "1.2.0"
+rstest = "=0.18.1"
+proptest = "=1.2.0"
 
 [package.metadata.generate-rpm]
 assets = [

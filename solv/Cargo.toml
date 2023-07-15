@@ -13,20 +13,20 @@ workspace = ".."
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-prettytable-rs = "0.10.0"
-crossterm = "0.26.1"
-humantime = "2.1"
-clap = { version = "4.3.11", features = ["std", "color", "suggestions", "cargo"] }
-clap_complete = "4.3.2"
-fnv = "1"
+prettytable-rs = "=0.10.0"
+crossterm = "=0.26.1"
+humantime = "=2.1.0"
+clap = { version = "=4.3.12", features = ["std", "color", "suggestions", "cargo"] }
+clap_complete = "=4.3.2"
+fnv = "=1.0.7"
 solp = { path = "../solp/", version = "0.8.2" }
-petgraph = "0.6"
-num-format = "0.4"
-itertools = "0.11"
-exitcode = "1.1.2"
+petgraph = "=0.6.3"
+num-format = "=0.4.4"
+itertools = "=0.11.0"
+exitcode = "=1.1.2"
 
 [dev-dependencies]
-rstest = "0.18.1"
+rstest = "=0.18.1"
 
 [package.metadata.deb]
 assets = [
