@@ -66,6 +66,7 @@ impl Consume for Nuget {
                     .iter()
                     .into_group_map_by(|x| x.0)
                     .iter()
+                    .sorted_by_key(|x| x.0)
                     .for_each(|(c, v)| {
                         mismatch = v.len() > 1;
                         let comma_separated = v.iter().map(|(_, v)| v).join(", ");
