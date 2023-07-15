@@ -149,7 +149,7 @@ fn build_cli() -> Command {
                         .required(false)
                         .action(ArgAction::SetTrue)
                         .help(
-                        "Find packages to consolidate i.e. packages with different versions in the same solution",
+                        "Show only mismatched packages if any. i.e. packages with different versions in the same solution",
                     ),
                 )
                 .arg(
