@@ -5,7 +5,7 @@ use std::{
 
 use crossterm::style::Stylize;
 use fnv::FnvHashMap;
-use itertools::{any, Itertools};
+use itertools::Itertools;
 use prettytable::Table;
 use solp::msbuild::PackagesConfig;
 
@@ -50,21 +50,16 @@ impl Consume for Nuget {
                 .any(|(_, v)| v.len() > 1)
         };
 
-        if self.show_only_mismatched && !any(&nugets, |(_, versions)| has_mismatches(versions)) {
-            return;
-        }
-
         let mut table = Table::new();
 
         let fmt = ux::new_format();
         table.set_format(fmt);
         table.set_titles(row![bF=> "Package", "Version(s)"]);
 
-        ux::print_solution_path(path);
-
+        let mut mismatch = false;
         nugets
             .iter()
-            .filter(|(_, versions)| !self.show_only_mismatched || versions.len() > 1)
+            .filter(|(_, versions)| !self.show_only_mismatched || has_mismatches(versions))
             .sorted_by(|(a, _), (b, _)| Ord::cmp(&a.to_lowercase(), &b.to_lowercase()))
             .for_each(|(pkg, versions)| {
                 versions
@@ -72,8 +67,7 @@ impl Consume for Nuget {
                     .into_group_map_by(|x| x.0)
                     .iter()
                     .for_each(|(c, v)| {
-                        let mismatch = v.len() > 1;
-                        self.mismatches_found |= mismatch;
+                        mismatch = v.len() > 1;
                         let comma_separated = v.iter().map(|(_, v)| v).join(", ");
                         let line = if c.is_some() {
                             format!("{comma_separated} if {}", c.as_ref().unwrap())
@@ -87,6 +81,13 @@ impl Consume for Nuget {
                         }
                     });
             });
+        self.mismatches_found |= mismatch;
+
+        if self.show_only_mismatched && !mismatch {
+            return;
+        }
+
+        ux::print_solution_path(path);
         table.printstd();
         println!();
     }
