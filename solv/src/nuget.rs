@@ -42,7 +42,7 @@ impl Consume for Nuget {
             }
         }
 
-        let mismatch_fn = |versions: &BTreeSet<(Option<&String>, &String)>| -> bool {
+        let has_mismatches = |versions: &BTreeSet<(Option<&String>, &String)>| -> bool {
             versions
                 .iter()
                 .into_group_map_by(|x| x.0)
@@ -50,7 +50,7 @@ impl Consume for Nuget {
                 .any(|(_, v)| v.len() > 1)
         };
 
-        if self.show_only_mismatched && !any(&nugets, |(_, versions)| mismatch_fn(versions)) {
+        if self.show_only_mismatched && !any(&nugets, |(_, versions)| has_mismatches(versions)) {
             return;
         }
 
@@ -67,15 +67,13 @@ impl Consume for Nuget {
             .filter(|(_, versions)| !self.show_only_mismatched || versions.len() > 1)
             .sorted_by(|(a, _), (b, _)| Ord::cmp(&a.to_lowercase(), &b.to_lowercase()))
             .for_each(|(pkg, versions)| {
-                let mismatch = mismatch_fn(versions);
-
-                self.mismatches_found |= mismatch;
-
                 versions
                     .iter()
                     .into_group_map_by(|x| x.0)
                     .iter()
                     .for_each(|(c, v)| {
+                        let mismatch = v.len() > 1;
+                        self.mismatches_found |= mismatch;
                         let comma_separated = v.iter().map(|(_, v)| v).join(", ");
                         let line = if c.is_some() {
                             format!("{comma_separated} if {}", c.as_ref().unwrap())
