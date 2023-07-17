@@ -156,3 +156,136 @@ fn nugets_from_projects_configs(
             acc
         })
 }
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use solp::msbuild::{ItemGroup, PackageReference, Project};
+
+    use super::*;
+
+    #[test]
+    fn nugets_no_mismatches() {
+        // arramge
+        let mut projects = FnvHashMap::<String, MsbuildProject>::default();
+        projects.insert(
+            "1".to_owned(),
+            MsbuildProject {
+                project: Some(Project {
+                    sdk: Some("5".to_owned()),
+                    item_group: Some(vec![ItemGroup {
+                        project_reference: None,
+                        package_reference: Some(vec![
+                            PackageReference {
+                                name: "a".to_string(),
+                                version: "1.0.0".to_string(),
+                            },
+                            PackageReference {
+                                name: "b".to_string(),
+                                version: "1.0.0".to_string(),
+                            },
+                        ]),
+                        condition: None,
+                    }]),
+                    imports: None,
+                }),
+                path: PathBuf::new(),
+            },
+        );
+        projects.insert(
+            "2".to_owned(),
+            MsbuildProject {
+                project: Some(Project {
+                    sdk: Some("5".to_owned()),
+                    item_group: Some(vec![ItemGroup {
+                        project_reference: None,
+                        package_reference: Some(vec![
+                            PackageReference {
+                                name: "c".to_string(),
+                                version: "1.0.0".to_string(),
+                            },
+                            PackageReference {
+                                name: "d".to_string(),
+                                version: "1.0.0".to_string(),
+                            },
+                        ]),
+                        condition: None,
+                    }]),
+                    imports: None,
+                }),
+                path: PathBuf::new(),
+            },
+        );
+
+        // act
+        let actual = nugets(&projects);
+
+        // assert
+        assert_eq!(4, actual.len());
+        let has_mismatches = actual.iter().any(|(_, v)| v.len() > 1);
+        assert!(!has_mismatches);
+    }
+
+    #[test]
+    fn nugets_has_mismatches() {
+        // arramge
+        let mut projects = FnvHashMap::<String, MsbuildProject>::default();
+        projects.insert(
+            "1".to_owned(),
+            MsbuildProject {
+                project: Some(Project {
+                    sdk: Some("5".to_owned()),
+                    item_group: Some(vec![ItemGroup {
+                        project_reference: None,
+                        package_reference: Some(vec![
+                            PackageReference {
+                                name: "a".to_string(),
+                                version: "1.0.0".to_string(),
+                            },
+                            PackageReference {
+                                name: "b".to_string(),
+                                version: "1.0.0".to_string(),
+                            },
+                        ]),
+                        condition: None,
+                    }]),
+                    imports: None,
+                }),
+                path: PathBuf::new(),
+            },
+        );
+        projects.insert(
+            "2".to_owned(),
+            MsbuildProject {
+                project: Some(Project {
+                    sdk: Some("5".to_owned()),
+                    item_group: Some(vec![ItemGroup {
+                        project_reference: None,
+                        package_reference: Some(vec![
+                            PackageReference {
+                                name: "c".to_string(),
+                                version: "1.0.0".to_string(),
+                            },
+                            PackageReference {
+                                name: "a".to_string(),
+                                version: "2.0.0".to_string(),
+                            },
+                        ]),
+                        condition: None,
+                    }]),
+                    imports: None,
+                }),
+                path: PathBuf::new(),
+            },
+        );
+
+        // act
+        let actual = nugets(&projects);
+
+        // assert
+        assert_eq!(3, actual.len());
+        let has_mismatches = actual.iter().any(|(_, v)| v.len() > 1);
+        assert!(has_mismatches);
+    }
+}
