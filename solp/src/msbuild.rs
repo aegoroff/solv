@@ -269,6 +269,21 @@ mod tests {
     }
 
     #[test]
+    fn read_project_real_vcxproj_test() {
+        // Arrange
+        let rdr = Cursor::new(VCXPROJ);
+
+        // Act
+        let p = Project::from_reader(rdr).unwrap();
+
+        // Assert
+        assert!(p.item_group.is_some());
+        assert!(p.imports.is_some());
+        assert_eq!(2, p.item_group.as_ref().unwrap().len());
+        assert_eq!(3, p.imports.as_ref().unwrap().len());
+    }
+
+    #[test]
     fn sdk_project_default_project() {
         // Arrange
         let p = Project {
@@ -421,4 +436,74 @@ mod tests {
 
 </Project>
 "#;
+
+    const VCXPROJ: &str = r#"<?xml version="1.0" encoding="utf-8"?>
+    <Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+      <ItemGroup Label="ProjectConfigurations">
+        <ProjectConfiguration Include="Debug-static|Win32">
+          <Configuration>Debug-static</Configuration>
+          <Platform>Win32</Platform>
+        </ProjectConfiguration>
+        <ProjectConfiguration Include="Release|x64">
+          <Configuration>Release</Configuration>
+          <Platform>x64</Platform>
+        </ProjectConfiguration>
+      </ItemGroup>
+      <ItemGroup>
+        <ClCompile Include="..\..\..\..\src\arena.c" />
+        <ClCompile Include="..\..\..\..\src\background_thread.c" />
+        <ClCompile Include="..\..\..\..\src\base.c" />
+        <ClCompile Include="..\..\..\..\src\bin.c" />
+      </ItemGroup>
+      <PropertyGroup Label="Globals">
+        <ProjectGuid>{8D6BB292-9E1C-413D-9F98-4864BDC1514A}</ProjectGuid>
+        <Keyword>Win32Proj</Keyword>
+        <RootNamespace>jemalloc</RootNamespace>
+        <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
+      </PropertyGroup>
+      <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+      <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+        <ConfigurationType>DynamicLibrary</ConfigurationType>
+        <UseDebugLibraries>false</UseDebugLibraries>
+        <PlatformToolset>v140</PlatformToolset>
+        <WholeProgramOptimization>true</WholeProgramOptimization>
+        <CharacterSet>MultiByte</CharacterSet>
+      </PropertyGroup>
+      <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+      <ImportGroup Label="ExtensionSettings">
+      </ImportGroup>
+      <ImportGroup Label="Shared">
+      </ImportGroup>
+      <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+        <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+      </ImportGroup>
+      <PropertyGroup Label="UserMacros" />
+      <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+        <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
+        <IntDir>$(Platform)\$(Configuration)\</IntDir>
+      </PropertyGroup>
+      <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+        <ClCompile>
+          <WarningLevel>Level3</WarningLevel>
+          <PrecompiledHeader>
+          </PrecompiledHeader>
+          <Optimization>MaxSpeed</Optimization>
+          <FunctionLevelLinking>true</FunctionLevelLinking>
+          <IntrinsicFunctions>true</IntrinsicFunctions>
+          <AdditionalIncludeDirectories>..\..\..\..\include;..\..\..\..\include\msvc_compat;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+          <PreprocessorDefinitions>JEMALLOC_NO_PRIVATE_NAMESPACE;_REENTRANT;_WINDLL;DLLEXPORT;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+          <DisableSpecificWarnings>4090;4146;4267;4334</DisableSpecificWarnings>
+          <ProgramDataBaseFileName>$(OutputPath)$(TargetName).pdb</ProgramDataBaseFileName>
+        </ClCompile>
+        <Link>
+          <SubSystem>Windows</SubSystem>
+          <GenerateDebugInformation>true</GenerateDebugInformation>
+          <EnableCOMDATFolding>true</EnableCOMDATFolding>
+          <OptimizeReferences>true</OptimizeReferences>
+        </Link>
+      </ItemDefinitionGroup>
+      <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+      <ImportGroup Label="ExtensionTargets">
+      </ImportGroup>
+    </Project>"#;
 }
