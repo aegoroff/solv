@@ -2,8 +2,8 @@
 #![allow(clippy::missing_errors_doc)]
 pub mod info;
 pub mod nuget;
-pub mod validate;
 pub mod ux;
+pub mod validate;
 
 use std::path::{Path, PathBuf};
 

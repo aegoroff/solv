@@ -328,6 +328,7 @@ mod tests {
                     condition,
                 }]),
                 imports: None,
+                import_group: None,
             }),
             path: PathBuf::new(),
         }

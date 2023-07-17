@@ -2,7 +2,6 @@ use anyhow::Result;
 use std::{fs::File, io::Read, path::Path};
 
 use serde::{Deserialize, Serialize};
-use serde_xml_rs::from_reader;
 
 #[must_use]
 pub fn is_solution_folder(id: &str) -> bool {
@@ -25,7 +24,10 @@ pub struct Project {
     #[serde(rename = "ItemGroup", default)]
     pub item_group: Option<Vec<ItemGroup>>,
 
-    #[serde(rename = "Import", default)]
+    #[serde(rename = "ImportGroup", default)]
+    pub import_group: Option<Vec<ImportGroup>>,
+
+    #[serde(rename = "Import")]
     pub imports: Option<Vec<Import>>,
 }
 
@@ -37,6 +39,12 @@ pub struct ItemGroup {
     pub package_reference: Option<Vec<PackageReference>>,
     #[serde(rename = "Condition", default)]
     pub condition: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ImportGroup {
+    #[serde(rename = "Import", default)]
+    pub imports: Option<Vec<Import>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -152,11 +160,6 @@ static PROJECT_TYPES: phf::Map<&'static str, &'static str> = phf::phf_map! {
     "{00D1A9C2-B5F0-4AF3-8072-F6C62B433612}" => "SQL Server Database",
 };
 
-pub fn read_packages_from_reader<R: Read>(reader: R) -> Result<Project> {
-    let project: Project = from_reader(reader)?;
-    Ok(project)
-}
-
 impl Project {
     pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Project> {
         let file = File::open(path)?;
@@ -164,7 +167,9 @@ impl Project {
     }
 
     pub fn from_reader<R: Read>(reader: R) -> Result<Project> {
-        let project: Project = from_reader(reader)?;
+        let mut de =
+            serde_xml_rs::Deserializer::new_from_reader(reader).non_contiguous_seq_elements(true);
+        let project: Project = Project::deserialize(&mut de)?;
         Ok(project)
     }
 
@@ -185,7 +190,9 @@ impl PackagesConfig {
     }
 
     pub fn from_reader<R: Read>(reader: R) -> Result<PackagesConfig> {
-        let config: PackagesConfig = from_reader(reader)?;
+        let mut de =
+            serde_xml_rs::Deserializer::new_from_reader(reader).non_contiguous_seq_elements(true);
+        let config: PackagesConfig = PackagesConfig::deserialize(&mut de)?;
         Ok(config)
     }
 }
@@ -268,6 +275,7 @@ mod tests {
             sdk: None,
             item_group: None,
             imports: None,
+            import_group: None,
         };
 
         // Act
@@ -284,6 +292,7 @@ mod tests {
             sdk: Some("1".to_owned()),
             item_group: None,
             imports: None,
+            import_group: None,
         };
 
         // Act
@@ -305,6 +314,7 @@ mod tests {
                 condition: None,
                 label: None,
             }]),
+            import_group: None,
         };
 
         // Act
@@ -326,6 +336,7 @@ mod tests {
                 condition: None,
                 label: None,
             }]),
+            import_group: None,
         };
 
         // Act
