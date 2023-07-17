@@ -26,6 +26,14 @@ impl Nuget {
     }
 }
 
+fn has_mismatches(versions: &BTreeSet<(Option<&String>, &String)>) -> bool {
+    versions
+        .iter()
+        .into_group_map_by(|x| x.0)
+        .iter()
+        .any(|(_, v)| v.len() > 1)
+}
+
 impl Consume for Nuget {
     fn ok(&mut self, path: &str, solution: &solp::ast::Solution) {
         let projects = crate::new_projects_paths_map(path, solution);
@@ -41,14 +49,6 @@ impl Consume for Nuget {
                 versions.insert((None, ver));
             }
         }
-
-        let has_mismatches = |versions: &BTreeSet<(Option<&String>, &String)>| -> bool {
-            versions
-                .iter()
-                .into_group_map_by(|x| x.0)
-                .iter()
-                .any(|(_, v)| v.len() > 1)
-        };
 
         let mut table = Table::new();
 
@@ -169,61 +169,35 @@ mod tests {
     fn nugets_no_mismatches() {
         // arramge
         let mut projects = FnvHashMap::<String, MsbuildProject>::default();
-        projects.insert(
-            "1".to_owned(),
-            MsbuildProject {
-                project: Some(Project {
-                    sdk: Some("5".to_owned()),
-                    item_group: Some(vec![ItemGroup {
-                        project_reference: None,
-                        package_reference: Some(vec![
-                            PackageReference {
-                                name: "a".to_string(),
-                                version: "1.0.0".to_string(),
-                            },
-                            PackageReference {
-                                name: "b".to_string(),
-                                version: "1.0.0".to_string(),
-                            },
-                        ]),
-                        condition: None,
-                    }]),
-                    imports: None,
-                }),
-                path: PathBuf::new(),
+        let packs1 = vec![
+            PackageReference {
+                name: "a".to_string(),
+                version: "1.0.0".to_string(),
             },
-        );
-        projects.insert(
-            "2".to_owned(),
-            MsbuildProject {
-                project: Some(Project {
-                    sdk: Some("5".to_owned()),
-                    item_group: Some(vec![ItemGroup {
-                        project_reference: None,
-                        package_reference: Some(vec![
-                            PackageReference {
-                                name: "c".to_string(),
-                                version: "1.0.0".to_string(),
-                            },
-                            PackageReference {
-                                name: "d".to_string(),
-                                version: "1.0.0".to_string(),
-                            },
-                        ]),
-                        condition: None,
-                    }]),
-                    imports: None,
-                }),
-                path: PathBuf::new(),
+            PackageReference {
+                name: "b".to_string(),
+                version: "1.0.0".to_string(),
             },
-        );
+        ];
+        let packs2 = vec![
+            PackageReference {
+                name: "c".to_string(),
+                version: "1.0.0".to_string(),
+            },
+            PackageReference {
+                name: "d".to_string(),
+                version: "1.0.0".to_string(),
+            },
+        ];
+        projects.insert("1".to_owned(), create_msbuild_project(packs1, None));
+        projects.insert("2".to_owned(), create_msbuild_project(packs2, None));
 
         // act
         let actual = nugets(&projects);
 
         // assert
         assert_eq!(4, actual.len());
-        let has_mismatches = actual.iter().any(|(_, v)| v.len() > 1);
+        let has_mismatches = actual.iter().any(|(_, v)| has_mismatches(v));
         assert!(!has_mismatches);
     }
 
@@ -231,53 +205,66 @@ mod tests {
     fn nugets_has_mismatches() {
         // arramge
         let mut projects = FnvHashMap::<String, MsbuildProject>::default();
-        projects.insert(
-            "1".to_owned(),
-            MsbuildProject {
-                project: Some(Project {
-                    sdk: Some("5".to_owned()),
-                    item_group: Some(vec![ItemGroup {
-                        project_reference: None,
-                        package_reference: Some(vec![
-                            PackageReference {
-                                name: "a".to_string(),
-                                version: "1.0.0".to_string(),
-                            },
-                            PackageReference {
-                                name: "b".to_string(),
-                                version: "1.0.0".to_string(),
-                            },
-                        ]),
-                        condition: None,
-                    }]),
-                    imports: None,
-                }),
-                path: PathBuf::new(),
+        let packs1 = vec![
+            PackageReference {
+                name: "a".to_string(),
+                version: "1.0.0".to_string(),
             },
-        );
+            PackageReference {
+                name: "b".to_string(),
+                version: "1.0.0".to_string(),
+            },
+        ];
+        let packs2 = vec![
+            PackageReference {
+                name: "c".to_string(),
+                version: "1.0.0".to_string(),
+            },
+            PackageReference {
+                name: "a".to_string(),
+                version: "2.0.0".to_string(),
+            },
+        ];
+        projects.insert("1".to_owned(), create_msbuild_project(packs1, None));
+        projects.insert("2".to_owned(), create_msbuild_project(packs2, None));
+
+        // act
+        let actual = nugets(&projects);
+
+        // assert
+        assert_eq!(3, actual.len());
+        let has_mismatches = actual.iter().any(|(_, v)| has_mismatches(v));
+        assert!(has_mismatches);
+    }
+
+    #[test]
+    fn nugets_no_mismatches_by_conditions() {
+        // arramge
+        let mut projects = FnvHashMap::<String, MsbuildProject>::default();
+        let packs1 = vec![
+            PackageReference {
+                name: "a".to_string(),
+                version: "1.0.0".to_string(),
+            },
+            PackageReference {
+                name: "b".to_string(),
+                version: "1.0.0".to_string(),
+            },
+        ];
+        let packs2 = vec![
+            PackageReference {
+                name: "c".to_string(),
+                version: "1.0.0".to_string(),
+            },
+            PackageReference {
+                name: "a".to_string(),
+                version: "2.0.0".to_string(),
+            },
+        ];
+        projects.insert("1".to_owned(), create_msbuild_project(packs1, None));
         projects.insert(
             "2".to_owned(),
-            MsbuildProject {
-                project: Some(Project {
-                    sdk: Some("5".to_owned()),
-                    item_group: Some(vec![ItemGroup {
-                        project_reference: None,
-                        package_reference: Some(vec![
-                            PackageReference {
-                                name: "c".to_string(),
-                                version: "1.0.0".to_string(),
-                            },
-                            PackageReference {
-                                name: "a".to_string(),
-                                version: "2.0.0".to_string(),
-                            },
-                        ]),
-                        condition: None,
-                    }]),
-                    imports: None,
-                }),
-                path: PathBuf::new(),
-            },
+            create_msbuild_project(packs2, Some("1".to_owned())),
         );
 
         // act
@@ -285,7 +272,25 @@ mod tests {
 
         // assert
         assert_eq!(3, actual.len());
-        let has_mismatches = actual.iter().any(|(_, v)| v.len() > 1);
-        assert!(has_mismatches);
+        let has_mismatches = actual.iter().any(|(_, v)| has_mismatches(v));
+        assert!(!has_mismatches);
+    }
+
+    fn create_msbuild_project(
+        packs: Vec<PackageReference>,
+        condition: Option<String>,
+    ) -> MsbuildProject {
+        MsbuildProject {
+            project: Some(Project {
+                sdk: Some("5".to_owned()),
+                item_group: Some(vec![ItemGroup {
+                    project_reference: None,
+                    package_reference: Some(packs),
+                    condition,
+                }]),
+                imports: None,
+            }),
+            path: PathBuf::new(),
+        }
     }
 }
