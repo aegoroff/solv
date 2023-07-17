@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::{fs::File, io::Read, path::Path};
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 #[must_use]
 pub fn is_solution_folder(id: &str) -> bool {
@@ -16,7 +16,7 @@ pub fn describe_project(id: &str) -> &str {
     PROJECT_TYPES.get(id).unwrap_or(&id)
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct Project {
     #[serde(rename = "Sdk", default)]
     pub sdk: Option<String>,
@@ -31,7 +31,7 @@ pub struct Project {
     pub imports: Option<Vec<Import>>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct ItemGroup {
     #[serde(rename = "ProjectReference", default)]
     pub project_reference: Option<Vec<ProjectReference>>,
@@ -41,19 +41,19 @@ pub struct ItemGroup {
     pub condition: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct ImportGroup {
     #[serde(rename = "Import", default)]
     pub imports: Option<Vec<Import>>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct ProjectReference {
     #[serde(rename = "Include", default)]
     pub include: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct PackageReference {
     #[serde(rename = "Include", default)]
     pub name: String,
@@ -61,20 +61,20 @@ pub struct PackageReference {
     pub version: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct PackagesConfig {
     #[serde(rename = "package", default)]
     pub packages: Vec<Package>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct Package {
     #[serde(rename = "id", default)]
     pub name: String,
     pub version: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct Import {
     #[serde(rename = "Project", default)]
     pub project: String,
