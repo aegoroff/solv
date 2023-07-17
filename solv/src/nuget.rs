@@ -202,6 +202,42 @@ mod tests {
     }
 
     #[test]
+    fn nugets_no_mismatches_same_pgk_in_different_projects() {
+        // arramge
+        let mut projects = FnvHashMap::<String, MsbuildProject>::default();
+        let packs1 = vec![
+            PackageReference {
+                name: "a".to_string(),
+                version: "1.0.0".to_string(),
+            },
+            PackageReference {
+                name: "b".to_string(),
+                version: "1.0.0".to_string(),
+            },
+        ];
+        let packs2 = vec![
+            PackageReference {
+                name: "c".to_string(),
+                version: "1.0.0".to_string(),
+            },
+            PackageReference {
+                name: "a".to_string(),
+                version: "1.0.0".to_string(),
+            },
+        ];
+        projects.insert("1".to_owned(), create_msbuild_project(packs1, None));
+        projects.insert("2".to_owned(), create_msbuild_project(packs2, None));
+
+        // act
+        let actual = nugets(&projects);
+
+        // assert
+        assert_eq!(3, actual.len());
+        let has_mismatches = actual.iter().any(|(_, v)| has_mismatches(v));
+        assert!(!has_mismatches);
+    }
+
+    #[test]
     fn nugets_has_mismatches() {
         // arramge
         let mut projects = FnvHashMap::<String, MsbuildProject>::default();
