@@ -57,7 +57,7 @@ impl Consume for Validate {
                     .bold()
             );
             println!();
-            ux::print_one_column_table("Project ID", danglings.iter().map(|s| s.as_str()));
+            ux::print_one_column_table("Project ID", danglings.iter().map(std::string::String::as_str));
         }
 
         if !(not_found.is_empty()) {
