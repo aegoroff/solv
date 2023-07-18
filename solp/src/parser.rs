@@ -193,6 +193,7 @@ mod tests {
         assert!(result.is_some());
         let solution = result.unwrap();
         assert_eq!(solution.projects.len(), 10);
+        assert_eq!(solution.iterate_projects().count(), 8); // solution folders excluded
         assert_eq!(solution.dependencies.node_count(), 10);
         assert_eq!(solution.dependencies.edge_count(), 4);
         assert_eq!(solution.format, "12.00");

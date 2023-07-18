@@ -1,19 +1,26 @@
 use std::{
     collections::{BTreeSet, HashMap},
     fmt::{self, Display},
+    path::PathBuf,
 };
 
 use crossterm::style::Stylize;
-use fnv::FnvHashMap;
 use itertools::Itertools;
 use prettytable::Table;
-use solp::msbuild::PackagesConfig;
+use solp::{
+    ast::Solution,
+    msbuild::{self, PackagesConfig, Project},
+};
 
-use crate::{ux, Consume, MsbuildProject};
+use crate::{ux, Consume};
 
 pub struct Nuget {
     show_only_mismatched: bool,
     pub mismatches_found: bool,
+}
+struct MsbuildProject {
+    pub project: Option<msbuild::Project>,
+    pub path: PathBuf,
 }
 
 impl Nuget {
@@ -26,6 +33,30 @@ impl Nuget {
     }
 }
 
+fn collect_msbuild_projects(path: &str, solution: &Solution) -> Vec<MsbuildProject> {
+    let dir = crate::parent_of(path);
+
+    solution
+        .iterate_projects()
+        .filter_map(|p| {
+            let project_path = crate::make_path(dir, p.path);
+            match Project::from_path(&project_path) {
+                Ok(project) => Some(MsbuildProject {
+                    path: project_path,
+                    project: Some(project),
+                }),
+                Err(e) => {
+                    if cfg!(debug_assertions) {
+                        let p = project_path.to_str().unwrap_or_default();
+                        println!("{p}: {e}");
+                    }
+                    None
+                }
+            }
+        })
+        .collect()
+}
+
 fn has_mismatches(versions: &BTreeSet<(Option<&String>, &String)>) -> bool {
     versions
         .iter()
@@ -36,7 +67,7 @@ fn has_mismatches(versions: &BTreeSet<(Option<&String>, &String)>) -> bool {
 
 impl Consume for Nuget {
     fn ok(&mut self, path: &str, solution: &solp::ast::Solution) {
-        let projects = crate::new_projects_paths_map(path, solution);
+        let projects = collect_msbuild_projects(path, solution);
 
         let mut nugets = nugets(&projects);
         let nugets_from_packages_config = nugets_from_projects_configs(&projects);
@@ -115,12 +146,10 @@ impl Display for Nuget {
     }
 }
 
-fn nugets(
-    projects: &FnvHashMap<String, MsbuildProject>,
-) -> HashMap<&String, BTreeSet<(Option<&String>, &String)>> {
+fn nugets(projects: &[MsbuildProject]) -> HashMap<&String, BTreeSet<(Option<&String>, &String)>> {
     projects
         .iter()
-        .filter_map(|(_, p)| p.project.as_ref())
+        .filter_map(|p| p.project.as_ref())
         .filter_map(|p| p.item_group.as_ref())
         .flatten()
         .filter_map(|ig| {
@@ -139,12 +168,10 @@ fn nugets(
         })
 }
 
-fn nugets_from_projects_configs(
-    projects: &FnvHashMap<String, MsbuildProject>,
-) -> HashMap<String, BTreeSet<String>> {
+fn nugets_from_projects_configs(projects: &[MsbuildProject]) -> HashMap<String, BTreeSet<String>> {
     projects
         .iter()
-        .filter_map(|(_, mp)| {
+        .filter_map(|mp| {
             let parent = mp.path.parent()?;
             let packages_config = parent.join("packages.config");
             PackagesConfig::from_path(packages_config).ok()
@@ -168,7 +195,7 @@ mod tests {
     #[test]
     fn nugets_no_mismatches() {
         // arramge
-        let mut projects = FnvHashMap::<String, MsbuildProject>::default();
+        let mut projects = vec![];
         let packs1 = vec![
             PackageReference {
                 name: "a".to_string(),
@@ -189,8 +216,8 @@ mod tests {
                 version: "1.0.0".to_string(),
             },
         ];
-        projects.insert("1".to_owned(), create_msbuild_project(packs1, None));
-        projects.insert("2".to_owned(), create_msbuild_project(packs2, None));
+        projects.push(create_msbuild_project(packs1, None));
+        projects.push(create_msbuild_project(packs2, None));
 
         // act
         let actual = nugets(&projects);
@@ -204,7 +231,7 @@ mod tests {
     #[test]
     fn nugets_no_mismatches_same_pgk_in_different_projects() {
         // arramge
-        let mut projects = FnvHashMap::<String, MsbuildProject>::default();
+        let mut projects = vec![];
         let packs1 = vec![
             PackageReference {
                 name: "a".to_string(),
@@ -225,8 +252,8 @@ mod tests {
                 version: "1.0.0".to_string(),
             },
         ];
-        projects.insert("1".to_owned(), create_msbuild_project(packs1, None));
-        projects.insert("2".to_owned(), create_msbuild_project(packs2, None));
+        projects.push(create_msbuild_project(packs1, None));
+        projects.push(create_msbuild_project(packs2, None));
 
         // act
         let actual = nugets(&projects);
@@ -240,7 +267,7 @@ mod tests {
     #[test]
     fn nugets_has_mismatches() {
         // arramge
-        let mut projects = FnvHashMap::<String, MsbuildProject>::default();
+        let mut projects = vec![];
         let packs1 = vec![
             PackageReference {
                 name: "a".to_string(),
@@ -261,8 +288,8 @@ mod tests {
                 version: "2.0.0".to_string(),
             },
         ];
-        projects.insert("1".to_owned(), create_msbuild_project(packs1, None));
-        projects.insert("2".to_owned(), create_msbuild_project(packs2, None));
+        projects.push(create_msbuild_project(packs1, None));
+        projects.push(create_msbuild_project(packs2, None));
 
         // act
         let actual = nugets(&projects);
@@ -276,7 +303,7 @@ mod tests {
     #[test]
     fn nugets_no_mismatches_by_conditions() {
         // arramge
-        let mut projects = FnvHashMap::<String, MsbuildProject>::default();
+        let mut projects = vec![];
         let packs1 = vec![
             PackageReference {
                 name: "a".to_string(),
@@ -297,11 +324,8 @@ mod tests {
                 version: "2.0.0".to_string(),
             },
         ];
-        projects.insert("1".to_owned(), create_msbuild_project(packs1, None));
-        projects.insert(
-            "2".to_owned(),
-            create_msbuild_project(packs2, Some("1".to_owned())),
-        );
+        projects.push(create_msbuild_project(packs1, None));
+        projects.push(create_msbuild_project(packs2, Some("1".to_owned())));
 
         // act
         let actual = nugets(&projects);

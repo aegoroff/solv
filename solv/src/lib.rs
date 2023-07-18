@@ -8,69 +8,30 @@ pub mod validate;
 use std::path::{Path, PathBuf};
 
 use crossterm::style::Stylize;
-use fnv::FnvHashMap;
-use solp::{
-    ast::Solution,
-    msbuild::{self, Project},
-    Consume,
-};
+use solp::Consume;
 
 #[macro_use]
 extern crate prettytable;
-
-pub struct MsbuildProject {
-    pub project: Option<msbuild::Project>,
-    pub path: PathBuf,
-}
 
 fn err(path: &str) {
     eprintln!("Error parsing {} solution", path.red());
 }
 
 #[must_use]
-pub fn new_projects_paths_map(
-    path: &str,
-    solution: &Solution,
-) -> FnvHashMap<String, MsbuildProject> {
-    let dir = Path::new(path).parent().unwrap_or_else(|| Path::new(""));
-
-    solution
-        .projects
-        .iter()
-        .filter_map(|p| {
-            if msbuild::is_solution_folder(p.type_id) {
-                None
-            } else {
-                let project_path = make_path(dir, p.path);
-                match Project::from_path(&project_path) {
-                    Ok(project) => Some((
-                        p.id.to_uppercase(),
-                        MsbuildProject {
-                            path: project_path,
-                            project: Some(project),
-                        },
-                    )),
-                    Err(e) => {
-                        if cfg!(debug_assertions) {
-                            let p = project_path.to_str().unwrap_or_default();
-                            println!("{p}: {e}");
-                        }
-                        None
-                    }
-                }
-            }
-        })
-        .collect()
+pub fn parent_of(path: &str) -> &Path {
+    Path::new(path).parent().unwrap_or_else(|| Path::new(""))
 }
 
+#[must_use]
 #[cfg(not(target_os = "windows"))]
-fn make_path(dir: &Path, relative: &str) -> PathBuf {
+pub fn make_path(dir: &Path, relative: &str) -> PathBuf {
     // Converts all possible Windows paths into Unix ones
     relative
         .split('\\')
         .fold(PathBuf::from(&dir), |pb, s| pb.join(s))
 }
 
+#[must_use]
 #[cfg(target_os = "windows")]
 fn make_path(dir: &Path, relative: &str) -> PathBuf {
     PathBuf::from(&dir).join(relative)
@@ -78,7 +39,7 @@ fn make_path(dir: &Path, relative: &str) -> PathBuf {
 
 #[cfg(test)]
 #[cfg(not(target_os = "windows"))]
-mod tests {
+pub mod tests {
     use super::*;
     use rstest::rstest;
 

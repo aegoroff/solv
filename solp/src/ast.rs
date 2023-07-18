@@ -104,6 +104,14 @@ pub struct Project<'input> {
     pub path: &'input str,
 }
 
+impl<'input> Solution<'input> {
+    pub fn iterate_projects(&'input self) -> impl Iterator<Item = &'input Project<'input>> {
+        self.projects
+            .iter()
+            .filter(|p| !msbuild::is_solution_folder(p.type_id))
+    }
+}
+
 impl<'input> Default for Solution<'input> {
     fn default() -> Self {
         Self {

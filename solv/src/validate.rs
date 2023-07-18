@@ -1,4 +1,4 @@
-use crate::{ux, Consume, MsbuildProject};
+use crate::{ux, Consume};
 use crossterm::style::Stylize;
 use fnv::{FnvHashMap, FnvHashSet};
 use petgraph::algo::DfsSpace;
@@ -7,6 +7,7 @@ use solp::ast::{Conf, Solution};
 use std::collections::BTreeSet;
 use std::fmt;
 use std::fmt::Display;
+use std::path::PathBuf;
 
 pub struct Validate {
     show_only_problems: bool,
@@ -19,9 +20,18 @@ impl Validate {
     }
 }
 
+#[must_use]
+fn make_projects_paths(path: &str, solution: &Solution) -> FnvHashMap<String, PathBuf> {
+    let dir = crate::parent_of(path);
+    solution
+        .iterate_projects()
+        .map(|p| (p.id.to_uppercase(), crate::make_path(dir, p.path)))
+        .collect()
+}
+
 impl Consume for Validate {
     fn ok(&mut self, path: &str, solution: &Solution) {
-        let projects = crate::new_projects_paths_map(path, solution);
+        let projects = make_projects_paths(path, solution);
 
         let not_found = search_not_found(&projects);
 
@@ -118,14 +128,14 @@ impl Display for Validate {
     }
 }
 
-fn search_not_found(projects: &FnvHashMap<String, MsbuildProject>) -> BTreeSet<&str> {
+fn search_not_found(projects: &FnvHashMap<String, PathBuf>) -> BTreeSet<&str> {
     projects
         .iter()
         .filter_map(|(_, p)| {
-            if p.path.canonicalize().is_ok() {
+            if p.canonicalize().is_ok() {
                 None
             } else {
-                p.path.as_path().to_str()
+                p.as_path().to_str()
             }
         })
         .collect()
@@ -133,7 +143,7 @@ fn search_not_found(projects: &FnvHashMap<String, MsbuildProject>) -> BTreeSet<&
 
 fn search_dangling_configs<'a>(
     solution: &'a Solution,
-    projects: &FnvHashMap<String, MsbuildProject>,
+    projects: &FnvHashMap<String, PathBuf>,
 ) -> BTreeSet<&'a str> {
     solution
         .project_configs
