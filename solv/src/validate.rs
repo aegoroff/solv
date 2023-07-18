@@ -61,7 +61,7 @@ impl Consume for Validate {
                     .bold()
             );
             println!();
-            ux::print_one_column_table("Project ID", danglings.into_iter());
+            ux::print_one_column_table("Project ID", danglings.iter().map(|s| s.as_str()));
             no_problems = false;
         }
 
@@ -136,7 +136,7 @@ fn search_not_found<'a>(path: &'a str, solution: &'a Solution) -> BTreeSet<PathB
         .collect()
 }
 
-fn search_dangling_configs<'a>(solution: &'a Solution) -> BTreeSet<&'a str> {
+fn search_dangling_configs(solution: &Solution) -> BTreeSet<String> {
     let project_ids: FnvHashSet<String> = solution
         .iterate_projects()
         .map(|p| p.id.to_uppercase())
@@ -145,13 +145,10 @@ fn search_dangling_configs<'a>(solution: &'a Solution) -> BTreeSet<&'a str> {
     solution
         .project_configs
         .iter()
-        .filter_map(|pc| {
-            if project_ids.contains(&pc.project_id.to_uppercase()) {
-                None
-            } else {
-                Some(pc.project_id)
-            }
-        })
+        .map(|p| p.project_id.to_uppercase())
+        .collect::<FnvHashSet<String>>()
+        .difference(&project_ids)
+        .cloned()
         .collect()
 }
 
