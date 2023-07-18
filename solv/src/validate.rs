@@ -32,16 +32,13 @@ impl Consume for Validate {
         let cycle_detected =
             petgraph::algo::toposort(&solution.dependencies, Some(&mut space)).is_err();
 
-        if !danglings.is_empty()
-            || !not_found.is_empty()
-            || !missings.is_empty()
-            || cycle_detected
-            || !self.show_only_problems
-        {
+        let no_problems =
+            danglings.is_empty() && not_found.is_empty() && missings.is_empty() && !cycle_detected;
+
+        if !no_problems || !self.show_only_problems {
             ux::print_solution_path(path);
         }
 
-        let mut no_problems = true;
         if cycle_detected {
             println!(
                 " {}",
@@ -50,7 +47,6 @@ impl Consume for Validate {
                     .bold()
             );
             println!();
-            no_problems = false;
         }
 
         if !(danglings.is_empty()) {
@@ -62,7 +58,6 @@ impl Consume for Validate {
             );
             println!();
             ux::print_one_column_table("Project ID", danglings.iter().map(|s| s.as_str()));
-            no_problems = false;
         }
 
         if !(not_found.is_empty()) {
@@ -76,7 +71,6 @@ impl Consume for Validate {
                 .filter_map(|p| p.as_path().to_str())
                 .collect();
             ux::print_one_column_table("Path", items.into_iter());
-            no_problems = false;
         }
 
         if !(missings.is_empty()) {
@@ -97,8 +91,6 @@ impl Consume for Validate {
 
             table.printstd();
             println!();
-
-            no_problems = false;
         }
 
         if !self.show_only_problems && no_problems {
