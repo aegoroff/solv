@@ -42,14 +42,22 @@ pub fn new_projects_paths_map(
                 None
             } else {
                 let project_path = make_path(dir, p.path);
-                let project = Project::from_path(&project_path).ok();
-                Some((
-                    p.id.to_uppercase(),
-                    MsbuildProject {
-                        path: project_path,
-                        project,
-                    },
-                ))
+                match Project::from_path(&project_path) {
+                    Ok(project) => Some((
+                        p.id.to_uppercase(),
+                        MsbuildProject {
+                            path: project_path,
+                            project: Some(project),
+                        },
+                    )),
+                    Err(e) => {
+                        if cfg!(debug_assertions) {
+                            let p = project_path.to_str().unwrap_or_default();
+                            println!("{p}: {e}");
+                        }
+                        None
+                    }
+                }
             }
         })
         .collect()
