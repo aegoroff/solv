@@ -1,6 +1,6 @@
 use crate::{ux, Consume};
 use crossterm::style::Stylize;
-use fnv::{FnvHashMap, FnvHashSet};
+use fnv::FnvHashSet;
 use petgraph::algo::DfsSpace;
 use prettytable::Table;
 use solp::ast::{Conf, Solution};
@@ -20,22 +20,11 @@ impl Validate {
     }
 }
 
-#[must_use]
-fn make_projects_paths(path: &str, solution: &Solution) -> FnvHashMap<String, PathBuf> {
-    let dir = crate::parent_of(path);
-    solution
-        .iterate_projects()
-        .map(|p| (p.id.to_uppercase(), crate::make_path(dir, p.path)))
-        .collect()
-}
-
 impl Consume for Validate {
     fn ok(&mut self, path: &str, solution: &Solution) {
-        let projects = make_projects_paths(path, solution);
+        let not_found = search_not_found(path, solution);
 
-        let not_found = search_not_found(&projects);
-
-        let danglings = search_dangling_configs(solution, &projects);
+        let danglings = search_dangling_configs(solution);
 
         let missings = search_missing(solution);
 
@@ -82,7 +71,11 @@ impl Consume for Validate {
                 "  Solution contains unexist projects:".dark_yellow().bold()
             );
             println!();
-            ux::print_one_column_table("Path", not_found.into_iter());
+            let items: Vec<&str> = not_found
+                .iter()
+                .filter_map(|p| p.as_path().to_str())
+                .collect();
+            ux::print_one_column_table("Path", items.into_iter());
             no_problems = false;
         }
 
@@ -128,28 +121,32 @@ impl Display for Validate {
     }
 }
 
-fn search_not_found(projects: &FnvHashMap<String, PathBuf>) -> BTreeSet<&str> {
-    projects
-        .iter()
-        .filter_map(|(_, p)| {
-            if p.canonicalize().is_ok() {
+fn search_not_found<'a>(path: &'a str, solution: &'a Solution) -> BTreeSet<PathBuf> {
+    let dir = crate::parent_of(path);
+    solution
+        .iterate_projects()
+        .filter_map(|p| {
+            let full_path = crate::make_path(dir, p.path);
+            if full_path.canonicalize().is_ok() {
                 None
             } else {
-                p.as_path().to_str()
+                Some(full_path)
             }
         })
         .collect()
 }
 
-fn search_dangling_configs<'a>(
-    solution: &'a Solution,
-    projects: &FnvHashMap<String, PathBuf>,
-) -> BTreeSet<&'a str> {
+fn search_dangling_configs<'a>(solution: &'a Solution) -> BTreeSet<&'a str> {
+    let project_ids: FnvHashSet<String> = solution
+        .iterate_projects()
+        .map(|p| p.id.to_uppercase())
+        .collect();
+
     solution
         .project_configs
         .iter()
         .filter_map(|pc| {
-            if projects.contains_key(&pc.project_id.to_uppercase()) {
+            if project_ids.contains(&pc.project_id.to_uppercase()) {
                 None
             } else {
                 Some(pc.project_id)
