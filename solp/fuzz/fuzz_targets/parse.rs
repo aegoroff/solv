@@ -2,5 +2,5 @@
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &str| {
-    let _ = solp::parse(data);
+    let _ = solp::parse_str(data);
 });
