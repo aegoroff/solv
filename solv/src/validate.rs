@@ -11,7 +11,8 @@ use std::fmt::Display;
 use std::path::PathBuf;
 
 trait Validator {
-    fn validate(&mut self) -> bool;
+    fn validate(&mut self);
+    fn correct(&self) -> bool;
     fn results(&self);
 }
 
@@ -36,14 +37,19 @@ impl Consume for Validate {
         ];
 
         let valid_solution = validators.iter_mut().fold(true, |mut res, validator| {
-            res &= validator.validate();
+            validator.validate();
+            res &= validator.correct();
             res
         });
 
-        if !valid_solution || !self.show_only_problems {
+        if !self.show_only_problems || !valid_solution {
             ux::print_solution_path(path);
         }
-        validators.iter().for_each(|v| v.results());
+        for v in &validators {
+            if !v.correct() {
+                v.results();
+            }
+        }
 
         if !self.show_only_problems && valid_solution {
             println!(
@@ -82,7 +88,7 @@ impl<'a> NotFouund<'a> {
 }
 
 impl<'a> Validator for NotFouund<'a> {
-    fn validate(&mut self) -> bool {
+    fn validate(&mut self) {
         let dir = crate::parent_of(self.path);
         self.bad_paths = self
             .solution
@@ -97,13 +103,9 @@ impl<'a> Validator for NotFouund<'a> {
                 }
             })
             .collect();
-        self.bad_paths.is_empty()
     }
 
     fn results(&self) {
-        if self.bad_paths.is_empty() {
-            return;
-        }
         println!(
             " {}",
             "  Solution contains unexist projects:".dark_yellow().bold()
@@ -115,6 +117,10 @@ impl<'a> Validator for NotFouund<'a> {
             .filter_map(|p| p.as_path().to_str())
             .collect();
         ux::print_one_column_table("Path", items.into_iter());
+    }
+
+    fn correct(&self) -> bool {
+        self.bad_paths.is_empty()
     }
 }
 
@@ -133,7 +139,7 @@ impl<'a> Danglings<'a> {
 }
 
 impl<'a> Validator for Danglings<'a> {
-    fn validate(&mut self) -> bool {
+    fn validate(&mut self) {
         let project_ids: FnvHashSet<String> = self
             .solution
             .iterate_projects()
@@ -149,13 +155,9 @@ impl<'a> Validator for Danglings<'a> {
             .difference(&project_ids)
             .cloned()
             .collect();
-        self.danglings.is_empty()
     }
 
     fn results(&self) {
-        if self.danglings.is_empty() {
-            return;
-        }
         println!(
             " {}",
             "  Solution contains dangling project configurations that can be safely removed:"
@@ -167,6 +169,10 @@ impl<'a> Validator for Danglings<'a> {
             "Project ID",
             self.danglings.iter().map(std::string::String::as_str),
         );
+    }
+
+    fn correct(&self) -> bool {
+        self.danglings.is_empty()
     }
 }
 
@@ -185,7 +191,7 @@ impl<'a> Missings<'a> {
 }
 
 impl<'a> Validator for Missings<'a> {
-    fn validate(&mut self) -> bool {
+    fn validate(&mut self) {
         let solution_platforms_configs = self
             .solution
             .solution_configs
@@ -212,14 +218,9 @@ impl<'a> Validator for Missings<'a> {
                 }
             })
             .collect();
-        self.missings.is_empty()
     }
 
     fn results(&self) {
-        if self.missings.is_empty() {
-            return;
-        }
-
         println!(" {}", "  Solution contains project configurations that are outside solution's configuration|platform list:".dark_yellow().bold());
         println!();
 
@@ -238,6 +239,10 @@ impl<'a> Validator for Missings<'a> {
         table.printstd();
         println!();
     }
+
+    fn correct(&self) -> bool {
+        self.missings.is_empty()
+    }
 }
 
 struct Cycles<'a> {
@@ -255,17 +260,13 @@ impl<'a> Cycles<'a> {
 }
 
 impl<'a> Validator for Cycles<'a> {
-    fn validate(&mut self) -> bool {
+    fn validate(&mut self) {
         let mut space = DfsSpace::new(&self.solution.dependencies);
         self.cycles_detected =
             petgraph::algo::toposort(&self.solution.dependencies, Some(&mut space)).is_err();
-        !self.cycles_detected
     }
 
     fn results(&self) {
-        if !self.cycles_detected {
-            return;
-        }
         println!(
             " {}",
             "  Solution contains project dependencies cycles"
@@ -273,5 +274,9 @@ impl<'a> Validator for Cycles<'a> {
                 .bold()
         );
         println!();
+    }
+
+    fn correct(&self) -> bool {
+        !self.cycles_detected
     }
 }
