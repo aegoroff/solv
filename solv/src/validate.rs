@@ -28,26 +28,24 @@ impl Validate {
 
 impl Consume for Validate {
     fn ok(&mut self, path: &str, solution: &Solution) {
-        let mut not_found_validator = NotFouund::new(path, solution);
-        let mut danglings_validator = Danglings::new(solution);
-        let mut missings_validator = Missings::new(solution);
-        let mut cycles_validator = Cycles::new(solution);
+        let mut validators: Vec<Box<dyn Validator>> = vec![
+            Box::new(Cycles::new(solution)),
+            Box::new(Danglings::new(solution)),
+            Box::new(NotFouund::new(path, solution)),
+            Box::new(Missings::new(solution)),
+        ];
 
-        let not_found_result = not_found_validator.validate();
-        let danglings_result = danglings_validator.validate();
-        let missings_result = missings_validator.validate();
-        let cycles_result = cycles_validator.validate();
-        let no_problems = danglings_result && not_found_result && missings_result && cycles_result;
+        let valid_solution = validators.iter_mut().fold(true, |mut res, validator| {
+            res &= validator.validate();
+            res
+        });
 
-        if !no_problems || !self.show_only_problems {
+        if !valid_solution || !self.show_only_problems {
             ux::print_solution_path(path);
         }
-        cycles_validator.results();
-        danglings_validator.results();
-        not_found_validator.results();
-        missings_validator.results();
+        validators.iter().for_each(|v| v.results());
 
-        if !self.show_only_problems && no_problems {
+        if !self.show_only_problems && valid_solution {
             println!(
                 " {}",
                 "  No problems found in solution.".dark_green().bold()
