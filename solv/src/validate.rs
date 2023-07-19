@@ -289,6 +289,42 @@ mod tests {
     use super::*;
 
     #[test]
+    fn integration_test_correct_solution() {
+        // Arrange
+        let solution = solp::parse_str(CORRECT_SOLUTION).unwrap();
+        let mut validator = Validate::new(false);
+
+        // Act
+        validator.ok("", &solution);
+
+        // Assert
+    }
+
+    #[test]
+    fn integration_test_solution_with_danglings() {
+        // Arrange
+        let solution = solp::parse_str(SOLUTION_WITH_DANGLINGS).unwrap();
+        let mut validator = Validate::new(false);
+
+        // Act
+        validator.ok("", &solution);
+
+        // Assert
+    }
+
+    #[test]
+    fn integration_test_solution_with_missings() {
+        // Arrange
+        let solution = solp::parse_str(SOLUTION_WITH_MISSING_PROJECT_CONFIGS).unwrap();
+        let mut validator = Validate::new(false);
+
+        // Act
+        validator.ok("", &solution);
+
+        // Assert
+    }
+
+    #[test]
     fn dangling_validation_correct() {
         // Arrange
         let solution = solp::parse_str(CORRECT_SOLUTION).unwrap();
@@ -337,7 +373,7 @@ mod tests {
         validator.validate();
 
         // Assert
-        assert!(validator.validation_result())
+        assert!(!validator.validation_result())
     }
 
     #[test]
@@ -541,8 +577,8 @@ EndGlobal
             {75E0C034-44C8-461B-A677-9A19566FE393}.Release|Mixed Platforms.Build.0 = Release|Any CPU
             {75E0C034-44C8-461B-A677-9A19566FE393}.Release|x86.ActiveCfg = Release|Any CPU
             {75E0C034-44C8-461B-A677-9A19566FE393}.Release|x86.Build.0 = Release|Any CPU
-            {75E0C034-44C8-461B-A677-9A19566FE393}.Release|x86.ActiveCfg = Release|Win32
-            {75E0C034-44C8-461B-A677-9A19566FE393}.Release|x86.Build.0 = Release|Win32
+            {75E0C034-44C8-461B-A677-9A19566FE393}.Release|Win32.ActiveCfg = Release|Win32
+            {75E0C034-44C8-461B-A677-9A19566FE393}.Release|Win32.Build.0 = Release|Win32
         EndGlobalSection
         GlobalSection(SolutionProperties) = preSolution
             HideSolutionNode = FALSE
