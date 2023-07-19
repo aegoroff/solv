@@ -1,4 +1,4 @@
-use std::{str::CharIndices, fmt::Display};
+use std::{fmt::Display, str::CharIndices};
 
 pub type Spanned<Tok, Loc, Error> = Result<(Loc, Tok, Loc), Error>;
 
@@ -167,22 +167,16 @@ impl<'input> Lexer<'input> {
             }
         }
 
-        let mut guid = false;
         loop {
             match self.chars.peek() {
                 // Guid start
                 Some((_, '{')) => {
-                    guid = true;
-                    self.chars.next();
+                    return Some(Ok(self.guid(i + 1)));
                 }
                 Some((j, '"')) => {
                     let start = i + 1;
                     let val = &self.input[start..*j];
-                    return if guid {
-                        Some(Ok((start, Tok::Guid(val), *j - 1)))
-                    } else {
-                        Some(Ok((start, Tok::Str(val), *j)))
-                    };
+                    return Some(Ok((start, Tok::Str(val), *j)));
                 }
                 None => return Some(Ok((i, Tok::Str(&self.input[i..]), self.input.len()))),
                 _ => {
