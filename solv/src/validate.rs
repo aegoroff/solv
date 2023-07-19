@@ -11,9 +11,12 @@ use std::fmt::Display;
 use std::path::PathBuf;
 
 trait Validator {
+    /// does validation
     fn validate(&mut self);
-    fn correct(&self) -> bool;
-    fn results(&self);
+    /// will return true if validation succeeded false otherwise
+    fn validation_result(&self) -> bool;
+    /// prints validation results if any
+    fn print_results(&self);
 }
 
 pub struct Validate {
@@ -38,7 +41,7 @@ impl Consume for Validate {
 
         let valid_solution = validators.iter_mut().fold(true, |mut res, validator| {
             validator.validate();
-            res &= validator.correct();
+            res &= validator.validation_result();
             res
         });
 
@@ -46,8 +49,8 @@ impl Consume for Validate {
             ux::print_solution_path(path);
         }
         for v in &validators {
-            if !v.correct() {
-                v.results();
+            if !v.validation_result() {
+                v.print_results();
             }
         }
 
@@ -105,7 +108,7 @@ impl<'a> Validator for NotFouund<'a> {
             .collect();
     }
 
-    fn results(&self) {
+    fn print_results(&self) {
         println!(
             " {}",
             "  Solution contains unexist projects:".dark_yellow().bold()
@@ -119,7 +122,7 @@ impl<'a> Validator for NotFouund<'a> {
         ux::print_one_column_table("Path", items.into_iter());
     }
 
-    fn correct(&self) -> bool {
+    fn validation_result(&self) -> bool {
         self.bad_paths.is_empty()
     }
 }
@@ -157,7 +160,7 @@ impl<'a> Validator for Danglings<'a> {
             .collect();
     }
 
-    fn results(&self) {
+    fn print_results(&self) {
         println!(
             " {}",
             "  Solution contains dangling project configurations that can be safely removed:"
@@ -171,7 +174,7 @@ impl<'a> Validator for Danglings<'a> {
         );
     }
 
-    fn correct(&self) -> bool {
+    fn validation_result(&self) -> bool {
         self.danglings.is_empty()
     }
 }
@@ -220,7 +223,7 @@ impl<'a> Validator for Missings<'a> {
             .collect();
     }
 
-    fn results(&self) {
+    fn print_results(&self) {
         println!(" {}", "  Solution contains project configurations that are outside solution's configuration|platform list:".dark_yellow().bold());
         println!();
 
@@ -240,7 +243,7 @@ impl<'a> Validator for Missings<'a> {
         println!();
     }
 
-    fn correct(&self) -> bool {
+    fn validation_result(&self) -> bool {
         self.missings.is_empty()
     }
 }
@@ -266,7 +269,7 @@ impl<'a> Validator for Cycles<'a> {
             petgraph::algo::toposort(&self.solution.dependencies, Some(&mut space)).is_err();
     }
 
-    fn results(&self) {
+    fn print_results(&self) {
         println!(
             " {}",
             "  Solution contains project dependencies cycles"
@@ -276,7 +279,7 @@ impl<'a> Validator for Cycles<'a> {
         println!();
     }
 
-    fn correct(&self) -> bool {
+    fn validation_result(&self) -> bool {
         !self.cycles_detected
     }
 }
