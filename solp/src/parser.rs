@@ -264,6 +264,18 @@ mod tests {
     }
 
     #[test]
+    fn parse_str_apr_generated_solution_with_leading_whitespaces() {
+        // Arrange
+        let solution = format!("   \t{APR_SOLUTION}");
+
+        // Act
+        let sln = parse_str(&solution);
+
+        // Assert
+        assert!(sln.is_some());
+    }
+
+    #[test]
     fn lex_apr_generated_solution() {
         let lexer = Lexer::new(APR_SOLUTION);
         for tok in lexer {

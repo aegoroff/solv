@@ -317,16 +317,15 @@ impl<'input> Iterator for Lexer<'input> {
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             let (i, c) = self.chars.next()?;
-
+            // move lexer to the first not space
             if let ' ' | '\t' = c {
                 continue;
             }
 
             let tok = self.current(i, c)?;
 
-            match tok {
-                Ok(_x @ (_, Tok::Skip, _)) => continue,
-                Ok(_) | Err(_) => {}
+            if let Ok(_x @ (_, Tok::Skip, _)) = tok {
+                continue;
             }
 
             return Some(tok);
@@ -533,5 +532,5 @@ Global
 		HideSolutionNode = FALSE
 	EndGlobalSection
 EndGlobal
-         "#;
+"#;
 }
