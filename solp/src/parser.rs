@@ -88,18 +88,21 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
 
                 sol.solution_configs.extend(configs_and_platforms);
 
-                let project_configs_platforms = sections
+                let project_config_platform_grp = sections
                     .iter()
                     .filter_map(|sect| section_content!(sect, "ProjectConfigurationPlatforms"))
                     .flatten()
                     .filter_map(ProjectConfigs::from_section_content_key)
-                    .group_by(|x| x.project_id)
-                    .into_iter()
-                    .map(|(pid, project_configs)| {
-                        let c = project_configs.flat_map(|c| c.configs).collect();
-                        ProjectConfigs::from_id_and_configs(pid, c)
-                    })
-                    .collect_vec();
+                    .group_by(|x| x.project_id);
+
+                let project_configs_platforms =
+                    project_config_platform_grp
+                        .into_iter()
+                        .map(|(pid, project_configs)| {
+                            let c = project_configs.flat_map(|c| c.configs).collect();
+                            ProjectConfigs::from_id_and_configs(pid, c)
+                        });
+                sol.project_configs.extend(project_configs_platforms);
 
                 let project_configs = sections
                     .iter()
@@ -130,7 +133,6 @@ fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'inp
                     .filter(|c| solution_configurations.contains(c.config));
                 sol.solution_configs.extend(from_project_configurations);
 
-                sol.project_configs.extend(project_configs_platforms);
                 sol.project_configs.extend(project_configs);
             }
             Expr::Comment(s) => {
