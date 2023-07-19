@@ -8,6 +8,11 @@ pub fn is_solution_folder(id: &str) -> bool {
     id == ID_SOLUTION_FOLDER
 }
 
+#[must_use]
+pub fn is_web_site_project(id: &str) -> bool {
+    id == ID_WEB_SITE_PROJECT
+}
+
 /// Describes project by id.
 /// Returns human readable description
 /// or id itself if it's not match any
@@ -87,6 +92,7 @@ pub struct Import {
 }
 
 const ID_SOLUTION_FOLDER: &str = "{2150E333-8FDC-42A3-9474-1A3956D46DE8}";
+const ID_WEB_SITE_PROJECT: &str = "{E24C65DC-7377-472B-9ABA-BC803B73C61A}";
 
 static PROJECT_TYPES: phf::Map<&'static str, &'static str> = phf::phf_map! {
     "{CC5FD16D-436D-48AD-A40C-5A424C6E3E79}" => "Azure Project",

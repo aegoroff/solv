@@ -4,6 +4,7 @@ use fnv::FnvHashSet;
 use petgraph::algo::DfsSpace;
 use prettytable::Table;
 use solp::ast::{Conf, Solution};
+use solp::msbuild;
 use std::collections::BTreeSet;
 use std::fmt;
 use std::fmt::Display;
@@ -36,8 +37,7 @@ impl Consume for Validate {
         let danglings_result = danglings_validator.validate();
         let missings_result = missings_validator.validate();
         let cycles_result = cycles_validator.validate();
-        let no_problems =
-            danglings_result && not_found_result && missings_result && cycles_result;
+        let no_problems = danglings_result && not_found_result && missings_result && cycles_result;
 
         if !no_problems || !self.show_only_problems {
             ux::print_solution_path(path);
@@ -89,6 +89,7 @@ impl<'a> Validator for NotFouund<'a> {
         self.bad_paths = self
             .solution
             .iterate_projects()
+            .filter(|p| !msbuild::is_web_site_project(p.type_id))
             .filter_map(|p| {
                 let full_path = crate::make_path(dir, p.path);
                 if full_path.canonicalize().is_ok() {
