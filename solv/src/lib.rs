@@ -1,5 +1,6 @@
 #![warn(unused_extern_crates)]
 #![allow(clippy::missing_errors_doc)]
+pub mod error;
 pub mod info;
 pub mod nuget;
 pub mod ux;
@@ -7,15 +8,10 @@ pub mod validate;
 
 use std::path::{Path, PathBuf};
 
-use crossterm::style::Stylize;
 use solp::Consume;
 
 #[macro_use]
 extern crate prettytable;
-
-fn err(path: &str) {
-    eprintln!("Error parsing {} solution", path.red());
-}
 
 #[must_use]
 pub fn parent_of(path: &str) -> &Path {

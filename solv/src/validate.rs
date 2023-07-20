@@ -1,3 +1,4 @@
+use crate::error::Collector;
 use crate::{ux, Consume};
 use crossterm::style::Stylize;
 use fnv::FnvHashSet;
@@ -21,12 +22,16 @@ trait Validator {
 
 pub struct Validate {
     show_only_problems: bool,
+    errors: Collector,
 }
 
 impl Validate {
     #[must_use]
     pub fn new(show_only_problems: bool) -> Self {
-        Self { show_only_problems }
+        Self {
+            show_only_problems,
+            errors: Collector::new(),
+        }
     }
 }
 
@@ -63,14 +68,14 @@ impl Consume for Validate {
         }
     }
 
-    fn err(&self, path: &str) {
-        crate::err(path);
+    fn err(&mut self, path: &str) {
+        self.errors.add_path(path);
     }
 }
 
 impl Display for Validate {
-    fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
-        Ok(())
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.errors)
     }
 }
 

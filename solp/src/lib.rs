@@ -29,7 +29,7 @@ pub trait Consume {
     /// Called in case of success parsing
     fn ok(&mut self, path: &str, solution: &Solution);
     /// Called on error
-    fn err(&self, path: &str);
+    fn err(&mut self, path: &str);
 }
 
 /// `parse_file` parses single solution file specified by path.

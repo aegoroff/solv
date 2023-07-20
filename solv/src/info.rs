@@ -7,11 +7,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::fmt::Display;
 
+use crate::error::Collector;
 use crate::ux;
 pub struct Info {
     total_projects: BTreeMap<String, i32>,
     projects_in_solutions: BTreeMap<String, i32>,
     solutions: i32,
+    errors: Collector,
 }
 
 impl Info {
@@ -21,6 +23,7 @@ impl Info {
             total_projects: BTreeMap::new(),
             projects_in_solutions: BTreeMap::new(),
             solutions: 0,
+            errors: Collector::new(),
         }
     }
 }
@@ -100,8 +103,8 @@ impl Consume for Info {
         ux::print_one_column_table("Platform", platforms.into_iter());
     }
 
-    fn err(&self, path: &str) {
-        crate::err(path);
+    fn err(&mut self, path: &str) {
+        self.errors.add_path(path);
     }
 }
 
@@ -147,7 +150,8 @@ impl Display for Info {
             i->projects.to_formatted_string(&Locale::en),
         ]);
         table.printstd();
+        writeln!(f)?;
 
-        writeln!(f)
+        write!(f, "{}", self.errors)
     }
 }

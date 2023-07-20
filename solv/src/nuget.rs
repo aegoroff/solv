@@ -12,11 +12,12 @@ use solp::{
     msbuild::{self, PackagesConfig, Project},
 };
 
-use crate::{ux, Consume};
+use crate::{error::Collector, ux, Consume};
 
 pub struct Nuget {
     show_only_mismatched: bool,
     pub mismatches_found: bool,
+    errors: Collector,
 }
 struct MsbuildProject {
     pub project: Option<msbuild::Project>,
@@ -29,6 +30,7 @@ impl Nuget {
         Self {
             show_only_mismatched,
             mismatches_found: false,
+            errors: Collector::new(),
         }
     }
 }
@@ -124,8 +126,8 @@ impl Consume for Nuget {
         println!();
     }
 
-    fn err(&self, path: &str) {
-        crate::err(path);
+    fn err(&mut self, path: &str) {
+        self.errors.add_path(path);
     }
 }
 
@@ -141,8 +143,7 @@ impl Display for Nuget {
             )?;
             writeln!(f)?;
         }
-
-        Ok(())
+        write!(f, "{}", self.errors)
     }
 }
 
