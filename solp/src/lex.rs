@@ -296,7 +296,7 @@ impl<'input> Lexer<'input> {
             '\r' | '\n' => return self.section_key(i),
             '=' => return self.section_value(i),
             ',' => return Some(Ok((i, Tok::Comma, i + 1))),
-            ')' => return Some(Ok((i, Tok::Skip, i + 1))),
+            ')' | ' ' | '\t' => return Some(Ok((i, Tok::Skip, i + 1))),
             '0'..='9' => return self.digits_with_dots(i),
             '{' => return Some(Ok(self.guid(i))),
             '"' => return self.string(i),
@@ -317,11 +317,6 @@ impl<'input> Iterator for Lexer<'input> {
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             let (i, c) = self.chars.next()?;
-            // move lexer to the first not space
-            if let ' ' | '\t' = c {
-                continue;
-            }
-
             let tok = self.current(i, c)?;
 
             if let Ok(_x @ (_, Tok::Skip, _)) = tok {
