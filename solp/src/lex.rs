@@ -116,12 +116,13 @@ impl<'input> Lexer<'input> {
     }
 
     fn guid(&mut self, i: usize) -> (usize, Tok<'input>, usize) {
-        let finish;
         loop {
             match self.chars.peek() {
                 Some((j, '}')) => {
-                    finish = *j + 1;
-                    break;
+                    // include } so increment j and advance chars
+                    let finish = *j + 1;
+                    self.chars.next();
+                    return (i, Tok::Guid(&self.input[i..finish]), finish);
                 }
                 None => {
                     return (i, Tok::Guid(&self.input[i..]), self.input.len());
@@ -131,9 +132,6 @@ impl<'input> Lexer<'input> {
                 }
             }
         }
-        // Skip {
-        self.chars.next();
-        (i, Tok::Guid(&self.input[i..finish]), finish)
     }
 
     fn digits_with_dots(&mut self, i: usize) -> Option<Spanned<Tok<'input>, usize, LexicalError>> {
@@ -293,21 +291,20 @@ impl<'input> Lexer<'input> {
 
     fn current(&mut self, i: usize, ch: char) -> Option<Spanned<Tok<'input>, usize, LexicalError>> {
         match ch {
-            '\r' | '\n' => return self.section_key(i),
-            '=' => return self.section_value(i),
-            ',' => return Some(Ok((i, Tok::Comma, i + 1))),
-            ')' | ' ' | '\t' => return Some(Ok((i, Tok::Skip, i + 1))),
-            '0'..='9' => return self.digits_with_dots(i),
-            '{' => return Some(Ok(self.guid(i))),
-            '"' => return self.string(i),
-            '#' => return self.comment(i),
+            '\r' | '\n' => self.section_key(i),
+            '=' => self.section_value(i),
+            ',' => Some(Ok((i, Tok::Comma, i + 1))),
+            ')' | ' ' | '\t' => Some(Ok((i, Tok::Skip, i + 1))),
+            '0'..='9' => self.digits_with_dots(i),
+            '{' => Some(Ok(self.guid(i))),
+            '"' => self.string(i),
+            '#' => self.comment(i),
             'a'..='z' | 'A'..='Z' => {
                 let (tok, loc) = self.identifier(i);
-                return Some(Ok((i, tok, loc)));
+                Some(Ok((i, tok, loc)))
             }
-            _ => {}
+            _ => None,
         }
-        None
     }
 }
 
