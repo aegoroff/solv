@@ -1,7 +1,8 @@
 use std::{
+    cell::RefCell,
     collections::{BTreeSet, HashMap},
     fmt::{self, Display},
-    path::PathBuf, cell::RefCell,
+    path::PathBuf,
 };
 
 use crossterm::style::Stylize;
@@ -72,15 +73,18 @@ impl Consume for Nuget {
         let projects = collect_msbuild_projects(path, solution);
 
         let mut nugets = nugets(&projects);
-        let nugets_from_packages_config = nugets_from_projects_configs(&projects);
-        if nugets.is_empty() && nugets_from_packages_config.is_empty() {
-            return;
-        }
+        let nugets_from_packages_config = nugets_from_packages_configs(&projects);
+
+        // merging packages from packages.config if any
         for (k, v) in &nugets_from_packages_config {
             let versions = nugets.entry(k).or_insert(BTreeSet::new());
             for ver in v {
                 versions.insert((None, ver));
             }
+        }
+
+        if nugets.is_empty() {
+            return;
         }
 
         let mut table = Table::new();
@@ -147,6 +151,10 @@ impl Display for Nuget {
     }
 }
 
+/// returns hashmap where<br/>
+/// key - package name<br/>
+/// value - (condition, version) tuples set<br/>
+/// condition is optional
 fn nugets(projects: &[MsbuildProject]) -> HashMap<&String, BTreeSet<(Option<&String>, &String)>> {
     projects
         .iter()
@@ -169,7 +177,7 @@ fn nugets(projects: &[MsbuildProject]) -> HashMap<&String, BTreeSet<(Option<&Str
         })
 }
 
-fn nugets_from_projects_configs(projects: &[MsbuildProject]) -> HashMap<String, BTreeSet<String>> {
+fn nugets_from_packages_configs(projects: &[MsbuildProject]) -> HashMap<String, BTreeSet<String>> {
     projects
         .iter()
         .filter_map(|mp| {
