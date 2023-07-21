@@ -77,10 +77,10 @@ impl Consume for Nuget {
 
         // merging packages from packages.config if any
         for (k, v) in &nugets_from_packages_config {
-            let versions = nugets.entry(k).or_insert(BTreeSet::new());
-            for ver in v {
-                versions.insert((None, ver));
-            }
+            nugets
+                .entry(k)
+                .or_insert(BTreeSet::new())
+                .extend(v.iter().map(|x| (None, x)));
         }
 
         if nugets.is_empty() {
