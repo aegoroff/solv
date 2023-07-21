@@ -1,7 +1,7 @@
 use std::{
     collections::{BTreeSet, HashMap},
     fmt::{self, Display},
-    path::PathBuf,
+    path::PathBuf, cell::RefCell,
 };
 
 use crossterm::style::Stylize;
@@ -17,7 +17,7 @@ use crate::{error::Collector, ux, Consume};
 pub struct Nuget {
     show_only_mismatched: bool,
     pub mismatches_found: bool,
-    errors: Collector,
+    errors: RefCell<Collector>,
 }
 struct MsbuildProject {
     pub project: Option<msbuild::Project>,
@@ -30,7 +30,7 @@ impl Nuget {
         Self {
             show_only_mismatched,
             mismatches_found: false,
-            errors: Collector::new(),
+            errors: RefCell::new(Collector::new()),
         }
     }
 }
@@ -126,8 +126,8 @@ impl Consume for Nuget {
         println!();
     }
 
-    fn err(&mut self, path: &str) {
-        self.errors.add_path(path);
+    fn err(&self, path: &str) {
+        self.errors.borrow_mut().add_path(path);
     }
 }
 
@@ -143,7 +143,7 @@ impl Display for Nuget {
             )?;
             writeln!(f)?;
         }
-        write!(f, "{}", self.errors)
+        write!(f, "{}", self.errors.borrow())
     }
 }
 

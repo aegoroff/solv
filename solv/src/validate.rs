@@ -6,6 +6,7 @@ use petgraph::algo::DfsSpace;
 use prettytable::Table;
 use solp::ast::{Conf, Solution};
 use solp::msbuild;
+use std::cell::RefCell;
 use std::collections::BTreeSet;
 use std::fmt;
 use std::fmt::Display;
@@ -22,7 +23,7 @@ trait Validator {
 
 pub struct Validate {
     show_only_problems: bool,
-    errors: Collector,
+    errors: RefCell<Collector>,
 }
 
 impl Validate {
@@ -30,7 +31,7 @@ impl Validate {
     pub fn new(show_only_problems: bool) -> Self {
         Self {
             show_only_problems,
-            errors: Collector::new(),
+            errors: RefCell::new(Collector::new()),
         }
     }
 }
@@ -68,14 +69,14 @@ impl Consume for Validate {
         }
     }
 
-    fn err(&mut self, path: &str) {
-        self.errors.add_path(path);
+    fn err(&self, path: &str) {
+        self.errors.borrow_mut().add_path(path);
     }
 }
 
 impl Display for Validate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.errors)
+        write!(f, "{}", self.errors.borrow())
     }
 }
 

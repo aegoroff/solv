@@ -3,6 +3,7 @@ use num_format::{Locale, ToFormattedString};
 use prettytable::{format, Table};
 use solp::ast::Solution;
 use solp::{msbuild, Consume};
+use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::fmt::Display;
@@ -13,7 +14,7 @@ pub struct Info {
     total_projects: BTreeMap<String, i32>,
     projects_in_solutions: BTreeMap<String, i32>,
     solutions: i32,
-    errors: Collector,
+    errors: RefCell<Collector>,
 }
 
 impl Info {
@@ -23,7 +24,7 @@ impl Info {
             total_projects: BTreeMap::new(),
             projects_in_solutions: BTreeMap::new(),
             solutions: 0,
-            errors: Collector::new(),
+            errors: RefCell::new(Collector::new()),
         }
     }
 }
@@ -103,8 +104,8 @@ impl Consume for Info {
         ux::print_one_column_table("Platform", platforms.into_iter());
     }
 
-    fn err(&mut self, path: &str) {
-        self.errors.add_path(path);
+    fn err(&self, path: &str) {
+        self.errors.borrow_mut().add_path(path);
     }
 }
 
@@ -152,6 +153,6 @@ impl Display for Info {
         table.printstd();
         writeln!(f)?;
 
-        write!(f, "{}", self.errors)
+        write!(f, "{}", self.errors.borrow())
     }
 }
