@@ -41,6 +41,7 @@ fn collect_msbuild_projects(path: &str, solution: &Solution) -> Vec<MsbuildProje
 
     solution
         .iterate_projects()
+        .filter(|p| !msbuild::is_web_site_project(p.type_id))
         .filter_map(|p| {
             let project_path = crate::make_path(dir, p.path);
             match Project::from_path(&project_path) {
