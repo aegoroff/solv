@@ -17,6 +17,11 @@ impl Collector {
     pub fn add_path(&mut self, path: &str) {
         self.paths.push(path.to_owned());
     }
+
+    #[must_use]
+    pub fn count(&self) -> u64 {
+        self.paths.len() as u64
+    }
 }
 
 impl Default for Collector {

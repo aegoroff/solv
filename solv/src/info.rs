@@ -9,7 +9,7 @@ use std::fmt;
 use std::fmt::Display;
 
 use crate::error::Collector;
-use crate::ux;
+use crate::{calculate_percent, ux};
 pub struct Info {
     total_projects: BTreeMap<String, i32>,
     projects_in_solutions: BTreeMap<String, i32>,
@@ -124,9 +124,9 @@ impl Display for Info {
         let projects = self.total_projects.iter().fold(0, |total, p| total + *p.1);
 
         for (key, value) in &self.total_projects {
-            let proj_percent = (f64::from(*value) / f64::from(projects)) * 100_f64;
+            let proj_percent = calculate_percent(*value, projects);
             let in_sols = self.projects_in_solutions.get(key).unwrap();
-            let sol_percent = (f64::from(*in_sols) / f64::from(self.solutions)) * 100_f64;
+            let sol_percent = calculate_percent(*in_sols, self.solutions);
             table.add_row(row![
                 key,
                 i->*value.to_formatted_string(&Locale::en),

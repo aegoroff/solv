@@ -1,7 +1,8 @@
 use crate::error::Collector;
-use crate::{ux, Consume};
+use crate::{calculate_percent, ux, Consume};
 use crossterm::style::Stylize;
 use fnv::FnvHashSet;
+use num_format::{Locale, ToFormattedString};
 use petgraph::algo::DfsSpace;
 use prettytable::Table;
 use solp::ast::{Conf, Solution};
@@ -14,7 +15,7 @@ use std::path::PathBuf;
 
 trait Validator {
     /// does validation
-    fn validate(&mut self);
+    fn validate(&mut self, statistic: &mut Statistic);
     /// will return true if validation succeeded false otherwise
     fn validation_result(&self) -> bool;
     /// prints validation results if any
@@ -24,6 +25,76 @@ trait Validator {
 pub struct Validate {
     show_only_problems: bool,
     errors: RefCell<Collector>,
+    statistic: RefCell<Statistic>,
+}
+
+#[derive(Default)]
+struct Statistic {
+    cycles: u64,
+    dangings: u64,
+    not_found: u64,
+    missings: u64,
+    not_parsed: u64,
+    total: u64,
+}
+
+impl Display for Statistic {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "{}", " Totals:".dark_red().bold())?;
+        writeln!(f)?;
+
+        let mut table = Table::new();
+
+        let fmt = ux::new_format();
+        table.set_format(fmt);
+        table.set_titles(row![bF->"Problem", bF->"# Solutions", cbF->"%"]);
+
+        let cycles_percent = calculate_percent(self.cycles as i32, self.total as i32);
+        let missings_percent = calculate_percent(self.missings as i32, self.total as i32);
+        let dangings_percent = calculate_percent(self.dangings as i32, self.total as i32);
+        let not_found_percent = calculate_percent(self.not_found as i32, self.total as i32);
+        let not_parsed_percent = calculate_percent(self.not_parsed as i32, self.total as i32);
+        let total_percent = calculate_percent(self.total as i32, self.total as i32);
+
+        table.add_row(row![
+            "Contain dependencies cycles",
+            i->self.cycles.to_formatted_string(&Locale::en),
+            i->format!("{cycles_percent:.2}%")
+        ]);
+
+        table.add_row(row![
+            "Contain project configurations outside solution's list",
+            i->self.missings.to_formatted_string(&Locale::en),
+            i->format!("{missings_percent:.2}%")
+        ]);
+
+        table.add_row(row![
+            "Contain dangling project configurations",
+            i->self.dangings.to_formatted_string(&Locale::en),
+            i->format!("{dangings_percent:.2}%")
+        ]);
+
+        table.add_row(row![
+            "Contain projects that not exists",
+            i->self.not_found.to_formatted_string(&Locale::en),
+            i->format!("{not_found_percent:.2}%")
+        ]);
+
+        table.add_row(row![
+            "Not parsed",
+            i->self.not_parsed.to_formatted_string(&Locale::en),
+            i->format!("{not_parsed_percent:.2}%")
+        ]);
+        table.add_empty_row();
+        table.add_row(row![
+            "Total",
+            i->self.total.to_formatted_string(&Locale::en),
+            i->format!("{total_percent:.2}%")
+        ]);
+
+        table.printstd();
+        writeln!(f)
+    }
 }
 
 impl Validate {
@@ -32,6 +103,7 @@ impl Validate {
         Self {
             show_only_problems,
             errors: RefCell::new(Collector::new()),
+            statistic: RefCell::new(Statistic::default()),
         }
     }
 }
@@ -46,7 +118,7 @@ impl Consume for Validate {
         ];
 
         let valid_solution = validators.iter_mut().fold(true, |mut res, validator| {
-            validator.validate();
+            validator.validate(&mut self.statistic.borrow_mut());
             res &= validator.validation_result();
             res
         });
@@ -67,6 +139,7 @@ impl Consume for Validate {
             );
             println!();
         }
+        self.statistic.borrow_mut().total += 1;
     }
 
     fn err(&self, path: &str) {
@@ -76,6 +149,10 @@ impl Consume for Validate {
 
 impl Display for Validate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut statistic = self.statistic.borrow_mut();
+        statistic.not_parsed = self.errors.borrow().count();
+        statistic.total += statistic.not_parsed;
+        write!(f, "{statistic}")?;
         write!(f, "{}", self.errors.borrow())
     }
 }
@@ -97,7 +174,7 @@ impl<'a> NotFouund<'a> {
 }
 
 impl<'a> Validator for NotFouund<'a> {
-    fn validate(&mut self) {
+    fn validate(&mut self, statistic: &mut Statistic) {
         let dir = crate::parent_of(self.path);
         self.bad_paths = self
             .solution
@@ -112,6 +189,9 @@ impl<'a> Validator for NotFouund<'a> {
                 }
             })
             .collect();
+        if !self.validation_result() {
+            statistic.not_found += 1;
+        }
     }
 
     fn print_results(&self) {
@@ -148,7 +228,7 @@ impl<'a> Danglings<'a> {
 }
 
 impl<'a> Validator for Danglings<'a> {
-    fn validate(&mut self) {
+    fn validate(&mut self, statistic: &mut Statistic) {
         let project_ids: FnvHashSet<String> = self
             .solution
             .iterate_projects()
@@ -164,6 +244,9 @@ impl<'a> Validator for Danglings<'a> {
             .difference(&project_ids)
             .cloned()
             .collect();
+        if !self.validation_result() {
+            statistic.dangings += 1;
+        }
     }
 
     fn print_results(&self) {
@@ -200,7 +283,7 @@ impl<'a> Missings<'a> {
 }
 
 impl<'a> Validator for Missings<'a> {
-    fn validate(&mut self) {
+    fn validate(&mut self, statistic: &mut Statistic) {
         let solution_platforms_configs = self
             .solution
             .solution_configs
@@ -227,6 +310,9 @@ impl<'a> Validator for Missings<'a> {
                 }
             })
             .collect();
+        if !self.validation_result() {
+            statistic.missings += 1;
+        }
     }
 
     fn print_results(&self) {
@@ -269,10 +355,13 @@ impl<'a> Cycles<'a> {
 }
 
 impl<'a> Validator for Cycles<'a> {
-    fn validate(&mut self) {
+    fn validate(&mut self, statistic: &mut Statistic) {
         let mut space = DfsSpace::new(&self.solution.dependencies);
         self.cycles_detected =
             petgraph::algo::toposort(&self.solution.dependencies, Some(&mut space)).is_err();
+        if !self.validation_result() {
+            statistic.cycles += 1;
+        }
     }
 
     fn print_results(&self) {
@@ -347,12 +436,13 @@ mod tests {
         // Arrange
         let solution = solp::parse_str(CORRECT_SOLUTION).unwrap();
         let mut validator = Danglings::new(&solution);
+        let mut statistic = Statistic::default();
 
         // Act
-        validator.validate();
+        validator.validate(&mut statistic);
 
         // Assert
-        assert!(validator.validation_result())
+        assert!(validator.validation_result());
     }
 
     #[test]
@@ -360,12 +450,14 @@ mod tests {
         // Arrange
         let solution = solp::parse_str(CORRECT_SOLUTION).unwrap();
         let mut validator = Cycles::new(&solution);
+        let mut statistic = Statistic::default();
 
         // Act
-        validator.validate();
+        validator.validate(&mut statistic);
 
         // Assert
-        assert!(validator.validation_result())
+        assert!(validator.validation_result());
+        assert_eq!(0, statistic.cycles);
     }
 
     #[test]
@@ -373,12 +465,14 @@ mod tests {
         // Arrange
         let solution = solp::parse_str(SOLUTION_WITH_CYCLES).unwrap();
         let mut validator = Cycles::new(&solution);
+        let mut statistic = Statistic::default();
 
         // Act
-        validator.validate();
+        validator.validate(&mut statistic);
 
         // Assert
-        assert!(!validator.validation_result())
+        assert!(!validator.validation_result());
+        assert_eq!(1, statistic.cycles);
     }
 
     #[test]
@@ -386,12 +480,14 @@ mod tests {
         // Arrange
         let solution = solp::parse_str(CORRECT_SOLUTION).unwrap();
         let mut validator = Missings::new(&solution);
+        let mut statistic = Statistic::default();
 
         // Act
-        validator.validate();
+        validator.validate(&mut statistic);
 
         // Assert
-        assert!(validator.validation_result())
+        assert!(validator.validation_result());
+        assert_eq!(0, statistic.missings);
     }
 
     #[test]
@@ -399,12 +495,14 @@ mod tests {
         // Arrange
         let solution = solp::parse_str(SOLUTION_WITH_MISSING_PROJECT_CONFIGS).unwrap();
         let mut validator = Missings::new(&solution);
+        let mut statistic = Statistic::default();
 
         // Act
-        validator.validate();
+        validator.validate(&mut statistic);
 
         // Assert
-        assert!(!validator.validation_result())
+        assert!(!validator.validation_result());
+        assert_eq!(1, statistic.missings);
     }
 
     #[test]
@@ -412,12 +510,14 @@ mod tests {
         // Arrange
         let solution = solp::parse_str(SOLUTION_WITH_DANGLINGS).unwrap();
         let mut validator = Danglings::new(&solution);
+        let mut statistic = Statistic::default();
 
         // Act
-        validator.validate();
+        validator.validate(&mut statistic);
 
         // Assert
-        assert!(!validator.validation_result())
+        assert!(!validator.validation_result());
+        assert_eq!(1, statistic.dangings);
     }
 
     const CORRECT_SOLUTION: &str = r###"
