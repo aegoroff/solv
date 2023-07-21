@@ -520,6 +520,17 @@ mod tests {
         assert_eq!(1, statistic.dangings);
     }
 
+    #[test]
+    fn print_statistic_test() {
+        // Arrange
+        let s = Statistic::default();
+
+        // Act
+        println!("{s}");
+
+        // Assert
+    }
+
     const CORRECT_SOLUTION: &str = r###"
 Microsoft Visual Studio Solution File, Format Version 8.00
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "gtest", "gtest.vcproj", "{C8F6C172-56F2-4E76-B5FA-C3B423B31BE7}"
