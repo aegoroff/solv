@@ -104,7 +104,7 @@ impl<'a> Validator for NotFouund<'a> {
             .iterate_projects()
             .filter(|p| !msbuild::is_web_site_project(p.type_id))
             .filter_map(|p| {
-                let full_path = crate::make_path(dir, p.path);
+                let full_path = crate::try_make_local_path(dir, p.path_or_uri)?;
                 if full_path.canonicalize().is_ok() {
                     None
                 } else {

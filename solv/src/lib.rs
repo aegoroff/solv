@@ -6,9 +6,9 @@ pub mod nuget;
 pub mod ux;
 pub mod validate;
 
-use std::path::{Path, PathBuf};
-
 use solp::Consume;
+use std::path::{Path, PathBuf};
+use url::Url;
 
 #[macro_use]
 extern crate prettytable;
@@ -16,6 +16,16 @@ extern crate prettytable;
 #[must_use]
 pub fn parent_of(path: &str) -> &Path {
     Path::new(path).parent().unwrap_or_else(|| Path::new(""))
+}
+
+#[must_use]
+pub fn try_make_local_path(dir: &Path, relative: &str) -> Option<PathBuf> {
+    // We dont need Uri so if parsed successfully throw it away
+    if Url::parse(relative).is_ok() {
+        None
+    } else {
+        Some(make_path(dir, relative))
+    }
 }
 
 #[must_use]
@@ -53,5 +63,24 @@ pub mod tests {
 
         // Assert
         assert_eq!(actual.to_str().unwrap(), expected);
+    }
+
+    #[rstest]
+    #[case("/base", "x", Some(PathBuf::from("/base/x")))]
+    #[case("/base", "http://localhost/a.csproj", None)]
+    #[trace]
+    fn try_make_local_path_tests(
+        #[case] base: &str,
+        #[case] path: &str,
+        #[case] expected: Option<PathBuf>,
+    ) {
+        // Arrange
+        let d = Path::new(base);
+
+        // Act
+        let actual = try_make_local_path(d, path);
+
+        // Assert
+        assert_eq!(actual, expected);
     }
 }

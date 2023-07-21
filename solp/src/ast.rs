@@ -101,7 +101,7 @@ pub struct Project<'input> {
     pub type_descr: &'input str,
     pub id: &'input str,
     pub name: &'input str,
-    pub path: &'input str,
+    pub path_or_uri: &'input str,
 }
 
 impl<'input> Solution<'input> {
@@ -141,8 +141,8 @@ impl<'input> Project<'input> {
 
     #[must_use]
     pub fn from_begin(head: &Expr<'input>) -> Option<Self> {
-        if let Expr::ProjectBegin(project_type, name, path, id) = head {
-            let prj = Project::from(project_type, name, path, id);
+        if let Expr::ProjectBegin(project_type, name, path_or_uri, id) = head {
+            let prj = Project::from(project_type, name, path_or_uri, id);
             Some(prj)
         } else {
             None
@@ -153,7 +153,7 @@ impl<'input> Project<'input> {
     pub fn from(
         project_type: &Expr<'input>,
         name: &Expr<'input>,
-        path: &Expr<'input>,
+        path_or_uri: &Expr<'input>,
         id: &Expr<'input>,
     ) -> Self {
         let type_id = project_type.guid();
@@ -161,7 +161,7 @@ impl<'input> Project<'input> {
 
         let mut prj = Project::new(pid, type_id);
         prj.name = name.string();
-        prj.path = path.string();
+        prj.path_or_uri = path_or_uri.string();
 
         prj
     }
