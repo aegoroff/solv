@@ -60,19 +60,13 @@ fn scan_path<C: Consume + Display>(cmd: &ArgMatches, consumer: &mut C) {
                 let now = Instant::now();
                 let empty = String::default();
                 let extension = cmd.get_one::<String>("ext").unwrap_or(&empty);
-                let scanned = solp::parse_dir(path, extension, consumer);
+                solp::parse_dir(path, extension, consumer);
 
                 print!("{consumer}");
 
-                println!("{:>20} {}", "solutions scanned:", scanned);
-
                 let duration = now.elapsed().as_millis();
                 let duration = Duration::from_millis(duration as u64);
-                println!(
-                    "{:>20} {}",
-                    "elapsed:",
-                    humantime::format_duration(duration)
-                );
+                println!("{:>2} {}", "elapsed:", humantime::format_duration(duration));
             } else {
                 solp::parse_file(path, consumer);
             }
