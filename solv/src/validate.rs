@@ -6,7 +6,6 @@ use num_format::{Locale, ToFormattedString};
 use petgraph::algo::DfsSpace;
 use prettytable::Table;
 use solp::ast::{Conf, Solution};
-use solp::msbuild;
 use std::cell::RefCell;
 use std::collections::BTreeSet;
 use std::fmt;
@@ -188,8 +187,7 @@ impl<'a> Validator for NotFouund<'a> {
         let dir = crate::parent_of(self.path);
         self.bad_paths = self
             .solution
-            .iterate_projects()
-            .filter(|p| !msbuild::is_web_site_project(p.type_id))
+            .iterate_projects_without_web_sites()
             .filter_map(|p| {
                 let full_path = crate::try_make_local_path(dir, p.path_or_uri)?;
                 if full_path.canonicalize().is_ok() {

@@ -110,6 +110,13 @@ impl<'input> Solution<'input> {
             .iter()
             .filter(|p| !msbuild::is_solution_folder(p.type_id))
     }
+
+    pub fn iterate_projects_without_web_sites(
+        &'input self,
+    ) -> impl Iterator<Item = &'input Project<'input>> {
+        self.iterate_projects()
+            .filter(|p| !msbuild::is_web_site_project(p.type_id))
+    }
 }
 
 impl<'input> Default for Solution<'input> {
