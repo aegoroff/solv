@@ -34,27 +34,35 @@ struct Statistic {
     dangings: u64,
     not_found: u64,
     missings: u64,
+    parsed: u64,
     not_parsed: u64,
     total: u64,
 }
 
 impl Display for Statistic {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "{}", " Totals:".dark_red().bold())?;
+        writeln!(f, "{}", " Statistic:".dark_red().bold())?;
         writeln!(f)?;
 
         let mut table = Table::new();
 
         let fmt = ux::new_format();
         table.set_format(fmt);
-        table.set_titles(row![bF->"Problem", bF->"# Solutions", cbF->"%"]);
+        table.set_titles(row![bF->"Category", bF->"# Solutions", cbF->"%"]);
 
         let cycles_percent = calculate_percent(self.cycles as i32, self.total as i32);
         let missings_percent = calculate_percent(self.missings as i32, self.total as i32);
         let dangings_percent = calculate_percent(self.dangings as i32, self.total as i32);
         let not_found_percent = calculate_percent(self.not_found as i32, self.total as i32);
+        let parsed_percent = calculate_percent(self.parsed as i32, self.total as i32);
         let not_parsed_percent = calculate_percent(self.not_parsed as i32, self.total as i32);
         let total_percent = calculate_percent(self.total as i32, self.total as i32);
+
+        table.add_row(row![
+            "Successfully parsed",
+            i->self.parsed.to_formatted_string(&Locale::en),
+            i->format!("{parsed_percent:.2}%")
+        ]);
 
         table.add_row(row![
             "Contain dependencies cycles",
@@ -85,6 +93,7 @@ impl Display for Statistic {
             i->self.not_parsed.to_formatted_string(&Locale::en),
             i->format!("{not_parsed_percent:.2}%")
         ]);
+
         table.add_empty_row();
         table.add_row(row![
             "Total",
@@ -151,6 +160,7 @@ impl Display for Validate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut statistic = self.statistic.borrow_mut();
         statistic.not_parsed = self.errors.borrow().count();
+        statistic.parsed = statistic.total;
         statistic.total += statistic.not_parsed;
         write!(f, "{statistic}")?;
         write!(f, "{}", self.errors.borrow())
