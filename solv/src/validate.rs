@@ -188,8 +188,8 @@ impl<'a> Validator for NotFouund<'a> {
         self.bad_paths = self
             .solution
             .iterate_projects_without_web_sites()
-            .filter_map(|p| {
-                let full_path = crate::try_make_local_path(dir, p.path_or_uri)?;
+            .filter_map(|p| crate::try_make_local_path(dir, p.path_or_uri))
+            .filter_map(|full_path| {
                 if full_path.canonicalize().is_ok() {
                     None
                 } else {
