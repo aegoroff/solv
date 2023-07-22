@@ -111,15 +111,16 @@ impl Consume for Info {
 
 impl Display for Info {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "{}", " Totals:".dark_red().bold())?;
+        writeln!(f, "{}", " Statistic:".dark_red().bold())?;
         writeln!(f)?;
 
         let mut table = Table::new();
 
         let fmt = ux::new_format();
         table.set_format(fmt);
-        table
-            .set_titles(row![bF->"Project type", bF->"Count", cbF->"%", bF->"Solutions", cbF->"%"]);
+        table.set_titles(
+            row![bF->"Project type", bF->"Count", cbF->"%", bF->"# Solutions", cbF->"%"],
+        );
 
         let projects = self.total_projects.iter().fold(0, |total, p| total + *p.1);
 
