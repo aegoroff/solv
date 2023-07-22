@@ -9,6 +9,8 @@ options:
       Type:
         - feat
         - feat!
+        - improve
+        - improve!
         - fix
         - perf
         - refactor
