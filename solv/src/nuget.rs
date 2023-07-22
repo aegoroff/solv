@@ -41,20 +41,18 @@ fn collect_msbuild_projects(path: &str, solution: &Solution) -> Vec<MsbuildProje
 
     solution
         .iterate_projects_without_web_sites()
-        .filter_map(|p| {
-            let project_path = crate::try_make_local_path(dir, p.path_or_uri)?;
-            match Project::from_path(&project_path) {
-                Ok(project) => Some(MsbuildProject {
-                    path: project_path,
-                    project: Some(project),
-                }),
-                Err(e) => {
-                    if cfg!(debug_assertions) {
-                        let p = project_path.to_str().unwrap_or_default();
-                        println!("{p}: {e}");
-                    }
-                    None
+        .filter_map(|p| crate::try_make_local_path(dir, p.path_or_uri))
+        .filter_map(|path| match Project::from_path(&path) {
+            Ok(project) => Some(MsbuildProject {
+                path,
+                project: Some(project),
+            }),
+            Err(e) => {
+                if cfg!(debug_assertions) {
+                    let p = path.to_str().unwrap_or_default();
+                    println!("{p}: {e}");
                 }
+                None
             }
         })
         .collect()
