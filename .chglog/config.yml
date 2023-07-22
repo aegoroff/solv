@@ -16,6 +16,8 @@ options:
     title_maps:
       feat: Features
       feat!: Features (BREAKING CHANGE)
+      improve: Improvements
+      improve!: Improvements (BREAKING CHANGE)
       fix: Bug Fixes
       perf: Performance Improvements
       refactor: Code Refactoring
