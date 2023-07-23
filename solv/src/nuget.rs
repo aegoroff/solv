@@ -50,7 +50,7 @@ fn collect_msbuild_projects(path: &str, solution: &Solution) -> Vec<MsbuildProje
             Err(e) => {
                 if cfg!(debug_assertions) {
                     let p = path.to_str().unwrap_or_default();
-                    println!("{p}: {e}");
+                    println!("{p}: {e:?}");
                 }
                 None
             }

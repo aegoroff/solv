@@ -10,6 +10,7 @@ use std::{
     io,
     time::{Duration, Instant},
 };
+use color_eyre::eyre::Result;
 
 #[macro_use]
 extern crate clap;
@@ -18,7 +19,8 @@ const PATH: &str = "PATH";
 const EXT_DESCR: &str = "Visual Studio solution extension";
 const DEFAULT_SOLUTION_EXT: &str = "sln";
 
-fn main() {
+fn main() -> Result<()> {
+    color_eyre::install()?;
     let app = build_cli();
     let matches = app.get_matches();
 
@@ -29,6 +31,7 @@ fn main() {
         Some(("completion", cmd)) => print_completions(cmd),
         _ => {}
     }
+    Ok(())
 }
 
 fn validate(cmd: &ArgMatches) {
