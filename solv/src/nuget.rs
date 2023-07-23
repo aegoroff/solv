@@ -110,11 +110,12 @@ impl Consume for Nuget {
                         } else {
                             comma_separated
                         };
-                        if mismatch {
-                            table.add_row(row![pkg, iFr->line]);
+                        let row = if mismatch {
+                            row![pkg, iFr->line]
                         } else {
-                            table.add_row(row![pkg, iF->line]);
-                        }
+                            row![pkg, iF->line]
+                        };
+                        table.add_row(row);
                     });
             });
         self.mismatches_found |= mismatch;
