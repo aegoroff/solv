@@ -23,7 +23,7 @@ pub fn parse_str(contents: &str) -> Option<Solution> {
         Ok(parsed) => Some(analyze(parsed)),
         Err(e) => {
             if cfg!(debug_assertions) {
-                println!("{e}");
+                println!("{e:?}");
             }
             None
         }
