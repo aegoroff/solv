@@ -70,7 +70,11 @@ fn scan_path<C: Consume + Display>(cmd: &ArgMatches, consumer: &mut C) -> Result
 
             let duration = now.elapsed().as_millis();
             let duration = Duration::from_millis(duration as u64);
-            println!("{:>2} {}", "elapsed:", humantime::format_duration(duration));
+            println!(
+                " {:>2} {}",
+                "elapsed:",
+                humantime::format_duration(duration)
+            );
         } else {
             solp::parse_file(path, consumer);
         }
