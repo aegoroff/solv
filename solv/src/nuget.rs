@@ -5,7 +5,7 @@ use std::{
     path::PathBuf,
 };
 
-use comfy_table::{Attribute, Cell, Color};
+use comfy_table::{Attribute, Cell, Color, Row};
 use crossterm::style::Stylize;
 use itertools::Itertools;
 use solp::{
@@ -98,29 +98,22 @@ impl Consume for Nuget {
             .filter(|(_, versions)| !self.show_only_mismatched || has_mismatches(versions))
             .sorted_by(|(a, _), (b, _)| Ord::cmp(&a.to_lowercase(), &b.to_lowercase()))
             .for_each(|(pkg, versions)| {
-                versions
-                    .iter()
-                    .into_group_map_by(|x| x.0)
-                    .iter()
-                    .sorted_by_key(|x| x.0)
-                    .for_each(|(c, v)| {
-                        mismatch = v.len() > 1;
-                        let comma_separated = v.iter().map(|(_, v)| v).join(", ");
-                        let line = if c.is_some() {
-                            format!("{comma_separated} if {}", c.as_ref().unwrap())
-                        } else {
-                            comma_separated
-                        };
-                        let row = if mismatch {
-                            vec![Cell::new(pkg), Cell::new(line).fg(Color::Red).add_attribute(Attribute::Italic)]
-                        } else {
-                            vec![
-                                Cell::new(pkg),
-                                Cell::new(line).add_attribute(Attribute::Italic),
-                            ]
-                        };
-                        table.add_row(row);
-                    });
+                let groupped = versions.iter().into_group_map_by(|x| x.0);
+                let rows = groupped.iter().sorted_by_key(|x| x.0).map(|(c, v)| {
+                    mismatch = v.len() > 1;
+                    let comma_separated = v.iter().map(|(_, v)| v).join(", ");
+                    let line = if c.is_some() {
+                        format!("{comma_separated} if {}", c.as_ref().unwrap())
+                    } else {
+                        comma_separated
+                    };
+                    let mut line = Cell::new(line).add_attribute(Attribute::Italic);
+                    if mismatch {
+                        line = line.fg(Color::Red);
+                    }
+                    Row::from(vec![Cell::new(pkg), line])
+                });
+                table.add_rows(rows);
             });
         self.mismatches_found |= mismatch;
 
