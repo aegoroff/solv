@@ -98,84 +98,90 @@ fn build_cli() -> Command {
         .version(crate_version!())
         .author(crate_authors!("\n"))
         .about(crate_description!())
-        .subcommand(
-            Command::new("validate")
-                .aliases(["va"])
-                .about("Validates solutions within directory or file specified")
-                .arg(
-                    arg!([PATH])
-                        .help("Sets solution path to analyze")
-                        .required(true),
-                )
-                .arg(
-                    arg!(-e --ext <EXTENSION>)
-                        .required(false)
-                        .default_value(DEFAULT_SOLUTION_EXT)
-                        .help(EXT_DESCR),
-                )
-                .arg(
-                    arg!(-p --problems)
-                        .required(false)
-                        .action(ArgAction::SetTrue)
-                        .help(
-                        "Show only solutions with problems. Correct solutions will not be shown.",
-                    ),
-                ),
+        .subcommand(validate_cmd())
+        .subcommand(info_cmd())
+        .subcommand(nuget_cmd())
+        .subcommand(completion_cmd())
+}
+
+fn info_cmd() -> Command {
+    Command::new("info")
+        .aliases(["i"])
+        .about("Get information about found solutions")
+        .arg(
+            arg!(-e --ext <EXTENSION>)
+                .required(false)
+                .default_value(DEFAULT_SOLUTION_EXT)
+                .help(EXT_DESCR),
         )
-        .subcommand(
-            Command::new("info")
-                .aliases(["i"])
-                .about("Get information about found solutions")
-                .arg(
-                    arg!(-e --ext <EXTENSION>)
-                        .required(false)
-                        .default_value(DEFAULT_SOLUTION_EXT)
-                        .help(EXT_DESCR),
-                )
-                .arg(
-                    arg!([PATH])
-                        .help("Sets solution path to analyze")
-                        .required(true),
-                ),
+        .arg(
+            arg!([PATH])
+                .help("Sets solution path to analyze")
+                .required(true),
         )
-        .subcommand(
-            Command::new("nuget")
-                .aliases(["nu"])
-                .about("Get nuget packages information within solutions")
-                .arg(
-                    arg!(-e --ext <EXTENSION>)
-                        .required(false)
-                        .default_value(DEFAULT_SOLUTION_EXT)
-                        .help(EXT_DESCR),
-                )
-                .arg(
-                    arg!(-m --mismatch)
-                        .required(false)
-                        .action(ArgAction::SetTrue)
-                        .help(
-                        "Show only mismatched packages if any. i.e. packages with different versions in the same solution",
-                    ),
-                )
-                .arg(
-                    arg!(-f --fail)
-                        .required(false)
-                        .action(ArgAction::SetTrue)
-                        .help("Return not zero exit code if nuget mismatches found"),
-                )
-                .arg(
-                    arg!([PATH])
-                        .help("Sets solution path to analyze")
-                        .required(true),
-                ),
+}
+
+fn validate_cmd() -> Command {
+    Command::new("validate")
+        .aliases(["va"])
+        .about("Validates solutions within directory or file specified")
+        .arg(
+            arg!([PATH])
+                .help("Sets solution path to analyze")
+                .required(true),
         )
-        .subcommand(
-            Command::new("completion")
-            .about("Generate the autocompletion script for the specified shell")
-            .arg(
-                arg!([generator])
-                    .value_parser(value_parser!(Shell))
-                    .required(true)
-                    .index(1),
-            )
+        .arg(
+            arg!(-e --ext <EXTENSION>)
+                .required(false)
+                .default_value(DEFAULT_SOLUTION_EXT)
+                .help(EXT_DESCR),
+        )
+        .arg(
+            arg!(-p - -problems)
+                .required(false)
+                .action(ArgAction::SetTrue)
+                .help("Show only solutions with problems. Correct solutions will not be shown."),
+        )
+}
+
+fn nuget_cmd() -> Command {
+    Command::new("nuget")
+    .aliases(["nu"])
+    .about("Get nuget packages information within solutions")
+    .arg(
+        arg!(-e --ext <EXTENSION>)
+            .required(false)
+            .default_value(DEFAULT_SOLUTION_EXT)
+            .help(EXT_DESCR),
+    )
+    .arg(
+        arg!(-m --mismatch)
+            .required(false)
+            .action(ArgAction::SetTrue)
+            .help(
+            "Show only mismatched packages if any. i.e. packages with different versions in the same solution",
+        ),
+    )
+    .arg(
+        arg!(-f --fail)
+            .required(false)
+            .action(ArgAction::SetTrue)
+            .help("Return not zero exit code if nuget mismatches found"),
+    )
+    .arg(
+        arg!([PATH])
+            .help("Sets solution path to analyze")
+            .required(true),
+    )
+}
+
+fn completion_cmd() -> Command {
+    Command::new("completion")
+        .about("Generate the autocompletion script for the specified shell")
+        .arg(
+            arg!([generator])
+                .value_parser(value_parser!(Shell))
+                .required(true)
+                .index(1),
         )
 }
