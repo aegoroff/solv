@@ -10,9 +10,6 @@ use solp::Consume;
 use std::path::{Path, PathBuf};
 use url::Url;
 
-#[macro_use]
-extern crate prettytable;
-
 #[must_use]
 pub fn parent_of(path: &str) -> &Path {
     Path::new(path).parent().unwrap_or_else(|| Path::new(""))

@@ -38,7 +38,6 @@ impl Display for Collector {
                 "{}",
                 " These solutions cannot be parsed:".dark_red().bold()
             )?;
-            writeln!(f)?;
 
             ux::print_one_column_table("Path", self.paths.iter().map(std::string::String::as_str));
         }

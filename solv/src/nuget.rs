@@ -5,9 +5,9 @@ use std::{
     path::PathBuf,
 };
 
+use comfy_table::{Attribute, Cell, Color};
 use crossterm::style::Stylize;
 use itertools::Itertools;
-use prettytable::Table;
 use solp::{
     ast::Solution,
     msbuild::{self, PackagesConfig, Project},
@@ -85,11 +85,12 @@ impl Consume for Nuget {
             return;
         }
 
-        let mut table = Table::new();
+        let mut table = ux::new_table();
 
-        let fmt = ux::new_format();
-        table.set_format(fmt);
-        table.set_titles(row![bF=> "Package", "Version(s)"]);
+        table.set_header(vec![
+            Cell::new("Package").add_attribute(Attribute::Bold),
+            Cell::new("Version(s)").add_attribute(Attribute::Bold),
+        ]);
 
         let mut mismatch = false;
         nugets
@@ -111,9 +112,12 @@ impl Consume for Nuget {
                             comma_separated
                         };
                         let row = if mismatch {
-                            row![pkg, iFr->line]
+                            vec![Cell::new(pkg), Cell::new(line).fg(Color::Red).add_attribute(Attribute::Italic)]
                         } else {
-                            row![pkg, iF->line]
+                            vec![
+                                Cell::new(pkg),
+                                Cell::new(line).add_attribute(Attribute::Italic),
+                            ]
                         };
                         table.add_row(row);
                     });
@@ -125,7 +129,7 @@ impl Consume for Nuget {
         }
 
         ux::print_solution_path(path);
-        table.printstd();
+        println!("{table}");
         println!();
     }
 
