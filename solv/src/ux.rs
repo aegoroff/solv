@@ -1,4 +1,4 @@
-use comfy_table::{presets, Attribute, Cell, ContentArrangement, Table, TableComponent};
+use comfy_table::{presets, Attribute, Cell, ContentArrangement, Row, Table, TableComponent};
 use crossterm::style::{style, Color, Stylize};
 
 #[must_use]
@@ -32,10 +32,7 @@ pub fn print_one_column_table<'a, I: ExactSizeIterator<Item = &'a str>>(head: &s
     }
     let mut table = new_table();
     table.set_header(vec![Cell::new(head).add_attribute(Attribute::Bold)]);
-
-    for item in rows {
-        table.add_row(vec![item]);
-    }
+    table.add_rows(rows.into_iter().map(|s| Row::from(vec![s])));
 
     println!("{table}");
 }
