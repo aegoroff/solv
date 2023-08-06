@@ -73,13 +73,12 @@ impl Consume for Nuget {
         let mut nugets = nugets(&projects);
         let nugets_from_packages_config = nugets_from_packages_configs(&projects);
 
+        let nugets_from_packages_config = nugets_from_packages_config
+            .iter()
+            .map(|(k, v)| (k, v.iter().map(|v1| (None, v1)).collect()));
+
         // merging packages from packages.config if any
-        for (k, v) in &nugets_from_packages_config {
-            nugets
-                .entry(k)
-                .or_insert(BTreeSet::new())
-                .extend(v.iter().map(|x| (None, x)));
-        }
+        nugets.extend(nugets_from_packages_config);
 
         if nugets.is_empty() {
             return;
