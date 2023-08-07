@@ -56,6 +56,7 @@ pub fn create_solution_table(path: &str) -> Table {
             b: 0xAA,
         },
     )]);
+    table.set_style(TableComponent::HeaderLines, ' ');
     table
 }
 
