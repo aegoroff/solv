@@ -46,7 +46,7 @@ impl Consume for Info {
             *projects_by_type.entry(prj.type_descr).or_insert(0) += 1;
         }
 
-        ux::print_solution_path(path);
+        let mut solution_table = ux::create_solution_table(path);
 
         let mut table = ux::new_table();
 
@@ -67,7 +67,7 @@ impl Consume for Info {
                 Cell::new(version.ver).add_attribute(Attribute::Bold),
             ]);
         }
-        println!("{table}");
+        solution_table.add_row(vec![Cell::new(format!("{table}"))]);
 
         let mut table = ux::new_table();
         table.set_header(vec![
@@ -87,7 +87,7 @@ impl Consume for Info {
             ]);
         }
 
-        println!("{table}");
+        solution_table.add_row(vec![Cell::new(format!("{table}"))]);
 
         let configurations = solution
             .solution_configs
@@ -101,8 +101,13 @@ impl Consume for Info {
             .map(|c| c.platform)
             .collect::<BTreeSet<&str>>();
 
-        ux::print_one_column_table("Configuration", configurations.into_iter());
-        ux::print_one_column_table("Platform", platforms.into_iter());
+        if let Some(t) = ux::create_one_column_table("Configuration", configurations.into_iter()) {
+            solution_table.add_row(vec![Cell::new(format!("{t}"))]);
+        }
+        if let Some(t) = ux::create_one_column_table("Platform", platforms.into_iter()) {
+            solution_table.add_row(vec![Cell::new(format!("{t}"))]);
+        }
+        println!("{solution_table}");
     }
 
     fn err(&self, path: &str) {

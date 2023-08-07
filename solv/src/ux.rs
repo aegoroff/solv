@@ -27,14 +27,36 @@ pub fn new_table() -> Table {
 }
 
 pub fn print_one_column_table<'a, I: ExactSizeIterator<Item = &'a str>>(head: &str, rows: I) {
-    if rows.len() == 0 {
-        return;
+    if let Some(t) = create_one_column_table(head, rows) {
+        println!("{t}");
     }
-    let mut table = new_table();
-    table.set_header(vec![Cell::new(head).add_attribute(Attribute::Bold)]);
-    table.add_rows(rows.into_iter().map(|s| Row::from(vec![s])));
+}
 
-    println!("{table}");
+pub fn create_one_column_table<'a, I: ExactSizeIterator<Item = &'a str>>(
+    head: &str,
+    rows: I,
+) -> Option<Table> {
+    if rows.len() == 0 {
+        None
+    } else {
+        let mut table = new_table();
+        table.set_header(vec![Cell::new(head).add_attribute(Attribute::Bold)]);
+        table.add_rows(rows.into_iter().map(|s| Row::from(vec![s])));
+
+        Some(table)
+    }
+}
+
+pub fn create_solution_table(path: &str) -> Table {
+    let mut table = new_table();
+    table.set_header(vec![Cell::new(path).add_attribute(Attribute::Bold).fg(
+        comfy_table::Color::Rgb {
+            r: 0xAA,
+            g: 0xAA,
+            b: 0xAA,
+        },
+    )]);
+    table
 }
 
 pub fn print_solution_path(path: &str) {
