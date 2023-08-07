@@ -101,10 +101,12 @@ impl Consume for Info {
             .map(|c| c.platform)
             .collect::<BTreeSet<&str>>();
 
-        if let Some(t) = ux::create_one_column_table("Configuration", configurations.into_iter()) {
+        if let Some(t) =
+            ux::create_one_column_table("Configuration", None, configurations.into_iter())
+        {
             solution_table.add_row(vec![Cell::new(format!("{t}"))]);
         }
-        if let Some(t) = ux::create_one_column_table("Platform", platforms.into_iter()) {
+        if let Some(t) = ux::create_one_column_table("Platform", None, platforms.into_iter()) {
             solution_table.add_row(vec![Cell::new(format!("{t}"))]);
         }
         println!("{solution_table}");

@@ -26,21 +26,30 @@ pub fn new_table() -> Table {
     table
 }
 
-pub fn print_one_column_table<'a, I: ExactSizeIterator<Item = &'a str>>(head: &str, rows: I) {
-    if let Some(t) = create_one_column_table(head, rows) {
+pub fn print_one_column_table<'a, I: ExactSizeIterator<Item = &'a str>>(
+    head: &str,
+    head_color: Option<comfy_table::Color>,
+    rows: I,
+) {
+    if let Some(t) = create_one_column_table(head, head_color, rows) {
         println!("{t}");
     }
 }
 
 pub fn create_one_column_table<'a, I: ExactSizeIterator<Item = &'a str>>(
     head: &str,
+    head_color: Option<comfy_table::Color>,
     rows: I,
 ) -> Option<Table> {
     if rows.len() == 0 {
         None
     } else {
         let mut table = new_table();
-        table.set_header(vec![Cell::new(head).add_attribute(Attribute::Bold)]);
+        let mut head = Cell::new(head).add_attribute(Attribute::Bold);
+        if let Some(fg) = head_color {
+            head = head.fg(fg);
+        }
+        table.set_header(vec![head]);
         table.add_rows(rows.into_iter().map(|s| Row::from(vec![s])));
 
         Some(table)
