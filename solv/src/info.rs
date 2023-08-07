@@ -1,4 +1,4 @@
-use comfy_table::{Attribute, Cell, CellAlignment};
+use comfy_table::{Attribute, Cell, CellAlignment, ContentArrangement};
 use crossterm::style::Stylize;
 use num_format::{Locale, ToFormattedString};
 use solp::ast::Solution;
@@ -47,6 +47,7 @@ impl Consume for Info {
         }
 
         let mut solution_table = ux::create_solution_table(path);
+        solution_table.set_content_arrangement(ContentArrangement::Disabled);
 
         let mut table = ux::new_table();
 
