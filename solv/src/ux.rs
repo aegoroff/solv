@@ -21,8 +21,7 @@ pub fn new_table() -> Table {
         .set_style(TableComponent::BottomLeftCorner, ' ')
         .set_style(TableComponent::BottomRightCorner, ' ')
         .set_style(TableComponent::VerticalLines, ' ')
-        .set_content_arrangement(ContentArrangement::Dynamic)
-        .set_width(120);
+        .set_content_arrangement(ContentArrangement::Dynamic);
     table
 }
 
