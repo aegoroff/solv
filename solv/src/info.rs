@@ -68,7 +68,7 @@ impl Consume for Info {
                 Cell::new(version.ver).add_attribute(Attribute::Bold),
             ]);
         }
-        solution_table.add_row(vec![Cell::new(format!("{table}"))]);
+        solution_table.add_row(vec![Cell::new(table)]);
 
         let mut table = ux::new_table();
         table.set_header(vec![
@@ -88,7 +88,7 @@ impl Consume for Info {
             ]);
         }
 
-        solution_table.add_row(vec![Cell::new(format!("{table}"))]);
+        solution_table.add_row(vec![Cell::new(table)]);
 
         let configurations = solution
             .solution_configs
@@ -105,10 +105,10 @@ impl Consume for Info {
         if let Some(t) =
             ux::create_one_column_table("Configuration", None, configurations.into_iter())
         {
-            solution_table.add_row(vec![Cell::new(format!("{t}"))]);
+            solution_table.add_row(vec![Cell::new(t)]);
         }
         if let Some(t) = ux::create_one_column_table("Platform", None, platforms.into_iter()) {
-            solution_table.add_row(vec![Cell::new(format!("{t}"))]);
+            solution_table.add_row(vec![Cell::new(t)]);
         }
         println!("{solution_table}");
     }
