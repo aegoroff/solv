@@ -25,7 +25,7 @@ pub fn new_table() -> Table {
     table
 }
 
-pub fn print_one_column_table<'a, I: ExactSizeIterator<Item = &'a str>>(
+pub fn print_one_column_table<I: ExactSizeIterator<Item = S>, S: ToString>(
     head: &str,
     head_color: Option<comfy_table::Color>,
     rows: I,
@@ -35,7 +35,7 @@ pub fn print_one_column_table<'a, I: ExactSizeIterator<Item = &'a str>>(
     }
 }
 
-pub fn create_one_column_table<'a, I: ExactSizeIterator<Item = &'a str>>(
+pub fn create_one_column_table<I: ExactSizeIterator<Item = S>, S: ToString>(
     head: &str,
     head_color: Option<comfy_table::Color>,
     rows: I,
