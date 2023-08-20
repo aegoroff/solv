@@ -35,8 +35,8 @@ impl Display for Collector {
         if !self.paths.is_empty() {
             writeln!(
                 f,
-                "{}",
-                " These solutions cannot be parsed:".dark_red().bold()
+                " {}",
+                "These solutions cannot be parsed:".dark_red().bold()
             )?;
 
             ux::print_one_column_table(
