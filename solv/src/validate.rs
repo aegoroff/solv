@@ -148,7 +148,7 @@ impl Consume for Validate {
 
         if !self.show_only_problems && valid_solution {
             println!(
-                " {}  ",
+                "   {}",
                 "No problems found in solution.".dark_green().bold()
             );
             println!();
