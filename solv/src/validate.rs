@@ -148,9 +148,12 @@ impl Consume for Validate {
 
         if !self.show_only_problems && valid_solution {
             println!(
-                " {}",
-                "  No problems found in solution.".dark_green().bold()
+                " {}  ",
+                "No problems found in solution.".dark_green().bold()
             );
+            println!();
+        }
+        if !valid_solution {
             println!();
         }
         self.statistic.borrow_mut().total += 1;
