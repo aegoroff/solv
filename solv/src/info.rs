@@ -120,7 +120,7 @@ impl Consume for Info {
 
 impl Display for Info {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "{}", " Statistic:".dark_red().bold())?;
+        writeln!(f, " {}", "Statistic:".dark_red().bold())?;
 
         let mut table = ux::new_table();
         table.set_header(vec![
