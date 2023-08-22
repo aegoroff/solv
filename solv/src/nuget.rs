@@ -135,8 +135,8 @@ impl Display for Nuget {
         if self.mismatches_found && !self.show_only_mismatched {
             writeln!(
                 f,
-                "{}",
-                " Solutions with nuget packages inconsistenty found"
+                " {}",
+                "Solutions with nuget packages inconsistenty found"
                     .dark_red()
                     .bold()
             )?;
