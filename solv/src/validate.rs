@@ -541,7 +541,7 @@ mod tests {
         // Assert
     }
 
-    const CORRECT_SOLUTION: &str = r###"
+    const CORRECT_SOLUTION: &str = r#"
 Microsoft Visual Studio Solution File, Format Version 8.00
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "gtest", "gtest.vcproj", "{C8F6C172-56F2-4E76-B5FA-C3B423B31BE7}"
 	ProjectSection(ProjectDependencies) = postProject
@@ -587,7 +587,7 @@ Global
 	GlobalSection(ExtensibilityAddIns) = postSolution
 	EndGlobalSection
 EndGlobal
-"###;
+"#;
 
     const SOLUTION_WITH_MISSING_PROJECT_CONFIGS: &str = r#"
 Microsoft Visual Studio Solution File, Format Version 11.00
@@ -621,7 +621,7 @@ Global
 EndGlobal
 "#;
 
-    const SOLUTION_WITH_DANGLINGS: &str = r###"
+    const SOLUTION_WITH_DANGLINGS: &str = r#"
 Microsoft Visual Studio Solution File, Format Version 8.00
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "gtest", "gtest.vcproj", "{C8F6C172-56F2-4E76-B5FA-C3B423B31BE7}"
 	ProjectSection(ProjectDependencies) = postProject
@@ -663,7 +663,7 @@ Global
 	GlobalSection(ExtensibilityAddIns) = postSolution
 	EndGlobalSection
 EndGlobal
-"###;
+"#;
 
     const SOLUTION_WITH_CYCLES: &str = r#"
 Microsoft Visual Studio Solution File, Format Version 12.00
