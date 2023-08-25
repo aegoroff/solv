@@ -377,8 +377,8 @@ impl<'a> Validator for Cycles<'a> {
 
     fn print_results(&self) {
         println!(
-            " {}",
-            "  Solution contains project dependencies cycles"
+            "   {}",
+            "Solution contains project dependencies cycles"
                 .dark_red()
                 .bold()
         );
