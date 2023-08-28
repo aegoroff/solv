@@ -21,7 +21,7 @@ itertools = "=0.11.0"
 petgraph = "=0.6.4"
 num_cpus = "=1.16.0"
 nom = "=7.1.3"
-serde = { version = "=1.0.185", features = ["derive"] }
+serde = { version = "=1.0.188", features = ["derive"] }
 serde-xml-rs = "=0.6.0"
 color-eyre = "=0.6.2"
 
