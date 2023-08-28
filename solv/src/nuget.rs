@@ -95,10 +95,10 @@ impl Consume for Nuget {
         nugets
             .iter()
             .filter(|(_, versions)| !self.show_only_mismatched || has_mismatches(versions))
-            .sorted_by(|(a, _), (b, _)| Ord::cmp(&a.to_lowercase(), &b.to_lowercase()))
+            .sorted_unstable_by(|(a, _), (b, _)| Ord::cmp(&a.to_lowercase(), &b.to_lowercase()))
             .for_each(|(pkg, versions)| {
                 let groupped = versions.iter().into_group_map_by(|x| x.0);
-                let rows = groupped.iter().sorted_by_key(|x| x.0).map(|(c, v)| {
+                let rows = groupped.iter().sorted_unstable_by_key(|x| x.0).map(|(c, v)| {
                     mismatch = v.len() > 1;
                     let comma_separated = v.iter().map(|(_, v)| v).join(", ");
                     let line = if c.is_some() {
