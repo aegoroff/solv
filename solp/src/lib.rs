@@ -49,10 +49,24 @@ pub fn parse_str(contents: &str) -> Option<Solution> {
     parser::parse_str(contents)
 }
 
-/// `parse_dir` parses directory specified by path. recursively
+/// `parse_dir` parses only directory specified by path.
 /// it finds all files with extension specified and parses them.
 /// returns the number of scanned solutions
 pub fn parse_dir(path: &str, extension: &str, consumer: &mut dyn Consume) -> usize {
+    let root = decorate_path(path);
+
+    let iter = WalkDir::new(root)
+        .max_depth(1)
+        .skip_hidden(false)
+        .follow_links(false);
+
+    parse_dir_or_tree(iter, extension, consumer)
+}
+
+/// `parse_dir_tree` parses directory specified by path. recursively
+/// it finds all files with extension specified and parses them.
+/// returns the number of scanned solutions
+pub fn parse_dir_tree(path: &str, extension: &str, consumer: &mut dyn Consume) -> usize {
     let parallelism = Parallelism::RayonNewPool(num_cpus::get_physical());
 
     let root = decorate_path(path);
@@ -62,6 +76,10 @@ pub fn parse_dir(path: &str, extension: &str, consumer: &mut dyn Consume) -> usi
         .follow_links(false)
         .parallelism(parallelism);
 
+    parse_dir_or_tree(iter, extension, consumer)
+}
+
+fn parse_dir_or_tree(iter: WalkDir, extension: &str, consumer: &mut dyn Consume) -> usize {
     let ext = extension.trim_start_matches('.');
 
     iter.into_iter()
