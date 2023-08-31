@@ -53,13 +53,7 @@ pub fn parse_str(contents: &str) -> Option<Solution> {
 /// it finds all files with extension specified and parses them.
 /// returns the number of scanned solutions
 pub fn parse_dir(path: &str, extension: &str, consumer: &mut dyn Consume) -> usize {
-    let root = decorate_path(path);
-
-    let iter = WalkDir::new(root)
-        .max_depth(1)
-        .skip_hidden(false)
-        .follow_links(false);
-
+    let iter = create_dir_iterator(path).max_depth(1);
     parse_dir_or_tree(iter, extension, consumer)
 }
 
@@ -68,15 +62,13 @@ pub fn parse_dir(path: &str, extension: &str, consumer: &mut dyn Consume) -> usi
 /// returns the number of scanned solutions
 pub fn parse_dir_tree(path: &str, extension: &str, consumer: &mut dyn Consume) -> usize {
     let parallelism = Parallelism::RayonNewPool(num_cpus::get_physical());
-
-    let root = decorate_path(path);
-
-    let iter = WalkDir::new(root)
-        .skip_hidden(false)
-        .follow_links(false)
-        .parallelism(parallelism);
-
+    let iter = create_dir_iterator(path).parallelism(parallelism);
     parse_dir_or_tree(iter, extension, consumer)
+}
+
+fn create_dir_iterator(path: &str) -> WalkDir {
+    let root = decorate_path(path);
+    WalkDir::new(root).skip_hidden(false).follow_links(false)
 }
 
 fn parse_dir_or_tree(iter: WalkDir, extension: &str, consumer: &mut dyn Consume) -> usize {
