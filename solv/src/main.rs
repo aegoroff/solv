@@ -17,6 +17,9 @@ extern crate clap;
 
 const PATH: &str = "PATH";
 const EXT_DESCR: &str = "Visual Studio solution extension";
+const RECURSIVELY_FLAG: &str = "recursively";
+const RECURSIVELY_DESCR: &str = "Scan directory recursively. False by default";
+const PATH_DESCR: &str = "Sets solution path or directory to analyze";
 const DEFAULT_SOLUTION_EXT: &str = "sln";
 
 fn main() -> Result<()> {
@@ -42,12 +45,14 @@ fn validate(cmd: &ArgMatches) -> Result<()> {
 
 fn info(cmd: &ArgMatches) -> Result<()> {
     let mut consumer = Info::new();
+
     scan_path(cmd, &mut consumer)
 }
 
 fn nuget(cmd: &ArgMatches) -> Result<()> {
     let only_mismatched = cmd.get_flag("mismatch");
     let fail_if_mismatched = cmd.get_flag("fail");
+
     let mut consumer = Nuget::new(only_mismatched);
     let result = scan_path(cmd, &mut consumer);
     if consumer.mismatches_found && fail_if_mismatched {
@@ -64,7 +69,12 @@ fn scan_path<C: Consume + Display>(cmd: &ArgMatches, consumer: &mut C) -> Result
             let now = Instant::now();
             let empty = String::default();
             let extension = cmd.get_one::<String>("ext").unwrap_or(&empty);
-            solp::parse_dir(path, extension, consumer);
+            let recursively = cmd.get_flag(RECURSIVELY_FLAG);
+            if recursively {
+                solp::parse_dir_tree(path, extension, consumer);
+            } else {
+                solp::parse_dir(path, extension, consumer);
+            }
 
             print!("{consumer}");
 
@@ -115,10 +125,12 @@ fn info_cmd() -> Command {
                 .help(EXT_DESCR),
         )
         .arg(
-            arg!([PATH])
-                .help("Sets solution path to analyze")
-                .required(true),
+            arg!(-r --recursively)
+                .required(false)
+                .action(ArgAction::SetTrue)
+                .help(RECURSIVELY_DESCR),
         )
+        .arg(arg!([PATH]).help(PATH_DESCR).required(true))
 }
 
 fn validate_cmd() -> Command {
@@ -126,22 +138,24 @@ fn validate_cmd() -> Command {
         .aliases(["va"])
         .about("Validates solutions within directory or file specified")
         .arg(
-            arg!([PATH])
-                .help("Sets solution path to analyze")
-                .required(true),
-        )
-        .arg(
             arg!(-e --ext <EXTENSION>)
                 .required(false)
                 .default_value(DEFAULT_SOLUTION_EXT)
                 .help(EXT_DESCR),
         )
         .arg(
-            arg!(-p - -problems)
+            arg!(-p --problems)
                 .required(false)
                 .action(ArgAction::SetTrue)
                 .help("Show only solutions with problems. Correct solutions will not be shown."),
         )
+        .arg(
+            arg!(-r --recursively)
+                .required(false)
+                .action(ArgAction::SetTrue)
+                .help(RECURSIVELY_DESCR),
+        )
+        .arg(arg!([PATH]).help(PATH_DESCR).required(true))
 }
 
 fn nuget_cmd() -> Command {
@@ -169,8 +183,14 @@ fn nuget_cmd() -> Command {
             .help("Return not zero exit code if nuget mismatches found"),
     )
     .arg(
+        arg!(-r --recursively)
+            .required(false)
+            .action(ArgAction::SetTrue)
+            .help(RECURSIVELY_DESCR),
+    )
+    .arg(
         arg!([PATH])
-            .help("Sets solution path to analyze")
+            .help(PATH_DESCR)
             .required(true),
     )
 }
