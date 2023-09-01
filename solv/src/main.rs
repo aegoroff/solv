@@ -19,6 +19,7 @@ const PATH: &str = "PATH";
 const EXT_DESCR: &str = "Visual Studio solution extension";
 const RECURSIVELY_FLAG: &str = "recursively";
 const RECURSIVELY_DESCR: &str = "Scan directory recursively. False by default";
+const BENCHMARK_DESCR: &str = "Show scanning time in case of directory scanning. False by default";
 const PATH_DESCR: &str = "Sets solution path or directory to analyze";
 const DEFAULT_SOLUTION_EXT: &str = "sln";
 
@@ -78,13 +79,15 @@ fn scan_path<C: Consume + Display>(cmd: &ArgMatches, consumer: &mut C) -> Result
 
             print!("{consumer}");
 
-            let duration = now.elapsed().as_millis();
-            let duration = Duration::from_millis(duration as u64);
-            println!(
-                " {:>2} {}",
-                "elapsed:",
-                humantime::format_duration(duration)
-            );
+            if cmd.get_flag("time") {
+                let duration = now.elapsed().as_millis();
+                let duration = Duration::from_millis(duration as u64);
+                println!(
+                    " {:>2} {}",
+                    "elapsed:",
+                    humantime::format_duration(duration)
+                );
+            }
         } else {
             solp::parse_file(path, consumer);
         }
@@ -130,6 +133,12 @@ fn info_cmd() -> Command {
                 .action(ArgAction::SetTrue)
                 .help(RECURSIVELY_DESCR),
         )
+        .arg(
+            arg!(-t --time)
+                .required(false)
+                .action(ArgAction::SetTrue)
+                .help(BENCHMARK_DESCR),
+        )
         .arg(arg!([PATH]).help(PATH_DESCR).required(true))
 }
 
@@ -154,6 +163,12 @@ fn validate_cmd() -> Command {
                 .required(false)
                 .action(ArgAction::SetTrue)
                 .help(RECURSIVELY_DESCR),
+        )
+        .arg(
+            arg!(-t --time)
+                .required(false)
+                .action(ArgAction::SetTrue)
+                .help(BENCHMARK_DESCR),
         )
         .arg(arg!([PATH]).help(PATH_DESCR).required(true))
 }
@@ -187,6 +202,12 @@ fn nuget_cmd() -> Command {
             .required(false)
             .action(ArgAction::SetTrue)
             .help(RECURSIVELY_DESCR),
+    )
+    .arg(
+        arg!(-t --time)
+            .required(false)
+            .action(ArgAction::SetTrue)
+            .help(BENCHMARK_DESCR),
     )
     .arg(
         arg!([PATH])
