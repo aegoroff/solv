@@ -40,7 +40,7 @@ macro_rules! section_content {
     }};
 }
 
-fn analyze<'input>(solution: (Expr<'input>, Vec<Expr<'input>>)) -> Solution<'input> {
+fn analyze<'a>(solution: (Expr<'a>, Vec<Expr<'a>>)) -> Solution<'a> {
     let (head, lines) = solution;
 
     let version = if let Expr::FirstLine(ver) = head {

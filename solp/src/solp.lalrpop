@@ -2,7 +2,7 @@
 use crate::ast::{Expr};
 use crate::lex::{Tok, LexicalError};
 
-grammar<'input>(input: &'input str);
+grammar<'a>(input: &'a str);
 
 pub Solution = <FirstLine> <Line*>;
 
@@ -17,63 +17,63 @@ HeaderLine = {
     <Version>,
 };
 
-FirstLine : Expr<'input> = <id1:Identifier> <id2:Identifier*> "comma" <id3:Identifier*> <v:DigitOrDot> => Expr::FirstLine(Box::new(v));
+FirstLine : Expr<'a> = <id1:Identifier> <id2:Identifier*> "comma" <id3:Identifier*> <v:DigitOrDot> => Expr::FirstLine(Box::new(v));
 
-Version : Expr<'input> = <id:Identifier> "eq" <r:DigitOrDot> => Expr::Version(Box::new(id),Box::new(r));
+Version : Expr<'a> = <id:Identifier> "eq" <r:DigitOrDot> => Expr::Version(Box::new(id),Box::new(r));
 
-Project : Expr<'input> = <b:ProjectBegin> <s:Section*> "close_element" => Expr::Project(Box::new(b), s);
+Project : Expr<'a> = <b:ProjectBegin> <s:Section*> "close_element" => Expr::Project(Box::new(b), s);
 
-Global : Expr<'input> = <id:Identifier> <s:Section*> "close_element" => Expr::Global(s);
+Global : Expr<'a> = <id:Identifier> <s:Section*> "close_element" => Expr::Global(s);
 
-ProjectBegin : Expr<'input> = {
+ProjectBegin : Expr<'a> = {
     "open_element" <t:Guid> "eq" <n:Str> "comma" <p:Str> "comma" <id:Guid> => {
         Expr::ProjectBegin(Box::new(t),Box::new(n),Box::new(p),Box::new(id))
     },
 };
 
-Section : Expr<'input> = <b:SectionBegin> <c:SectionContent*> "close_element" => Expr::Section(Box::new(b), c);
+Section : Expr<'a> = <b:SectionBegin> <c:SectionContent*> "close_element" => Expr::Section(Box::new(b), c);
 
-SectionBegin : Expr<'input> = {
+SectionBegin : Expr<'a> = {
     "open_element" <name:Identifier+> "eq" <stage:Identifier> => {
         Expr::SectionBegin(name, Box::new(stage))
     },
 };
 
-SectionContent : Expr<'input> = {
+SectionContent : Expr<'a> = {
     <k:SectionKey> <v:SectionValue> => {
         Expr::SectionContent(Box::new(k), Box::new(v))
     },
 };
 
-Comment : Expr<'input> = "comment" => Expr::Comment(<>);
+Comment : Expr<'a> = "comment" => Expr::Comment(<>);
 
-DigitOrDot: Expr<'input> = "digit_and_dot" => Expr::DigitOrDot(<>);
+DigitOrDot: Expr<'a> = "digit_and_dot" => Expr::DigitOrDot(<>);
 
-Guid: Expr<'input> = "guid" => Expr::Guid(<>);
+Guid: Expr<'a> = "guid" => Expr::Guid(<>);
 
-Identifier: Expr<'input> = "id" => Expr::Identifier(<>);
+Identifier: Expr<'a> = "id" => Expr::Identifier(<>);
 
-Str: Expr<'input> = "str" => Expr::Str(<>);
+Str: Expr<'a> = "str" => Expr::Str(<>);
 
-SectionKey: Expr<'input> = "section_key" => Expr::Str(<>);
+SectionKey: Expr<'a> = "section_key" => Expr::Str(<>);
 
-SectionValue: Expr<'input> = "section_value" => Expr::Str(<>);
+SectionValue: Expr<'a> = "section_value" => Expr::Str(<>);
 
 extern {
     type Location = usize;
     type Error = LexicalError;
 
-    enum Tok<'input> {
-        "comment" => Tok::Comment(<&'input str>),
-        "str" => Tok::Str(<&'input str>),
-        "section_key" => Tok::SectionKey(<&'input str>),
-        "section_value" => Tok::SectionValue(<&'input str>),
-        "guid" => Tok::Guid(<&'input str>),
-        "id" => Tok::Id(<&'input str>),
-        "digit_and_dot" => Tok::DigitsAndDots(<&'input str>),
+    enum Tok<'a> {
+        "comment" => Tok::Comment(<&'a str>),
+        "str" => Tok::Str(<&'a str>),
+        "section_key" => Tok::SectionKey(<&'a str>),
+        "section_value" => Tok::SectionValue(<&'a str>),
+        "guid" => Tok::Guid(<&'a str>),
+        "id" => Tok::Id(<&'a str>),
+        "digit_and_dot" => Tok::DigitsAndDots(<&'a str>),
         "comma" => Tok::Comma,
         "eq" => Tok::Eq,
-        "open_element" => Tok::OpenElement(<&'input str>),
-        "close_element" => Tok::CloseElement(<&'input str>),
+        "open_element" => Tok::OpenElement(<&'a str>),
+        "close_element" => Tok::CloseElement(<&'a str>),
     }
 }

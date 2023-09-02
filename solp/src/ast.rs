@@ -11,34 +11,29 @@ use nom::{
 use petgraph::prelude::*;
 
 #[derive(Debug)]
-pub enum Expr<'input> {
-    Comment(&'input str),
-    DigitOrDot(&'input str),
-    Guid(&'input str),
-    Identifier(&'input str),
-    Str(&'input str),
-    Version(Box<Expr<'input>>, Box<Expr<'input>>),
-    FirstLine(Box<Expr<'input>>),
-    Global(Vec<Expr<'input>>),
-    Project(Box<Expr<'input>>, Vec<Expr<'input>>),
-    ProjectBegin(
-        Box<Expr<'input>>,
-        Box<Expr<'input>>,
-        Box<Expr<'input>>,
-        Box<Expr<'input>>,
-    ),
-    Section(Box<Expr<'input>>, Vec<Expr<'input>>),
-    SectionBegin(Vec<Expr<'input>>, Box<Expr<'input>>),
-    SectionContent(Box<Expr<'input>>, Box<Expr<'input>>),
-    SectionKey(Box<Expr<'input>>),
-    SectionValue(Box<Expr<'input>>),
+pub enum Expr<'a> {
+    Comment(&'a str),
+    DigitOrDot(&'a str),
+    Guid(&'a str),
+    Identifier(&'a str),
+    Str(&'a str),
+    Version(Box<Expr<'a>>, Box<Expr<'a>>),
+    FirstLine(Box<Expr<'a>>),
+    Global(Vec<Expr<'a>>),
+    Project(Box<Expr<'a>>, Vec<Expr<'a>>),
+    ProjectBegin(Box<Expr<'a>>, Box<Expr<'a>>, Box<Expr<'a>>, Box<Expr<'a>>),
+    Section(Box<Expr<'a>>, Vec<Expr<'a>>),
+    SectionBegin(Vec<Expr<'a>>, Box<Expr<'a>>),
+    SectionContent(Box<Expr<'a>>, Box<Expr<'a>>),
+    SectionKey(Box<Expr<'a>>),
+    SectionValue(Box<Expr<'a>>),
 }
 
 /// Generates simple &str getters from Expr variants
 macro_rules! impl_str_getters {
     ($(($name:ident, $variant:ident)),*) => {
         $(
-            #[must_use] pub fn $name(&self) -> &'input str {
+            #[must_use] pub fn $name(&self) -> &'a str {
                 if let Expr::$variant(s) = self {
                     return *s;
                 }
@@ -48,7 +43,7 @@ macro_rules! impl_str_getters {
     };
 }
 
-impl<'input> Expr<'input> {
+impl<'a> Expr<'a> {
     impl_str_getters!(
         (identifier, Identifier),
         (digit_or_dot, DigitOrDot),
@@ -67,59 +62,57 @@ impl<'input> Expr<'input> {
 }
 
 #[derive(Debug, Clone)]
-pub struct Solution<'input> {
-    pub format: &'input str,
-    pub product: &'input str,
-    pub projects: Vec<Project<'input>>,
-    pub versions: Vec<Version<'input>>,
-    pub solution_configs: Vec<Conf<'input>>,
-    pub project_configs: Vec<ProjectConfigs<'input>>,
-    pub dependencies: DiGraphMap<&'input str, ()>,
+pub struct Solution<'a> {
+    pub format: &'a str,
+    pub product: &'a str,
+    pub projects: Vec<Project<'a>>,
+    pub versions: Vec<Version<'a>>,
+    pub solution_configs: Vec<Conf<'a>>,
+    pub project_configs: Vec<ProjectConfigs<'a>>,
+    pub dependencies: DiGraphMap<&'a str, ()>,
 }
 
 #[derive(Debug, Copy, Clone)]
-pub struct Version<'input> {
-    pub name: &'input str,
-    pub ver: &'input str,
+pub struct Version<'a> {
+    pub name: &'a str,
+    pub ver: &'a str,
 }
 
 #[derive(Debug, Clone)]
-pub struct ProjectConfigs<'input> {
-    pub project_id: &'input str,
-    pub configs: Vec<Conf<'input>>,
+pub struct ProjectConfigs<'a> {
+    pub project_id: &'a str,
+    pub configs: Vec<Conf<'a>>,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Default)]
-pub struct Conf<'input> {
-    pub config: &'input str,
-    pub platform: &'input str,
+pub struct Conf<'a> {
+    pub config: &'a str,
+    pub platform: &'a str,
 }
 
 #[derive(Debug, Copy, Clone, Default)]
-pub struct Project<'input> {
-    pub type_id: &'input str,
-    pub type_descr: &'input str,
-    pub id: &'input str,
-    pub name: &'input str,
-    pub path_or_uri: &'input str,
+pub struct Project<'a> {
+    pub type_id: &'a str,
+    pub type_descr: &'a str,
+    pub id: &'a str,
+    pub name: &'a str,
+    pub path_or_uri: &'a str,
 }
 
-impl<'input> Solution<'input> {
-    pub fn iterate_projects(&'input self) -> impl Iterator<Item = &'input Project<'input>> {
+impl<'a> Solution<'a> {
+    pub fn iterate_projects(&'a self) -> impl Iterator<Item = &'a Project<'a>> {
         self.projects
             .iter()
             .filter(|p| !msbuild::is_solution_folder(p.type_id))
     }
 
-    pub fn iterate_projects_without_web_sites(
-        &'input self,
-    ) -> impl Iterator<Item = &'input Project<'input>> {
+    pub fn iterate_projects_without_web_sites(&'a self) -> impl Iterator<Item = &'a Project<'a>> {
         self.iterate_projects()
             .filter(|p| !msbuild::is_web_site_project(p.type_id))
     }
 }
 
-impl<'input> Default for Solution<'input> {
+impl<'a> Default for Solution<'a> {
     fn default() -> Self {
         Self {
             format: "",
@@ -133,9 +126,9 @@ impl<'input> Default for Solution<'input> {
     }
 }
 
-impl<'input> Project<'input> {
+impl<'a> Project<'a> {
     #[must_use]
-    pub fn new(id: &'input str, type_id: &'input str) -> Self {
+    pub fn new(id: &'a str, type_id: &'a str) -> Self {
         let type_descr = msbuild::describe_project(type_id);
 
         Self {
@@ -147,7 +140,7 @@ impl<'input> Project<'input> {
     }
 
     #[must_use]
-    pub fn from_begin(head: &Expr<'input>) -> Option<Self> {
+    pub fn from_begin(head: &Expr<'a>) -> Option<Self> {
         if let Expr::ProjectBegin(project_type, name, path_or_uri, id) = head {
             let prj = Project::from(project_type, name, path_or_uri, id);
             Some(prj)
@@ -158,10 +151,10 @@ impl<'input> Project<'input> {
 
     #[must_use]
     pub fn from(
-        project_type: &Expr<'input>,
-        name: &Expr<'input>,
-        path_or_uri: &Expr<'input>,
-        id: &Expr<'input>,
+        project_type: &Expr<'a>,
+        name: &Expr<'a>,
+        path_or_uri: &Expr<'a>,
+        id: &Expr<'a>,
     ) -> Self {
         let type_id = project_type.guid();
         let pid = id.guid();
@@ -174,31 +167,31 @@ impl<'input> Project<'input> {
     }
 }
 
-impl<'input> Version<'input> {
+impl<'a> Version<'a> {
     #[must_use]
-    pub fn new(name: &'input str, ver: &'input str) -> Self {
+    pub fn new(name: &'a str, ver: &'a str) -> Self {
         Self { name, ver }
     }
 
     #[must_use]
-    pub fn from(name: &Expr<'input>, val: &Expr<'input>) -> Self {
+    pub fn from(name: &Expr<'a>, val: &Expr<'a>) -> Self {
         let n = name.identifier();
         let v = val.digit_or_dot();
         Version::new(n, v)
     }
 }
 
-impl<'input> From<&'input str> for Conf<'input> {
-    fn from(s: &'input str) -> Self {
+impl<'a> From<&'a str> for Conf<'a> {
+    fn from(s: &'a str) -> Self {
         pipe_terminated::<VerboseError<&str>>(s)
             .map(|(platform, config)| Self { config, platform })
             .unwrap_or_default()
     }
 }
 
-impl<'input> Conf<'input> {
+impl<'a> Conf<'a> {
     #[must_use]
-    pub fn new(configuration: &'input str, platform: &'input str) -> Self {
+    pub fn new(configuration: &'a str, platform: &'a str) -> Self {
         Self {
             config: configuration,
             platform,
@@ -206,7 +199,7 @@ impl<'input> Conf<'input> {
     }
 
     #[must_use]
-    pub fn from_expr(expr: &Expr<'input>) -> Option<Self> {
+    pub fn from_expr(expr: &Expr<'a>) -> Option<Self> {
         if let Expr::SectionContent(left, _) = expr {
             let conf = Conf::from(left.string());
             Some(conf)
@@ -217,15 +210,15 @@ impl<'input> Conf<'input> {
 }
 
 #[derive(Default, PartialEq, Debug)]
-struct ProjectConfig<'input> {
-    id: &'input str,
-    configuration: &'input str,
-    platform: &'input str,
+struct ProjectConfig<'a> {
+    id: &'a str,
+    configuration: &'a str,
+    platform: &'a str,
 }
 
-impl<'input> ProjectConfigs<'input> {
+impl<'a> ProjectConfigs<'a> {
     #[must_use]
-    pub fn from_id_and_configs(project_id: &'input str, configs: Vec<Conf<'input>>) -> Self {
+    pub fn from_id_and_configs(project_id: &'a str, configs: Vec<Conf<'a>>) -> Self {
         let mut configurations = Vec::new();
         configurations.extend(configs);
         Self {
@@ -235,7 +228,7 @@ impl<'input> ProjectConfigs<'input> {
     }
 
     #[must_use]
-    pub fn from_section_content_key(expr: &Expr<'input>) -> Option<Self> {
+    pub fn from_section_content_key(expr: &Expr<'a>) -> Option<Self> {
         if let Expr::SectionContent(left, _) = expr {
             ProjectConfigs::from_project_configuration_platform(left.string())
         } else {
@@ -244,7 +237,7 @@ impl<'input> ProjectConfigs<'input> {
     }
 
     #[must_use]
-    pub fn from_section_content(expr: &Expr<'input>) -> Option<Self> {
+    pub fn from_section_content(expr: &Expr<'a>) -> Option<Self> {
         if let Expr::SectionContent(left, right) = expr {
             ProjectConfigs::from_project_configuration(left.string(), right.string())
         } else {
@@ -252,30 +245,28 @@ impl<'input> ProjectConfigs<'input> {
         }
     }
 
-    fn from_project_configuration_platform(k: &'input str) -> Option<Self> {
+    fn from_project_configuration_platform(k: &'a str) -> Option<Self> {
         let r = ProjectConfigs::parse_project_configuration_platform::<VerboseError<&str>>(k);
         Self::new(r)
     }
 
-    fn from_project_configuration(k: &'input str, v: &'input str) -> Option<Self> {
+    fn from_project_configuration(k: &'a str, v: &'a str) -> Option<Self> {
         let r = ProjectConfigs::parse_project_configuration::<VerboseError<&str>>(k, v);
         Self::new(r)
     }
 
-    fn new(
-        r: IResult<&'input str, ProjectConfig<'input>, VerboseError<&'input str>>,
-    ) -> Option<Self> {
+    fn new(r: IResult<&'a str, ProjectConfig<'a>, VerboseError<&'a str>>) -> Option<Self> {
         r.ok().map(|(_, pc)| Self {
             project_id: pc.id,
             configs: vec![Conf::new(pc.configuration, pc.platform)],
         })
     }
 
-    fn parse_project_configuration_platform<'a, E>(
-        key: &'a str,
-    ) -> IResult<&'a str, ProjectConfig<'a>, E>
+    fn parse_project_configuration_platform<'b, E>(
+        key: &'b str,
+    ) -> IResult<&'b str, ProjectConfig<'b>, E>
     where
-        E: ParseError<&'a str> + std::fmt::Debug,
+        E: ParseError<&'b str> + std::fmt::Debug,
     {
         let parser =
             sequence::separated_pair(guid, char('.'), pair(pipe_terminated, tag_terminated));
@@ -287,12 +278,12 @@ impl<'input> ProjectConfigs<'input> {
         })(key)
     }
 
-    fn parse_project_configuration<'a, E>(
-        key: &'a str,
-        value: &'a str,
-    ) -> IResult<&'a str, ProjectConfig<'a>, E>
+    fn parse_project_configuration<'b, E>(
+        key: &'b str,
+        value: &'b str,
+    ) -> IResult<&'b str, ProjectConfig<'b>, E>
     where
-        E: ParseError<&'a str> + std::fmt::Debug,
+        E: ParseError<&'b str> + std::fmt::Debug,
     {
         let parser = sequence::separated_pair(guid, char('.'), tag_terminated);
 
