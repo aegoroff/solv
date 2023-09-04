@@ -2,7 +2,7 @@
 name = "solp"
 description = "Microsoft Visual Studio solution parsing library"
 repository = "https://github.com/aegoroff/solv"
-version = "0.12.0"
+version = "0.12.1"
 authors = ["egoroff <egoroff@gmail.com>"]
 edition = "2021"
 license = "MIT"
