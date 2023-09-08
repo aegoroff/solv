@@ -115,6 +115,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    /// UUID parsing
     fn guid(&mut self, i: usize) -> (usize, Tok<'a>, usize) {
         loop {
             match self.chars.peek() {
