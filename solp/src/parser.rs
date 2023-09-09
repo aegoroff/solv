@@ -6,6 +6,10 @@ use std::option::Option::Some;
 
 const UTF8_BOM: &[u8; 3] = b"\xEF\xBB\xBF";
 
+trait Visitor<'a> {
+    fn visit(&self, solution: Solution<'a>, node: &Node<'a>) -> Solution<'a>;
+}
+
 pub fn parse_str(contents: &str) -> Option<Solution> {
     if contents.len() < UTF8_BOM.len() {
         return None;
@@ -21,7 +25,11 @@ pub fn parse_str(contents: &str) -> Option<Solution> {
     let parser = crate::solp::SolutionParser::new();
     let lexer = crate::lex::Lexer::new(input);
     match parser.parse(input, lexer) {
-        Ok(parsed) => visit(parsed),
+        Ok(parsed) => {
+			let solution = Solution::default();
+			let visitor = SolutionVisitor::new();
+			Some(visitor.visit(solution, &parsed))
+		},
         Err(e) => {
             if cfg!(debug_assertions) {
                 println!("{e:?}");
@@ -41,113 +49,181 @@ macro_rules! section_content {
     }};
 }
 
-/// Visits AST tree and makes Solution API instance
-fn visit(solution: Node<'_>) -> Option<Solution<'_>> {
-    if let Node::Solution(first_line, lines) = solution {
-        let version = if let Node::FirstLine(ver) = first_line.as_ref() {
-            ver.digit_or_dot()
-        } else {
-            ""
-        };
-        let mut sol = Solution {
-            format: version,
-            ..Default::default()
-        };
+#[derive(Debug)]
+struct SolutionVisitor {}
 
-        for line in lines {
-            match line {
-                Node::Project(head, sections) => {
-                    if let Some(p) = Project::from_begin(&head) {
-                        sol.projects.push(p);
-                        sol.dependencies.add_node(p.id);
-                    }
+impl SolutionVisitor {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
 
-                    if let Some(last_project) = sol.projects.last() {
-                        let edges = sections
-                            .iter()
-                            .filter_map(|sect| section_content!(sect, "ProjectDependencies"))
-                            .flatten()
-                            .filter_map(|expr| match expr {
-                                Node::SectionContent(left, _) => {
-                                    Some((left.string(), last_project.id))
-                                }
-                                _ => None,
-                            });
+impl<'a> Visitor<'a> for SolutionVisitor {
+    fn visit(&self, solution: Solution<'a>, node: &Node<'a>) -> Solution<'a> {
+        let mut s = solution;
+        if let Node::Solution(first_line, lines) = node {
+            if let Node::FirstLine(ver) = first_line.as_ref() {
+                s.format = ver.digit_or_dot();
+            }
+            let project_visitor = ProjectVisitor::new();
+            let versions_visitor = VersionVisitor::new();
+            let global_visitor = GlobalVisitor::new();
+            let comment_visitor: CommentVisitor = CommentVisitor::new();
 
-                        sol.dependencies.extend(edges);
-                    }
-                }
-                Node::Version(name, val) => {
-                    let version = Version::from(&name, &val);
-                    sol.versions.push(version);
-                }
-                Node::Global(sections) => {
-                    let configs_and_platforms = sections
-                        .iter()
-                        .filter_map(|sect| section_content!(sect, "SolutionConfigurationPlatforms"))
-                        .flatten()
-                        .filter_map(Conf::from_node);
-
-                    sol.solution_configs.extend(configs_and_platforms);
-
-                    let project_config_platform_grp = sections
-                        .iter()
-                        .filter_map(|sect| section_content!(sect, "ProjectConfigurationPlatforms"))
-                        .flatten()
-                        .filter_map(ProjectConfigs::from_section_content_key)
-                        .group_by(|x| x.project_id);
-
-                    let project_configs_platforms =
-                        project_config_platform_grp
-                            .into_iter()
-                            .map(|(pid, project_configs)| {
-                                let c = project_configs.flat_map(|c| c.configs).collect();
-                                ProjectConfigs::from_id_and_configs(pid, c)
-                            });
-                    sol.project_configs.extend(project_configs_platforms);
-
-                    let project_configs = sections
-                        .iter()
-                        .filter_map(|sect| section_content!(sect, "ProjectConfiguration"))
-                        .flatten()
-                        .filter_map(ProjectConfigs::from_section_content)
-                        .group_by(|x| x.project_id)
-                        .into_iter()
-                        .map(|(pid, project_configs)| {
-                            let c = project_configs.flat_map(|c| c.configs).collect();
-                            ProjectConfigs::from_id_and_configs(pid, c)
-                        })
-                        .collect_vec();
-
-                    let solution_configurations = sections
-                        .iter()
-                        .filter_map(|sect| section_content!(sect, "SolutionConfiguration"))
-                        .flatten()
-                        .filter_map(|expr| match expr {
-                            Node::SectionContent(_, right) => Some(right.string()),
-                            _ => None,
-                        })
-                        .collect::<HashSet<&str>>();
-
-                    let from_project_configurations = project_configs
-                        .iter()
-                        .flat_map(|pc| pc.configs.iter())
-                        .filter(|c| solution_configurations.contains(c.config));
-                    sol.solution_configs.extend(from_project_configurations);
-
-                    sol.project_configs.extend(project_configs);
-                }
-                Node::Comment(s) => {
-                    // Only comment text without sharp sign and spacess
-                    let skip: &[_] = &['#', ' ', '\t'];
-                    sol.product = s.trim_start_matches(skip);
-                }
-                _ => {}
+            for line in lines {
+                s = project_visitor.visit(s, line);
+                s = versions_visitor.visit(s, line);
+                s = global_visitor.visit(s, line);
+                s = comment_visitor.visit(s, line);
             }
         }
-        Some(sol)
-    } else {
-        None
+        s
+    }
+}
+
+#[derive(Debug)]
+struct ProjectVisitor {}
+
+impl ProjectVisitor {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl<'a> Visitor<'a> for ProjectVisitor {
+    fn visit(&self, mut solution: Solution<'a>, node: &Node<'a>) -> Solution<'a> {
+        if let Node::Project(head, sections) = node {
+            if let Some(p) = Project::from_begin(head) {
+                solution.projects.push(p);
+                solution.dependencies.add_node(p.id);
+            }
+
+            if let Some(last_project) = solution.projects.last() {
+                let edges = sections
+                    .iter()
+                    .filter_map(|sect| section_content!(sect, "ProjectDependencies"))
+                    .flatten()
+                    .filter_map(|expr| match expr {
+                        Node::SectionContent(left, _) => Some((left.string(), last_project.id)),
+                        _ => None,
+                    });
+
+                solution.dependencies.extend(edges);
+            }
+        }
+        solution
+    }
+}
+
+#[derive(Debug)]
+struct VersionVisitor {}
+
+impl VersionVisitor {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl<'a> Visitor<'a> for VersionVisitor {
+    fn visit(&self, mut solution: Solution<'a>, node: &Node<'a>) -> Solution<'a> {
+        if let Node::Version(name, val) = node {
+            let version = Version::from(name, val);
+            solution.versions.push(version);
+        }
+        solution
+    }
+}
+
+#[derive(Debug)]
+struct GlobalVisitor {}
+
+impl GlobalVisitor {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl<'a> Visitor<'a> for GlobalVisitor {
+    fn visit(&self, mut solution: Solution<'a>, node: &Node<'a>) -> Solution<'a> {
+        if let Node::Global(sections) = node {
+            let configs_and_platforms = sections
+                .iter()
+                .filter_map(|sect| section_content!(sect, "SolutionConfigurationPlatforms"))
+                .flatten()
+                .filter_map(Conf::from_node);
+
+            solution.solution_configs.extend(configs_and_platforms);
+
+            let project_config_platform_grp = sections
+                .iter()
+                .filter_map(|sect| section_content!(sect, "ProjectConfigurationPlatforms"))
+                .flatten()
+                .filter_map(ProjectConfigs::from_section_content_key)
+                .group_by(|x| x.project_id);
+
+            let project_configs_platforms =
+                project_config_platform_grp
+                    .into_iter()
+                    .map(|(pid, project_configs)| {
+                        let c = project_configs.flat_map(|c| c.configs).collect();
+                        ProjectConfigs::from_id_and_configs(pid, c)
+                    });
+            solution.project_configs.extend(project_configs_platforms);
+
+            let project_configs = sections
+                .iter()
+                .filter_map(|sect| section_content!(sect, "ProjectConfiguration"))
+                .flatten()
+                .filter_map(ProjectConfigs::from_section_content)
+                .group_by(|x| x.project_id)
+                .into_iter()
+                .map(|(pid, project_configs)| {
+                    let c = project_configs.flat_map(|c| c.configs).collect();
+                    ProjectConfigs::from_id_and_configs(pid, c)
+                })
+                .collect_vec();
+
+            let solution_configurations = sections
+                .iter()
+                .filter_map(|sect| section_content!(sect, "SolutionConfiguration"))
+                .flatten()
+                .filter_map(|expr| match expr {
+                    Node::SectionContent(_, right) => Some(right.string()),
+                    _ => None,
+                })
+                .collect::<HashSet<&str>>();
+
+            let from_project_configurations = project_configs
+                .iter()
+                .flat_map(|pc| pc.configs.iter())
+                .filter(|c| solution_configurations.contains(c.config));
+            solution
+                .solution_configs
+                .extend(from_project_configurations);
+
+            solution.project_configs.extend(project_configs);
+        }
+        solution
+    }
+}
+
+#[derive(Debug)]
+struct CommentVisitor {}
+
+impl CommentVisitor {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl<'a> Visitor<'a> for CommentVisitor {
+    fn visit(&self, mut solution: Solution<'a>, node: &Node<'a>) -> Solution<'a> {
+        if let Node::Comment(s) = node {
+            // Only comment text without sharp sign and spacess
+            let skip: &[_] = &['#', ' ', '\t'];
+            solution.product = s.trim_start_matches(skip);
+        }
+        solution
     }
 }
 
