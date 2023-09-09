@@ -28,6 +28,7 @@ pub enum Node<'a> {
     SectionContent(Box<Node<'a>>, Box<Node<'a>>),
     SectionKey(Box<Node<'a>>),
     SectionValue(Box<Node<'a>>),
+    Solution(Box<Node<'a>>, Vec<Node<'a>>),
 }
 
 /// Generates simple &str getters from Node variants

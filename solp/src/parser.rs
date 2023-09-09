@@ -20,7 +20,7 @@ pub fn parse_str(contents: &str) -> Option<Solution> {
     let parser = crate::solp::SolutionParser::new();
     let lexer = crate::lex::Lexer::new(input);
     match parser.parse(input, lexer) {
-        Ok(parsed) => Some(analyze(parsed)),
+        Ok(parsed) => analyze(parsed),
         Err(e) => {
             if cfg!(debug_assertions) {
                 println!("{e:?}");
@@ -40,111 +40,113 @@ macro_rules! section_content {
     }};
 }
 
-fn analyze<'a>(solution: (Node<'a>, Vec<Node<'a>>)) -> Solution<'a> {
-    let (head, lines) = solution;
+fn analyze(solution: Node<'_>) -> Option<Solution<'_>> {
+    if let Node::Solution(first_line, lines) = solution {
+        let version = if let Node::FirstLine(ver) = first_line.as_ref() {
+            ver.digit_or_dot()
+        } else {
+            ""
+        };
+        let mut sol = Solution {
+            format: version,
+            ..Default::default()
+        };
 
-    let version = if let Node::FirstLine(ver) = head {
-        ver.digit_or_dot()
-    } else {
-        ""
-    };
+        for line in lines {
+            match line {
+                Node::Project(head, sections) => {
+                    if let Some(p) = Project::from_begin(&head) {
+                        sol.projects.push(p);
+                        sol.dependencies.add_node(p.id);
+                    }
 
-    let mut sol = Solution {
-        format: version,
-        ..Default::default()
-    };
+                    if let Some(last_project) = sol.projects.last() {
+                        let edges = sections
+                            .iter()
+                            .filter_map(|sect| section_content!(sect, "ProjectDependencies"))
+                            .flatten()
+                            .filter_map(|expr| match expr {
+                                Node::SectionContent(left, _) => {
+                                    Some((left.string(), last_project.id))
+                                }
+                                _ => None,
+                            });
 
-    for line in lines {
-        match line {
-            Node::Project(head, sections) => {
-                if let Some(p) = Project::from_begin(&head) {
-                    sol.projects.push(p);
-                    sol.dependencies.add_node(p.id);
+                        sol.dependencies.extend(edges);
+                    }
                 }
-
-                if let Some(last_project) = sol.projects.last() {
-                    let edges = sections
+                Node::Version(name, val) => {
+                    let version = Version::from(&name, &val);
+                    sol.versions.push(version);
+                }
+                Node::Global(sections) => {
+                    let configs_and_platforms = sections
                         .iter()
-                        .filter_map(|sect| section_content!(sect, "ProjectDependencies"))
+                        .filter_map(|sect| section_content!(sect, "SolutionConfigurationPlatforms"))
                         .flatten()
-                        .filter_map(|expr| match expr {
-                            Node::SectionContent(left, _) => Some((left.string(), last_project.id)),
-                            _ => None,
-                        });
+                        .filter_map(Conf::from_node);
 
-                    sol.dependencies.extend(edges);
-                }
-            }
-            Node::Version(name, val) => {
-                let version = Version::from(&name, &val);
-                sol.versions.push(version);
-            }
-            Node::Global(sections) => {
-                let configs_and_platforms = sections
-                    .iter()
-                    .filter_map(|sect| section_content!(sect, "SolutionConfigurationPlatforms"))
-                    .flatten()
-                    .filter_map(Conf::from_node);
+                    sol.solution_configs.extend(configs_and_platforms);
 
-                sol.solution_configs.extend(configs_and_platforms);
+                    let project_config_platform_grp = sections
+                        .iter()
+                        .filter_map(|sect| section_content!(sect, "ProjectConfigurationPlatforms"))
+                        .flatten()
+                        .filter_map(ProjectConfigs::from_section_content_key)
+                        .group_by(|x| x.project_id);
 
-                let project_config_platform_grp = sections
-                    .iter()
-                    .filter_map(|sect| section_content!(sect, "ProjectConfigurationPlatforms"))
-                    .flatten()
-                    .filter_map(ProjectConfigs::from_section_content_key)
-                    .group_by(|x| x.project_id);
+                    let project_configs_platforms =
+                        project_config_platform_grp
+                            .into_iter()
+                            .map(|(pid, project_configs)| {
+                                let c = project_configs.flat_map(|c| c.configs).collect();
+                                ProjectConfigs::from_id_and_configs(pid, c)
+                            });
+                    sol.project_configs.extend(project_configs_platforms);
 
-                let project_configs_platforms =
-                    project_config_platform_grp
+                    let project_configs = sections
+                        .iter()
+                        .filter_map(|sect| section_content!(sect, "ProjectConfiguration"))
+                        .flatten()
+                        .filter_map(ProjectConfigs::from_section_content)
+                        .group_by(|x| x.project_id)
                         .into_iter()
                         .map(|(pid, project_configs)| {
                             let c = project_configs.flat_map(|c| c.configs).collect();
                             ProjectConfigs::from_id_and_configs(pid, c)
-                        });
-                sol.project_configs.extend(project_configs_platforms);
+                        })
+                        .collect_vec();
 
-                let project_configs = sections
-                    .iter()
-                    .filter_map(|sect| section_content!(sect, "ProjectConfiguration"))
-                    .flatten()
-                    .filter_map(ProjectConfigs::from_section_content)
-                    .group_by(|x| x.project_id)
-                    .into_iter()
-                    .map(|(pid, project_configs)| {
-                        let c = project_configs.flat_map(|c| c.configs).collect();
-                        ProjectConfigs::from_id_and_configs(pid, c)
-                    })
-                    .collect_vec();
+                    let solution_configurations = sections
+                        .iter()
+                        .filter_map(|sect| section_content!(sect, "SolutionConfiguration"))
+                        .flatten()
+                        .filter_map(|expr| match expr {
+                            Node::SectionContent(_, right) => Some(right.string()),
+                            _ => None,
+                        })
+                        .collect::<HashSet<&str>>();
 
-                let solution_configurations = sections
-                    .iter()
-                    .filter_map(|sect| section_content!(sect, "SolutionConfiguration"))
-                    .flatten()
-                    .filter_map(|expr| match expr {
-                        Node::SectionContent(_, right) => Some(right.string()),
-                        _ => None,
-                    })
-                    .collect::<HashSet<&str>>();
+                    let from_project_configurations = project_configs
+                        .iter()
+                        .flat_map(|pc| pc.configs.iter())
+                        .filter(|c| solution_configurations.contains(c.config));
+                    sol.solution_configs.extend(from_project_configurations);
 
-                let from_project_configurations = project_configs
-                    .iter()
-                    .flat_map(|pc| pc.configs.iter())
-                    .filter(|c| solution_configurations.contains(c.config));
-                sol.solution_configs.extend(from_project_configurations);
-
-                sol.project_configs.extend(project_configs);
+                    sol.project_configs.extend(project_configs);
+                }
+                Node::Comment(s) => {
+                    // Only comment text without sharp sign and spacess
+                    let skip: &[_] = &['#', ' ', '\t'];
+                    sol.product = s.trim_start_matches(skip);
+                }
+                _ => {}
             }
-            Node::Comment(s) => {
-                // Only comment text without sharp sign and spacess
-                let skip: &[_] = &['#', ' ', '\t'];
-                sol.product = s.trim_start_matches(skip);
-            }
-            _ => {}
         }
+        Some(sol)
+    } else {
+        None
     }
-
-    sol
 }
 
 #[cfg(test)]

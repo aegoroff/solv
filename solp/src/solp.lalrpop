@@ -4,7 +4,9 @@ use crate::lex::{Tok, LexicalError};
 
 grammar<'a>(input: &'a str);
 
-pub Solution = <FirstLine> <Line*>;
+pub Solution = <Root>;
+
+Root: Node<'a> = <f:FirstLine> <lines:Line*> => Node::Solution(Box::new(f), lines);
 
 Line = {
     <HeaderLine>,
