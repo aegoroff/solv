@@ -335,7 +335,7 @@ impl<'a> Validator for Missings<'a> {
         ]);
 
         for (id, configs) in &self.missings {
-            for config in configs.iter() {
+            for config in configs {
                 table.add_row(vec![
                     Cell::new(*id),
                     Cell::new(format!("{}|{}", config.config, config.platform)),
