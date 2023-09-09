@@ -11,30 +11,30 @@ use nom::{
 use petgraph::prelude::*;
 
 #[derive(Debug)]
-pub enum Expr<'a> {
+pub enum Node<'a> {
     Comment(&'a str),
     DigitOrDot(&'a str),
     Guid(&'a str),
     Identifier(&'a str),
     Str(&'a str),
-    Version(Box<Expr<'a>>, Box<Expr<'a>>),
-    FirstLine(Box<Expr<'a>>),
-    Global(Vec<Expr<'a>>),
-    Project(Box<Expr<'a>>, Vec<Expr<'a>>),
-    ProjectBegin(Box<Expr<'a>>, Box<Expr<'a>>, Box<Expr<'a>>, Box<Expr<'a>>),
-    Section(Box<Expr<'a>>, Vec<Expr<'a>>),
-    SectionBegin(Vec<Expr<'a>>, Box<Expr<'a>>),
-    SectionContent(Box<Expr<'a>>, Box<Expr<'a>>),
-    SectionKey(Box<Expr<'a>>),
-    SectionValue(Box<Expr<'a>>),
+    Version(Box<Node<'a>>, Box<Node<'a>>),
+    FirstLine(Box<Node<'a>>),
+    Global(Vec<Node<'a>>),
+    Project(Box<Node<'a>>, Vec<Node<'a>>),
+    ProjectBegin(Box<Node<'a>>, Box<Node<'a>>, Box<Node<'a>>, Box<Node<'a>>),
+    Section(Box<Node<'a>>, Vec<Node<'a>>),
+    SectionBegin(Vec<Node<'a>>, Box<Node<'a>>),
+    SectionContent(Box<Node<'a>>, Box<Node<'a>>),
+    SectionKey(Box<Node<'a>>),
+    SectionValue(Box<Node<'a>>),
 }
 
-/// Generates simple &str getters from Expr variants
+/// Generates simple &str getters from Node variants
 macro_rules! impl_str_getters {
     ($(($name:ident, $variant:ident)),*) => {
         $(
             #[must_use] pub fn $name(&self) -> &'a str {
-                if let Expr::$variant(s) = self {
+                if let Node::$variant(s) = self {
                     return *s;
                 }
                 ""
@@ -43,7 +43,7 @@ macro_rules! impl_str_getters {
     };
 }
 
-impl<'a> Expr<'a> {
+impl<'a> Node<'a> {
     impl_str_getters!(
         (identifier, Identifier),
         (digit_or_dot, DigitOrDot),
@@ -53,7 +53,7 @@ impl<'a> Expr<'a> {
 
     #[must_use]
     pub fn is_section(&self, name: &str) -> bool {
-        if let Expr::SectionBegin(names, _) = self {
+        if let Node::SectionBegin(names, _) = self {
             names.iter().any(|n| n.identifier() == name)
         } else {
             false
@@ -140,8 +140,8 @@ impl<'a> Project<'a> {
     }
 
     #[must_use]
-    pub fn from_begin(head: &Expr<'a>) -> Option<Self> {
-        if let Expr::ProjectBegin(project_type, name, path_or_uri, id) = head {
+    pub fn from_begin(head: &Node<'a>) -> Option<Self> {
+        if let Node::ProjectBegin(project_type, name, path_or_uri, id) = head {
             let prj = Project::from(project_type, name, path_or_uri, id);
             Some(prj)
         } else {
@@ -151,10 +151,10 @@ impl<'a> Project<'a> {
 
     #[must_use]
     pub fn from(
-        project_type: &Expr<'a>,
-        name: &Expr<'a>,
-        path_or_uri: &Expr<'a>,
-        id: &Expr<'a>,
+        project_type: &Node<'a>,
+        name: &Node<'a>,
+        path_or_uri: &Node<'a>,
+        id: &Node<'a>,
     ) -> Self {
         let type_id = project_type.guid();
         let pid = id.guid();
@@ -174,7 +174,7 @@ impl<'a> Version<'a> {
     }
 
     #[must_use]
-    pub fn from(name: &Expr<'a>, val: &Expr<'a>) -> Self {
+    pub fn from(name: &Node<'a>, val: &Node<'a>) -> Self {
         let n = name.identifier();
         let v = val.digit_or_dot();
         Version::new(n, v)
@@ -199,8 +199,8 @@ impl<'a> Conf<'a> {
     }
 
     #[must_use]
-    pub fn from_expr(expr: &Expr<'a>) -> Option<Self> {
-        if let Expr::SectionContent(left, _) = expr {
+    pub fn from_node(expr: &Node<'a>) -> Option<Self> {
+        if let Node::SectionContent(left, _) = expr {
             let conf = Conf::from(left.string());
             Some(conf)
         } else {
@@ -228,8 +228,8 @@ impl<'a> ProjectConfigs<'a> {
     }
 
     #[must_use]
-    pub fn from_section_content_key(expr: &Expr<'a>) -> Option<Self> {
-        if let Expr::SectionContent(left, _) = expr {
+    pub fn from_section_content_key(expr: &Node<'a>) -> Option<Self> {
+        if let Node::SectionContent(left, _) = expr {
             ProjectConfigs::from_project_configuration_platform(left.string())
         } else {
             None
@@ -237,8 +237,8 @@ impl<'a> ProjectConfigs<'a> {
     }
 
     #[must_use]
-    pub fn from_section_content(expr: &Expr<'a>) -> Option<Self> {
-        if let Expr::SectionContent(left, right) = expr {
+    pub fn from_section_content(expr: &Node<'a>) -> Option<Self> {
+        if let Node::SectionContent(left, right) = expr {
             ProjectConfigs::from_project_configuration(left.string(), right.string())
         } else {
             None

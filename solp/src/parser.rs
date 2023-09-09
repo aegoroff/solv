@@ -1,4 +1,4 @@
-use crate::ast::{Conf, Expr, Project, ProjectConfigs, Solution, Version};
+use crate::ast::{Conf, Node, Project, ProjectConfigs, Solution, Version};
 use itertools::Itertools;
 use std::collections::HashSet;
 use std::option::Option::Some;
@@ -32,7 +32,7 @@ pub fn parse_str(contents: &str) -> Option<Solution> {
 
 macro_rules! section_content {
     ($s:ident, $n:expr) => {{
-        if let Expr::Section(begin, content) = $s {
+        if let Node::Section(begin, content) = $s {
             begin.is_section($n).then_some(content)
         } else {
             None
@@ -40,10 +40,10 @@ macro_rules! section_content {
     }};
 }
 
-fn analyze<'a>(solution: (Expr<'a>, Vec<Expr<'a>>)) -> Solution<'a> {
+fn analyze<'a>(solution: (Node<'a>, Vec<Node<'a>>)) -> Solution<'a> {
     let (head, lines) = solution;
 
-    let version = if let Expr::FirstLine(ver) = head {
+    let version = if let Node::FirstLine(ver) = head {
         ver.digit_or_dot()
     } else {
         ""
@@ -56,7 +56,7 @@ fn analyze<'a>(solution: (Expr<'a>, Vec<Expr<'a>>)) -> Solution<'a> {
 
     for line in lines {
         match line {
-            Expr::Project(head, sections) => {
+            Node::Project(head, sections) => {
                 if let Some(p) = Project::from_begin(&head) {
                     sol.projects.push(p);
                     sol.dependencies.add_node(p.id);
@@ -68,23 +68,23 @@ fn analyze<'a>(solution: (Expr<'a>, Vec<Expr<'a>>)) -> Solution<'a> {
                         .filter_map(|sect| section_content!(sect, "ProjectDependencies"))
                         .flatten()
                         .filter_map(|expr| match expr {
-                            Expr::SectionContent(left, _) => Some((left.string(), last_project.id)),
+                            Node::SectionContent(left, _) => Some((left.string(), last_project.id)),
                             _ => None,
                         });
 
                     sol.dependencies.extend(edges);
                 }
             }
-            Expr::Version(name, val) => {
+            Node::Version(name, val) => {
                 let version = Version::from(&name, &val);
                 sol.versions.push(version);
             }
-            Expr::Global(sections) => {
+            Node::Global(sections) => {
                 let configs_and_platforms = sections
                     .iter()
                     .filter_map(|sect| section_content!(sect, "SolutionConfigurationPlatforms"))
                     .flatten()
-                    .filter_map(Conf::from_expr);
+                    .filter_map(Conf::from_node);
 
                 sol.solution_configs.extend(configs_and_platforms);
 
@@ -122,7 +122,7 @@ fn analyze<'a>(solution: (Expr<'a>, Vec<Expr<'a>>)) -> Solution<'a> {
                     .filter_map(|sect| section_content!(sect, "SolutionConfiguration"))
                     .flatten()
                     .filter_map(|expr| match expr {
-                        Expr::SectionContent(_, right) => Some(right.string()),
+                        Node::SectionContent(_, right) => Some(right.string()),
                         _ => None,
                     })
                     .collect::<HashSet<&str>>();
@@ -135,7 +135,7 @@ fn analyze<'a>(solution: (Expr<'a>, Vec<Expr<'a>>)) -> Solution<'a> {
 
                 sol.project_configs.extend(project_configs);
             }
-            Expr::Comment(s) => {
+            Node::Comment(s) => {
                 // Only comment text without sharp sign and spacess
                 let skip: &[_] = &['#', ' ', '\t'];
                 sol.product = s.trim_start_matches(skip);

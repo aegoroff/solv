@@ -1,5 +1,5 @@
 
-use crate::ast::{Expr};
+use crate::ast::{Node};
 use crate::lex::{Tok, LexicalError};
 
 grammar<'a>(input: &'a str);
@@ -17,47 +17,47 @@ HeaderLine = {
     <Version>,
 };
 
-FirstLine : Expr<'a> = <id1:Identifier> <id2:Identifier*> "comma" <id3:Identifier*> <v:DigitOrDot> => Expr::FirstLine(Box::new(v));
+FirstLine : Node<'a> = <id1:Identifier> <id2:Identifier*> "comma" <id3:Identifier*> <v:DigitOrDot> => Node::FirstLine(Box::new(v));
 
-Version : Expr<'a> = <id:Identifier> "eq" <r:DigitOrDot> => Expr::Version(Box::new(id),Box::new(r));
+Version : Node<'a> = <id:Identifier> "eq" <r:DigitOrDot> => Node::Version(Box::new(id),Box::new(r));
 
-Project : Expr<'a> = <b:ProjectBegin> <s:Section*> "close_element" => Expr::Project(Box::new(b), s);
+Project : Node<'a> = <b:ProjectBegin> <s:Section*> "close_element" => Node::Project(Box::new(b), s);
 
-Global : Expr<'a> = <id:Identifier> <s:Section*> "close_element" => Expr::Global(s);
+Global : Node<'a> = <id:Identifier> <s:Section*> "close_element" => Node::Global(s);
 
-ProjectBegin : Expr<'a> = {
+ProjectBegin : Node<'a> = {
     "open_element" <t:Guid> "eq" <n:Str> "comma" <p:Str> "comma" <id:Guid> => {
-        Expr::ProjectBegin(Box::new(t),Box::new(n),Box::new(p),Box::new(id))
+        Node::ProjectBegin(Box::new(t),Box::new(n),Box::new(p),Box::new(id))
     },
 };
 
-Section : Expr<'a> = <b:SectionBegin> <c:SectionContent*> "close_element" => Expr::Section(Box::new(b), c);
+Section : Node<'a> = <b:SectionBegin> <c:SectionContent*> "close_element" => Node::Section(Box::new(b), c);
 
-SectionBegin : Expr<'a> = {
+SectionBegin : Node<'a> = {
     "open_element" <name:Identifier+> "eq" <stage:Identifier> => {
-        Expr::SectionBegin(name, Box::new(stage))
+        Node::SectionBegin(name, Box::new(stage))
     },
 };
 
-SectionContent : Expr<'a> = {
+SectionContent : Node<'a> = {
     <k:SectionKey> <v:SectionValue> => {
-        Expr::SectionContent(Box::new(k), Box::new(v))
+        Node::SectionContent(Box::new(k), Box::new(v))
     },
 };
 
-Comment : Expr<'a> = "comment" => Expr::Comment(<>);
+Comment : Node<'a> = "comment" => Node::Comment(<>);
 
-DigitOrDot: Expr<'a> = "digit_and_dot" => Expr::DigitOrDot(<>);
+DigitOrDot: Node<'a> = "digit_and_dot" => Node::DigitOrDot(<>);
 
-Guid: Expr<'a> = "guid" => Expr::Guid(<>);
+Guid: Node<'a> = "guid" => Node::Guid(<>);
 
-Identifier: Expr<'a> = "id" => Expr::Identifier(<>);
+Identifier: Node<'a> = "id" => Node::Identifier(<>);
 
-Str: Expr<'a> = "str" => Expr::Str(<>);
+Str: Node<'a> = "str" => Node::Str(<>);
 
-SectionKey: Expr<'a> = "section_key" => Expr::Str(<>);
+SectionKey: Node<'a> = "section_key" => Node::Str(<>);
 
-SectionValue: Expr<'a> = "section_value" => Expr::Str(<>);
+SectionValue: Node<'a> = "section_value" => Node::Str(<>);
 
 extern {
     type Location = usize;
