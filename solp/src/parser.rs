@@ -26,10 +26,10 @@ pub fn parse_str(contents: &str) -> Option<Solution> {
     let lexer = crate::lex::Lexer::new(input);
     match parser.parse(input, lexer) {
         Ok(parsed) => {
-			let solution = Solution::default();
-			let visitor = SolutionVisitor::new();
-			Some(visitor.visit(solution, &parsed))
-		},
+            let solution = Solution::default();
+            let visitor = SolutionVisitor::new();
+            Some(visitor.visit(solution, &parsed))
+        }
         Err(e) => {
             if cfg!(debug_assertions) {
                 println!("{e:?}");
@@ -65,17 +65,14 @@ impl<'a> Visitor<'a> for SolutionVisitor {
             if let Node::FirstLine(ver) = first_line.as_ref() {
                 s.format = ver.digit_or_dot();
             }
-            let project_visitor = ProjectVisitor::new();
-            let versions_visitor = VersionVisitor::new();
-            let global_visitor = GlobalVisitor::new();
-            let comment_visitor: CommentVisitor = CommentVisitor::new();
 
-            for line in lines {
-                s = project_visitor.visit(s, line);
-                s = versions_visitor.visit(s, line);
-                s = global_visitor.visit(s, line);
-                s = comment_visitor.visit(s, line);
-            }
+            s = lines.iter().fold(s, |mut s, line| {
+                s = ProjectVisitor::new().visit(s, line);
+                s = VersionVisitor::new().visit(s, line);
+                s = GlobalVisitor::new().visit(s, line);
+                s = CommentVisitor::new().visit(s, line);
+                s
+            });
         }
         s
     }
