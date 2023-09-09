@@ -36,9 +36,10 @@ macro_rules! impl_str_getters {
         $(
             #[must_use] pub fn $name(&self) -> &'a str {
                 if let Node::$variant(s) = self {
-                    return *s;
+                    *s
+                } else {
+                    ""
                 }
-                ""
             }
         )*
     };
