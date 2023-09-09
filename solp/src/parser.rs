@@ -21,7 +21,7 @@ pub fn parse_str(contents: &str) -> Option<Solution> {
     let parser = crate::solp::SolutionParser::new();
     let lexer = crate::lex::Lexer::new(input);
     match parser.parse(input, lexer) {
-        Ok(parsed) => analyze(parsed),
+        Ok(parsed) => visit(parsed),
         Err(e) => {
             if cfg!(debug_assertions) {
                 println!("{e:?}");
@@ -41,7 +41,8 @@ macro_rules! section_content {
     }};
 }
 
-fn analyze(solution: Node<'_>) -> Option<Solution<'_>> {
+/// Visits AST tree and makes Solution API instance
+fn visit(solution: Node<'_>) -> Option<Solution<'_>> {
     if let Node::Solution(first_line, lines) = solution {
         let version = if let Node::FirstLine(ver) = first_line.as_ref() {
             ver.digit_or_dot()
