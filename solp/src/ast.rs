@@ -10,6 +10,7 @@ use nom::{
 };
 use petgraph::prelude::*;
 
+/// Represents AST node type
 #[derive(Debug)]
 pub enum Node<'a> {
     Comment(&'a str),
@@ -199,8 +200,8 @@ impl<'a> Conf<'a> {
     }
 
     #[must_use]
-    pub fn from_node(expr: &Node<'a>) -> Option<Self> {
-        if let Node::SectionContent(left, _) = expr {
+    pub fn from_node(node: &Node<'a>) -> Option<Self> {
+        if let Node::SectionContent(left, _) = node {
             let conf = Conf::from(left.string());
             Some(conf)
         } else {
@@ -228,8 +229,8 @@ impl<'a> ProjectConfigs<'a> {
     }
 
     #[must_use]
-    pub fn from_section_content_key(expr: &Node<'a>) -> Option<Self> {
-        if let Node::SectionContent(left, _) = expr {
+    pub fn from_section_content_key(node: &Node<'a>) -> Option<Self> {
+        if let Node::SectionContent(left, _) = node {
             ProjectConfigs::from_project_configuration_platform(left.string())
         } else {
             None
@@ -237,8 +238,8 @@ impl<'a> ProjectConfigs<'a> {
     }
 
     #[must_use]
-    pub fn from_section_content(expr: &Node<'a>) -> Option<Self> {
-        if let Node::SectionContent(left, right) = expr {
+    pub fn from_section_content(node: &Node<'a>) -> Option<Self> {
+        if let Node::SectionContent(left, right) = node {
             ProjectConfigs::from_project_configuration(left.string(), right.string())
         } else {
             None
