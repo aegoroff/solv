@@ -3,11 +3,12 @@
 
 use std::fs;
 
-use crate::ast::Solution;
+use crate::api::Solution;
 use jwalk::{Parallelism, WalkDir};
 use std::option::Option::Some;
 
-pub mod ast;
+pub mod api;
+mod ast;
 mod lex;
 pub mod msbuild;
 mod parser;

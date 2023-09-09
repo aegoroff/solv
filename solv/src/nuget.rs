@@ -9,7 +9,7 @@ use comfy_table::{Attribute, Cell, Color, Row};
 use crossterm::style::Stylize;
 use itertools::Itertools;
 use solp::{
-    ast::Solution,
+    api::Solution,
     msbuild::{self, PackagesConfig, Project},
 };
 
@@ -67,7 +67,7 @@ fn has_mismatches(versions: &BTreeSet<(Option<&String>, &String)>) -> bool {
 }
 
 impl Consume for Nuget {
-    fn ok(&mut self, path: &str, solution: &solp::ast::Solution) {
+    fn ok(&mut self, path: &str, solution: &solp::api::Solution) {
         let projects = collect_msbuild_projects(path, solution);
 
         let mut nugets = nugets(&projects);

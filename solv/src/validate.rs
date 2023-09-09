@@ -5,7 +5,7 @@ use crossterm::style::Stylize;
 use fnv::FnvHashSet;
 use num_format::{Locale, ToFormattedString};
 use petgraph::algo::DfsSpace;
-use solp::ast::{Conf, Solution};
+use solp::api::{Conf, Solution};
 use std::cell::RefCell;
 use std::collections::BTreeSet;
 use std::fmt;
