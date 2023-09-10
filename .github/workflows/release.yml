@@ -20,7 +20,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        build: [ linux, macos, windows ]
+        build: [linux, macos, windows]
         include:
           - build: linux
             os: ubuntu-latest
@@ -83,6 +83,7 @@ jobs:
         if: matrix.build == 'linux'
         run: |
           cp ./target/${{ env.LINUX_TARGET }}/release/${{ env.RELEASE_BIN }} ./dist/${{ env.RELEASE_BIN }}
+          cp ./LICENSE.txt ./dist/
           7z a -ttar -so -an ./dist/* | 7z a -si ./${{ env.RELEASE_DIR }}/${{ env.RELEASE_BIN }}-${{ steps.get_version.outputs.VERSION }}-${{ env.LINUX_TARGET }}.tar.gz
 
       - name: Build Debian release (x86-64)
@@ -99,7 +100,7 @@ jobs:
         run: |
           cargo install cargo-generate-rpm
           cargo generate-rpm --target ${{ env.LINUX_TARGET }}
-          cp ./target/${{ env.LINUX_TARGET }}/generate-rpm/${{ env.RELEASE_BIN }}-*.rpm ../${{ env.RELEASE_DIR }}/ 
+          cp ./target/${{ env.LINUX_TARGET }}/generate-rpm/${{ env.RELEASE_BIN }}-*.rpm ../${{ env.RELEASE_DIR }}/
 
       - name: Create tarball (Windows)
         if: matrix.build == 'windows'
@@ -171,11 +172,11 @@ jobs:
         env:
           API_TOKEN_GITHUB: ${{ secrets.GH_TOKEN }}
         with:
-          github_server: 'github.com'
+          github_server: "github.com"
           source_file: ${{ env.RELEASE_BIN }}.rb
-          destination_repo: 'aegoroff/homebrew-tap'
-          user_email: 'egoroff@email.com'
-          user_name: 'aegoroff'
+          destination_repo: "aegoroff/homebrew-tap"
+          user_email: "egoroff@email.com"
+          user_name: "aegoroff"
           commit_message: "release: ${{ steps.get_version.outputs.VERSION }}"
 
       - name: Create scoop json
@@ -185,11 +186,11 @@ jobs:
         env:
           API_TOKEN_GITHUB: ${{ secrets.GH_TOKEN }}
         with:
-          github_server: 'github.com'
+          github_server: "github.com"
           source_file: ${{ env.RELEASE_BIN }}.json
-          destination_repo: 'aegoroff/scoop-bucket'
-          user_email: 'egoroff@email.com'
-          user_name: 'aegoroff'
+          destination_repo: "aegoroff/scoop-bucket"
+          user_email: "egoroff@email.com"
+          user_name: "aegoroff"
           commit_message: "release: ${{ steps.get_version.outputs.VERSION }}"
 
       - name: Release Linux tarball
@@ -202,7 +203,7 @@ jobs:
           asset_content_type: application/gzip
           asset_name: ${{ env.RELEASE_BIN }}-${{ steps.get_version.outputs.VERSION }}-${{ env.LINUX_TARGET }}.tar.gz
 
-      - name: Release DEB package 
+      - name: Release DEB package
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
