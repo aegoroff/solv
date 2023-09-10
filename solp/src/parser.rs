@@ -10,6 +10,7 @@ trait Visitor<'a> {
     fn visit(&self, solution: Solution<'a>, node: &Node<'a>) -> Solution<'a>;
 }
 
+/// Perses solution from string into Solution model instance
 pub fn parse_str(contents: &str) -> Option<Solution> {
     if contents.len() < UTF8_BOM.len() {
         return None;
