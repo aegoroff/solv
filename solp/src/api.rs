@@ -1,4 +1,4 @@
-use crate::{msbuild, ast::Node};
+use crate::{ast::Node, msbuild};
 use nom::{
     branch::alt,
     bytes::complete::{is_not, tag, take_until},
@@ -210,6 +210,9 @@ impl<'a> ProjectConfigs<'a> {
             configs: vec![Conf::new(pc.configuration, pc.platform)],
         })
     }
+
+    // Configuration, platform parsing made by using nom crate that implement parser combinators
+    // method see more about idea https://en.wikipedia.org/wiki/Parser_combinator
 
     fn parse_project_configuration_platform<'b, E>(
         key: &'b str,
