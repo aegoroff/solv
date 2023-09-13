@@ -132,6 +132,7 @@ impl<'a> Visitor<'a> for VersionVisitor {
     }
 }
 
+/// Glogal section node visitor
 #[derive(Debug)]
 struct GlobalVisitor {}
 

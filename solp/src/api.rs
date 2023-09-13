@@ -10,6 +10,7 @@ use nom::{
 };
 use petgraph::prelude::*;
 
+/// Visual Studion solution file (.sln) model
 #[derive(Debug, Clone)]
 pub struct Solution<'a> {
     pub format: &'a str,
@@ -21,24 +22,28 @@ pub struct Solution<'a> {
     pub dependencies: DiGraphMap<&'a str, ()>,
 }
 
+/// Solution version descriptor
 #[derive(Debug, Copy, Clone)]
 pub struct Version<'a> {
     pub name: &'a str,
     pub ver: &'a str,
 }
 
+/// Project configuration
 #[derive(Debug, Clone)]
 pub struct ProjectConfigs<'a> {
     pub project_id: &'a str,
     pub configs: Vec<Conf<'a>>,
 }
 
+/// Configration and platform pair
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Default)]
 pub struct Conf<'a> {
     pub config: &'a str,
     pub platform: &'a str,
 }
 
+/// Project model
 #[derive(Debug, Copy, Clone, Default)]
 pub struct Project<'a> {
     pub type_id: &'a str,
