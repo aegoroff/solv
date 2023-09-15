@@ -188,16 +188,19 @@ impl<'a> Lexer<'a> {
     fn section_key(&mut self, i: usize) -> Option<Spanned<Tok<'a>, usize, LexicalError>> {
         let mut start = i;
 
+        // skip whitespaces
         while let Some((j, '\r' | '\n' | '\t' | ' ')) = self.chars.peek() {
             start = *j + 1;
             self.chars.next();
         }
 
+        // If close element just return Skip token
         if Lexer::is_close_element(&self.input[start..]) {
             self.context = LexerContext::None;
             return Some(Ok((start, Tok::Skip, start)));
         }
 
+        // If section definition context just return Skip token
         match self.context {
             LexerContext::InsideSection => {}
             LexerContext::SectionDefinition => self.context = LexerContext::InsideSection,
