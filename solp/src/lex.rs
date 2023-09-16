@@ -60,6 +60,14 @@ impl<'a> Lexer<'a> {
     }
 
     fn identifier(&mut self, i: usize) -> (Tok<'a>, usize) {
+        let mut id_or_close_element = |input, len| -> (Tok<'a>, usize) {
+            if Lexer::is_close_element(input) {
+                self.context = LexerContext::None;
+                (Tok::CloseElement(input), len)
+            } else {
+                (Tok::Id(input), len)
+            }
+        };
         let finish;
         loop {
             if let Some((j, c)) = self.chars.peek() {
@@ -72,18 +80,11 @@ impl<'a> Lexer<'a> {
                         break;
                     }
                     _ => {
-                        if Lexer::is_close_element(&self.input[i..]) {
-                            self.context = LexerContext::None;
-                            return (Tok::CloseElement(&self.input[i..*j]), *j);
-                        }
-                        return (Tok::Id(&self.input[i..*j]), *j);
+                        return id_or_close_element(&self.input[i..*j], *j);
                     }
                 }
             } else {
-                if Lexer::is_close_element(&self.input[i..]) {
-                    return (Tok::CloseElement(&self.input[i..]), self.input.len());
-                }
-                return (Tok::Id(&self.input[i..]), self.input.len());
+                return id_or_close_element(&self.input[i..], self.input.len());
             }
         }
         // Skip (
