@@ -60,44 +60,40 @@ impl<'a> Lexer<'a> {
     }
 
     fn identifier(&mut self, i: usize) -> (Tok<'a>, usize) {
-        let mut id_or_close_element = |input, len| -> (Tok<'a>, usize) {
+        let mut id_or_close_element = |input, position| -> (Tok<'a>, usize) {
             if Lexer::is_close_element(input) {
                 self.context = LexerContext::None;
-                (Tok::CloseElement(input), len)
+                (Tok::CloseElement(input), position)
             } else {
-                (Tok::Id(input), len)
+                (Tok::Id(input), position)
             }
         };
-        let finish;
         loop {
             if let Some((j, c)) = self.chars.peek() {
+                let finish = *j;
                 match *c {
                     'a'..='z' | 'A'..='Z' => {
                         self.chars.next();
                     }
                     '(' => {
-                        finish = *j;
-                        break;
+                        // Skip (
+                        self.chars.next();
+
+                        let sub = &self.input[i..finish];
+                        if sub.len() > SECTION_SUFFIX.len() {
+                            let start = sub.len() - SECTION_SUFFIX.len();
+                            if &sub[start..] == SECTION_SUFFIX {
+                                self.context = LexerContext::SectionDefinition;
+                            };
+                        }
+                        break (Tok::OpenElement(&self.input[i..finish]), finish);
                     }
-                    _ => {
-                        return id_or_close_element(&self.input[i..*j], *j);
-                    }
+                    _ => break id_or_close_element(&self.input[i..finish], finish),
                 }
             } else {
-                return id_or_close_element(&self.input[i..], self.input.len());
+                break id_or_close_element(&self.input[i..], self.input.len());
             }
         }
-        // Skip (
-        self.chars.next();
-
-        let sub = &self.input[i..finish];
-        if sub.len() > SECTION_SUFFIX.len() {
-            let start = sub.len() - SECTION_SUFFIX.len();
-            if &sub[start..] == SECTION_SUFFIX {
-                self.context = LexerContext::SectionDefinition;
-            };
-        }
-        (Tok::OpenElement(&self.input[i..finish]), finish)
     }
 
     fn comment(&mut self, i: usize) -> Option<Spanned<Tok<'a>, usize, LexicalError>> {
