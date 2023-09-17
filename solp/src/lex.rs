@@ -86,12 +86,12 @@ impl<'a> Lexer<'a> {
                                 self.context = LexerContext::SectionDefinition;
                             };
                         }
-                        break (Tok::OpenElement(&self.input[i..finish]), finish);
+                        return (Tok::OpenElement(&self.input[i..finish]), finish);
                     }
-                    _ => break id_or_close_element(&self.input[i..finish], finish),
+                    _ => return id_or_close_element(&self.input[i..finish], finish),
                 }
             } else {
-                break id_or_close_element(&self.input[i..], self.input.len());
+                return id_or_close_element(&self.input[i..], self.input.len());
             }
         }
     }
