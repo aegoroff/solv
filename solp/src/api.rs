@@ -217,7 +217,7 @@ impl<'a> ProjectConfigs<'a> {
     }
 
     // Configuration, platform parsing made by using nom crate that implement parser combinators
-    // method see more about idea https://en.wikipedia.org/wiki/Parser_combinator
+    // method. See more about idea https://en.wikipedia.org/wiki/Parser_combinator
 
     fn parse_project_configuration_platform<'b, E>(
         key: &'b str,
