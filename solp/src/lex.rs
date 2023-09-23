@@ -60,12 +60,12 @@ impl<'a> Lexer<'a> {
     }
 
     fn identifier(&mut self, i: usize) -> (Tok<'a>, usize) {
-        let mut id_or_close_element = |input, position| -> (Tok<'a>, usize) {
-            if Lexer::is_close_element(input) {
+        let mut id_or_close_element = |collected, position| -> (Tok<'a>, usize) {
+            if Lexer::is_close_element(collected) {
                 self.context = LexerContext::None;
-                (Tok::CloseElement(input), position)
+                (Tok::CloseElement(collected), position)
             } else {
-                (Tok::Id(input), position)
+                (Tok::Id(collected), position)
             }
         };
         loop {
@@ -79,14 +79,16 @@ impl<'a> Lexer<'a> {
                         // Skip (
                         self.chars.next();
 
-                        let sub = &self.input[i..finish];
-                        if sub.len() > SECTION_SUFFIX.len() {
-                            let start = sub.len() - SECTION_SUFFIX.len();
-                            if &sub[start..] == SECTION_SUFFIX {
+                        let collected = &self.input[i..finish];
+                        // If identier suffixed 'Section' in this position (after oper paren)
+                        // We start section definition - so we change lexer context
+                        if collected.len() > SECTION_SUFFIX.len() {
+                            let start = collected.len() - SECTION_SUFFIX.len();
+                            if &collected[start..] == SECTION_SUFFIX {
                                 self.context = LexerContext::SectionDefinition;
                             };
                         }
-                        return (Tok::OpenElement(&self.input[i..finish]), finish);
+                        return (Tok::OpenElement(collected), finish);
                     }
                     _ => return id_or_close_element(&self.input[i..finish], finish),
                 }
@@ -265,6 +267,8 @@ impl<'a> Lexer<'a> {
     }
 
     fn is_close_element(val: &str) -> bool {
+        // IMPORTANT: This implementation needed because slicing substring val[..3]
+        // and compare it to End not working with multibyte encodings
         // This implementation is ugly equivalent of:
         // let substr: String = val.chars().take("End".len()).collect();
         // substr == "End"
