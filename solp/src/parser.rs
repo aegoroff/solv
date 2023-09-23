@@ -261,7 +261,7 @@ mod tests {
             let result = parse_str(&s);
 
             // Assert
-            assert!(result.is_none());
+            prop_assert!(result.is_none());
         }
     }
 
