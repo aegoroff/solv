@@ -268,7 +268,8 @@ impl<'a> Lexer<'a> {
 
     fn is_close_element(val: &str) -> bool {
         // IMPORTANT: This implementation needed because slicing substring val[..3]
-        // and compare it to End not working with multibyte encodings
+        // and compare it to End not working in some extreme cases
+        // so if you run fuzzing it'll immediately crash
         // This implementation is ugly equivalent of:
         // let substr: String = val.chars().take("End".len()).collect();
         // substr == "End"
