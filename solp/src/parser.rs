@@ -231,7 +231,8 @@ mod tests {
     use super::*;
     use crate::lex::Lexer;
     use petgraph::dot::{Config, Dot};
-    use proptest::prelude::*;
+    use proptest::strategy::ValueTree;
+    use proptest::{prelude::*, test_runner::TestRunner};
     use rstest::rstest;
 
     #[rstest]
@@ -255,14 +256,19 @@ mod tests {
         assert!(result.is_none());
     }
 
-    proptest! {
-        #[test]
-        fn parse_arbitrary_str(s in "\\PC*") {
+    #[test]
+    fn parse_arbitrary_str() {
+        let mut runner = TestRunner::default();
+        for _ in 0..2048 {
+			// Arrange
+            let val = ("\\PC*").new_tree(&mut runner).unwrap();
+            let s = val.current();
+
             // Act
             let result = parse_str(&s);
 
             // Assert
-            prop_assert!(result.is_none());
+            assert!(result.is_none());
         }
     }
 
