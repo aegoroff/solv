@@ -266,18 +266,13 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    // Just validates val to be prefixed with End string
     fn is_close_element(val: &str) -> bool {
-        // IMPORTANT: This implementation needed because slicing substring val[..3]
-        // and compare it to End not working with multibyte encodings
-        // This implementation is ugly equivalent of:
-        // let substr: String = val.chars().take("End".len()).collect();
-        // substr == "End"
-        // but without allocations
-        let mut it = val.chars();
-
-        let mut next_is = |c: char| -> bool { it.next().map(|x| x == c).unwrap_or_default() };
-
-        next_is('E') && next_is('n') && next_is('d')
+        if val.len() < 3 {
+            false
+        } else {
+            &val[..3] == "End"
+        }
     }
 
     fn trim_start(s: &str, mut i: usize) -> usize {
