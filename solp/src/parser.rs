@@ -237,6 +237,7 @@ mod tests {
     #[rstest]
     #[case("")]
     #[case("123243")]
+    #[case("\n偅")]
     #[case("ZZ(1Z\t22\"2")]
     #[case("Z\u{1}\u{365}\u{b}\n\u{0}\u{0}")]
     #[case("\rXZZ,\rM2Section(\r    =2     =2")]
