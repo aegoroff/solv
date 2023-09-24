@@ -36,8 +36,8 @@ impl Nuget {
     }
 }
 
-fn collect_msbuild_projects(path: &str, solution: &Solution) -> Vec<MsbuildProject> {
-    let dir = crate::parent_of(path);
+fn collect_msbuild_projects(solution: &Solution) -> Vec<MsbuildProject> {
+    let dir = crate::parent_of(solution.path);
 
     solution
         .iterate_projects_without_web_sites()
@@ -67,8 +67,8 @@ fn has_mismatches(versions: &BTreeSet<(Option<&String>, &String)>) -> bool {
 }
 
 impl Consume for Nuget {
-    fn ok(&mut self, path: &str, solution: &solp::api::Solution) {
-        let projects = collect_msbuild_projects(path, solution);
+    fn ok(&mut self, solution: &solp::api::Solution) {
+        let projects = collect_msbuild_projects(solution);
 
         let mut nugets = nugets(&projects);
         let nugets_from_packages_config = nugets_from_packages_configs(&projects);
@@ -98,20 +98,23 @@ impl Consume for Nuget {
             .sorted_unstable_by(|(a, _), (b, _)| Ord::cmp(&a.to_lowercase(), &b.to_lowercase()))
             .for_each(|(pkg, versions)| {
                 let groupped = versions.iter().into_group_map_by(|x| x.0);
-                let rows = groupped.iter().sorted_unstable_by_key(|x| x.0).map(|(c, v)| {
-                    mismatch = v.len() > 1;
-                    let comma_separated = v.iter().map(|(_, v)| v).join(", ");
-                    let line = if c.is_some() {
-                        format!("{comma_separated} if {}", c.as_ref().unwrap())
-                    } else {
-                        comma_separated
-                    };
-                    let mut line = Cell::new(line).add_attribute(Attribute::Italic);
-                    if mismatch {
-                        line = line.fg(Color::Red);
-                    }
-                    Row::from(vec![Cell::new(pkg), line])
-                });
+                let rows = groupped
+                    .iter()
+                    .sorted_unstable_by_key(|x| x.0)
+                    .map(|(c, v)| {
+                        mismatch = v.len() > 1;
+                        let comma_separated = v.iter().map(|(_, v)| v).join(", ");
+                        let line = if c.is_some() {
+                            format!("{comma_separated} if {}", c.as_ref().unwrap())
+                        } else {
+                            comma_separated
+                        };
+                        let mut line = Cell::new(line).add_attribute(Attribute::Italic);
+                        if mismatch {
+                            line = line.fg(Color::Red);
+                        }
+                        Row::from(vec![Cell::new(pkg), line])
+                    });
                 table.add_rows(rows);
             });
         self.mismatches_found |= mismatch;
@@ -120,7 +123,7 @@ impl Consume for Nuget {
             return;
         }
 
-        ux::print_solution_path(path);
+        ux::print_solution_path(solution.path);
         println!("{table}");
         println!();
     }

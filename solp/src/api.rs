@@ -9,11 +9,14 @@ use nom::{
     IResult,
 };
 use petgraph::prelude::*;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// Visual Studion solution file (.sln) model
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Solution<'a> {
+    /// Path to solution file. Maybe empty string
+    /// because solution can be parsed using memory data.
+    pub path: &'a str,
     pub format: &'a str,
     pub product: &'a str,
     pub projects: Vec<Project<'a>>,
@@ -21,32 +24,33 @@ pub struct Solution<'a> {
     pub solution_configs: Vec<Conf<'a>>,
     pub project_configs: Vec<ProjectConfigs<'a>>,
     #[serde(skip_serializing)]
+    #[serde(skip_deserializing)]
     pub dependencies: DiGraphMap<&'a str, ()>,
 }
 
 /// Solution version descriptor
-#[derive(Debug, Copy, Clone, Serialize)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct Version<'a> {
     pub name: &'a str,
     pub ver: &'a str,
 }
 
 /// Project configuration
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectConfigs<'a> {
     pub project_id: &'a str,
     pub configs: Vec<Conf<'a>>,
 }
 
 /// Configration and platform pair
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Default, Serialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub struct Conf<'a> {
     pub config: &'a str,
     pub platform: &'a str,
 }
 
 /// Project model
-#[derive(Debug, Copy, Clone, Default, Serialize)]
+#[derive(Debug, Copy, Clone, Default, Serialize, Deserialize)]
 pub struct Project<'a> {
     pub type_id: &'a str,
     pub type_descr: &'a str,
@@ -71,6 +75,7 @@ impl<'a> Solution<'a> {
 impl<'a> Default for Solution<'a> {
     fn default() -> Self {
         Self {
+            path: "",
             format: "",
             product: "",
             projects: Vec::new(),

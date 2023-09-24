@@ -28,7 +28,7 @@ lalrpop_mod!(
 /// Consume provides parsed solution consumer
 pub trait Consume {
     /// Called in case of success parsing
-    fn ok(&mut self, path: &str, solution: &Solution);
+    fn ok(&mut self, solution: &Solution);
     /// Called on error
     fn err(&self, path: &str);
 }
@@ -37,7 +37,10 @@ pub trait Consume {
 pub fn parse_file(path: &str, consumer: &mut dyn Consume) {
     match fs::read_to_string(path) {
         Ok(contents) => match parse_str(&contents) {
-            Some(solution) => consumer.ok(path, &solution),
+            Some(mut solution) => {
+                solution.path = path;
+                consumer.ok(&solution)
+            }
             None => consumer.err(path),
         },
         Err(e) => eprintln!("{path} - {e}"),

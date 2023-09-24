@@ -123,11 +123,11 @@ impl Validate {
 }
 
 impl Consume for Validate {
-    fn ok(&mut self, path: &str, solution: &Solution) {
+    fn ok(&mut self, solution: &Solution) {
         let mut validators: Vec<Box<dyn Validator>> = vec![
             Box::new(Cycles::new(solution)),
             Box::new(Danglings::new(solution)),
-            Box::new(NotFouund::new(path, solution)),
+            Box::new(NotFouund::new(solution)),
             Box::new(Missings::new(solution)),
         ];
 
@@ -138,7 +138,7 @@ impl Consume for Validate {
         });
 
         if !self.show_only_problems || !valid_solution {
-            ux::print_solution_path(path);
+            ux::print_solution_path(solution.path);
         }
         for v in &validators {
             if !v.validation_result() {
@@ -176,15 +176,13 @@ impl Display for Validate {
 }
 
 struct NotFouund<'a> {
-    path: &'a str,
     solution: &'a Solution<'a>,
     bad_paths: BTreeSet<PathBuf>,
 }
 
 impl<'a> NotFouund<'a> {
-    pub fn new(path: &'a str, solution: &'a Solution<'a>) -> Self {
+    pub fn new(solution: &'a Solution<'a>) -> Self {
         Self {
-            path,
             solution,
             bad_paths: BTreeSet::new(),
         }
@@ -193,7 +191,7 @@ impl<'a> NotFouund<'a> {
 
 impl<'a> Validator for NotFouund<'a> {
     fn validate(&mut self, statistic: &mut Statistic) {
-        let dir = crate::parent_of(self.path);
+        let dir = crate::parent_of(self.solution.path);
         self.bad_paths = self
             .solution
             .iterate_projects_without_web_sites()
@@ -400,7 +398,7 @@ mod tests {
         let mut validator = Validate::new(false);
 
         // Act
-        validator.ok("", &solution);
+        validator.ok(&solution);
 
         // Assert
     }
@@ -412,7 +410,7 @@ mod tests {
         let mut validator = Validate::new(false);
 
         // Act
-        validator.ok("", &solution);
+        validator.ok(&solution);
 
         // Assert
     }
@@ -424,7 +422,7 @@ mod tests {
         let mut validator = Validate::new(false);
 
         // Act
-        validator.ok("", &solution);
+        validator.ok(&solution);
 
         // Assert
     }
@@ -436,7 +434,7 @@ mod tests {
         let mut validator = Validate::new(false);
 
         // Act
-        validator.ok("", &solution);
+        validator.ok(&solution);
 
         // Assert
     }

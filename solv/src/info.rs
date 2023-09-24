@@ -36,7 +36,7 @@ impl Default for Info {
 }
 
 impl Consume for Info {
-    fn ok(&mut self, path: &str, solution: &Solution) {
+    fn ok(&mut self, solution: &Solution) {
         self.solutions += 1;
         let mut projects_by_type: BTreeMap<&str, i32> = BTreeMap::new();
         for prj in &solution.projects {
@@ -46,7 +46,7 @@ impl Consume for Info {
             *projects_by_type.entry(prj.type_descr).or_insert(0) += 1;
         }
 
-        let mut solution_table = ux::create_solution_table(path);
+        let mut solution_table = ux::create_solution_table(solution.path);
         solution_table.set_content_arrangement(ContentArrangement::Disabled);
 
         let mut table = ux::new_table();

@@ -65,7 +65,8 @@ fn nuget(cmd: &ArgMatches) -> Result<()> {
 }
 
 fn convert(cmd: &ArgMatches) -> Result<()> {
-    let mut consumer = Json::new();
+    let pretty = cmd.get_flag("pretty");
+    let mut consumer = Json::new(pretty);
     scan_path(cmd, &mut consumer)
 }
 
@@ -241,10 +242,16 @@ fn convert_cmd() -> Command {
                 .help(RECURSIVELY_DESCR),
         )
         .arg(
-            arg!(-t - -time)
+            arg!(-t --time)
                 .required(false)
                 .action(ArgAction::SetTrue)
                 .help(BENCHMARK_DESCR),
+        )
+        .arg(
+            arg!(-p --pretty)
+                .required(false)
+                .action(ArgAction::SetTrue)
+                .help("Pretty-printed output. False by default"),
         )
         .arg(arg!([PATH]).help(PATH_DESCR).required(true))
 }
