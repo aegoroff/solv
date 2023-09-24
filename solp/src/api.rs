@@ -9,9 +9,10 @@ use nom::{
     IResult,
 };
 use petgraph::prelude::*;
+use serde::Serialize;
 
 /// Visual Studion solution file (.sln) model
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Solution<'a> {
     pub format: &'a str,
     pub product: &'a str,
@@ -19,32 +20,33 @@ pub struct Solution<'a> {
     pub versions: Vec<Version<'a>>,
     pub solution_configs: Vec<Conf<'a>>,
     pub project_configs: Vec<ProjectConfigs<'a>>,
+    #[serde(skip_serializing)]
     pub dependencies: DiGraphMap<&'a str, ()>,
 }
 
 /// Solution version descriptor
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Serialize)]
 pub struct Version<'a> {
     pub name: &'a str,
     pub ver: &'a str,
 }
 
 /// Project configuration
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ProjectConfigs<'a> {
     pub project_id: &'a str,
     pub configs: Vec<Conf<'a>>,
 }
 
 /// Configration and platform pair
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Default, Serialize)]
 pub struct Conf<'a> {
     pub config: &'a str,
     pub platform: &'a str,
 }
 
 /// Project model
-#[derive(Debug, Copy, Clone, Default)]
+#[derive(Debug, Copy, Clone, Default, Serialize)]
 pub struct Project<'a> {
     pub type_id: &'a str,
     pub type_descr: &'a str,

@@ -2,6 +2,7 @@ use clap::{command, ArgAction, ArgMatches, Command};
 use clap_complete::{generate, Shell};
 use color_eyre::eyre::{Context, Result};
 use solp::Consume;
+use solv::convert::Json;
 use solv::info::Info;
 use solv::nuget::Nuget;
 use solv::validate::Validate;
@@ -32,6 +33,7 @@ fn main() -> Result<()> {
         Some(("validate", cmd)) => validate(cmd),
         Some(("info", cmd)) => info(cmd),
         Some(("nuget", cmd)) => nuget(cmd),
+        Some(("json", cmd)) => convert(cmd),
         Some(("completion", cmd)) => print_completions(cmd),
         _ => Ok(()),
     }
@@ -59,6 +61,12 @@ fn nuget(cmd: &ArgMatches) -> Result<()> {
     if consumer.mismatches_found && fail_if_mismatched {
         std::process::exit(exitcode::SOFTWARE);
     }
+    result
+}
+
+fn convert(cmd: &ArgMatches) -> Result<()> {
+    let mut consumer = Json::new();
+    let result = scan_path(cmd, &mut consumer);
     result
 }
 
@@ -114,6 +122,7 @@ fn build_cli() -> Command {
         .subcommand(validate_cmd())
         .subcommand(info_cmd())
         .subcommand(nuget_cmd())
+        .subcommand(convert_cmd())
         .subcommand(completion_cmd())
 }
 
@@ -128,13 +137,13 @@ fn info_cmd() -> Command {
                 .help(EXT_DESCR),
         )
         .arg(
-            arg!(-r --recursively)
+            arg!(-r - -recursively)
                 .required(false)
                 .action(ArgAction::SetTrue)
                 .help(RECURSIVELY_DESCR),
         )
         .arg(
-            arg!(-t --time)
+            arg!(-t - -time)
                 .required(false)
                 .action(ArgAction::SetTrue)
                 .help(BENCHMARK_DESCR),
@@ -153,19 +162,19 @@ fn validate_cmd() -> Command {
                 .help(EXT_DESCR),
         )
         .arg(
-            arg!(-p --problems)
+            arg!(-p - -problems)
                 .required(false)
                 .action(ArgAction::SetTrue)
                 .help("Show only solutions with problems. Correct solutions will not be shown."),
         )
         .arg(
-            arg!(-r --recursively)
+            arg!(-r - -recursively)
                 .required(false)
                 .action(ArgAction::SetTrue)
                 .help(RECURSIVELY_DESCR),
         )
         .arg(
-            arg!(-t --time)
+            arg!(-t - -time)
                 .required(false)
                 .action(ArgAction::SetTrue)
                 .help(BENCHMARK_DESCR),
@@ -214,6 +223,31 @@ fn nuget_cmd() -> Command {
             .help(PATH_DESCR)
             .required(true),
     )
+}
+
+fn convert_cmd() -> Command {
+    Command::new("json")
+        .aliases(["j"])
+        .about("Converts solution(s) into json")
+        .arg(
+            arg!(-e --ext <EXTENSION>)
+                .required(false)
+                .default_value(DEFAULT_SOLUTION_EXT)
+                .help(EXT_DESCR),
+        )
+        .arg(
+            arg!(-r - -recursively)
+                .required(false)
+                .action(ArgAction::SetTrue)
+                .help(RECURSIVELY_DESCR),
+        )
+        .arg(
+            arg!(-t - -time)
+                .required(false)
+                .action(ArgAction::SetTrue)
+                .help(BENCHMARK_DESCR),
+        )
+        .arg(arg!([PATH]).help(PATH_DESCR).required(true))
 }
 
 fn completion_cmd() -> Command {

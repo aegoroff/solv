@@ -1,5 +1,6 @@
 #![warn(unused_extern_crates)]
 #![allow(clippy::missing_errors_doc)]
+pub mod convert;
 pub mod error;
 pub mod info;
 pub mod nuget;
