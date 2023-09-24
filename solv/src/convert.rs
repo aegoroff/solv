@@ -30,8 +30,9 @@ impl Default for Json {
 
 impl Consume for Json {
     fn ok(&mut self, _path: &str, solution: &solp::api::Solution) {
-        let s = serde_json::to_string(solution).unwrap();
-        self.serialized.push(s);
+        if let Ok(s) = serde_json::to_string(solution) {
+            self.serialized.push(s)
+        }
     }
 
     fn err(&self, path: &str) {
@@ -41,9 +42,19 @@ impl Consume for Json {
 
 impl Display for Json {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for s in &self.serialized {
-            write!(f, "{s}")?;
+        if self.serialized.len() > 1 {
+            write!(f, "[")?;
         }
+        for (ix, s) in self.serialized.iter().enumerate() {
+            write!(f, "{s}")?;
+            if ix < self.serialized.len() - 1 {
+                write!(f, ",")?;
+            }
+        }
+        if self.serialized.len() > 1 {
+            write!(f, "]")?;
+        }
+
         write!(f, "{}", self.errors.borrow())
     }
 }
