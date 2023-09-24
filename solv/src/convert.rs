@@ -22,6 +22,12 @@ impl Json {
     }
 }
 
+impl Default for Json {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Consume for Json {
     fn ok(&mut self, _path: &str, solution: &solp::api::Solution) {
         let s = serde_json::to_string(solution).unwrap();

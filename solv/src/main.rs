@@ -66,8 +66,7 @@ fn nuget(cmd: &ArgMatches) -> Result<()> {
 
 fn convert(cmd: &ArgMatches) -> Result<()> {
     let mut consumer = Json::new();
-    let result = scan_path(cmd, &mut consumer);
-    result
+    scan_path(cmd, &mut consumer)
 }
 
 fn scan_path<C: Consume + Display>(cmd: &ArgMatches, consumer: &mut C) -> Result<()> {
