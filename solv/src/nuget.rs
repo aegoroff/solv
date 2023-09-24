@@ -116,8 +116,8 @@ impl Consume for Nuget {
                         Row::from(vec![Cell::new(pkg), line])
                     });
                 table.add_rows(rows);
+                self.mismatches_found |= mismatch;
             });
-        self.mismatches_found |= mismatch;
 
         if self.show_only_mismatched && !mismatch {
             return;
