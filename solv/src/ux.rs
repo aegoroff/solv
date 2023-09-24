@@ -55,6 +55,7 @@ pub fn create_one_column_table<I: ExactSizeIterator<Item = S>, S: ToString>(
     }
 }
 
+#[must_use]
 pub fn create_solution_table(path: &str) -> Table {
     let mut table = new_table();
     table.set_header(vec![Cell::new(path).add_attribute(Attribute::Bold).fg(

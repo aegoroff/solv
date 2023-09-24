@@ -50,6 +50,7 @@ pub struct Configuration<'a> {
 }
 
 impl<'a> Solution<'a> {
+    #[must_use]
     pub fn from(solution: &'a solp::api::Solution) -> Self {
         let versions = solution
             .versions

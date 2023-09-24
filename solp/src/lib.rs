@@ -39,7 +39,7 @@ pub fn parse_file(path: &str, consumer: &mut dyn Consume) {
         Ok(contents) => match parse_str(&contents) {
             Some(mut solution) => {
                 solution.path = path;
-                consumer.ok(&solution)
+                consumer.ok(&solution);
             }
             None => consumer.err(path),
         },
