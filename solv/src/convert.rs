@@ -151,12 +151,7 @@ impl Display for Json {
         if many_solutions {
             write!(f, "]")?;
         }
-        writeln!(f)?;
-        if self.errors.borrow().count() > 0 {
-            write!(f, "{}", self.errors.borrow())
-        } else {
-            Ok(())
-        }
+        Ok(writeln!(f)?)
     }
 }
 
