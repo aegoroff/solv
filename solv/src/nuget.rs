@@ -91,7 +91,7 @@ impl Consume for Nuget {
             Cell::new("Version(s)").add_attribute(Attribute::Bold),
         ]);
 
-        let mut mismatch = false;
+        let mut solutions_mismatches = false;
         nugets
             .iter()
             .filter(|(_, versions)| !self.show_only_mismatched || has_mismatches(versions))
@@ -102,7 +102,7 @@ impl Consume for Nuget {
                     .iter()
                     .sorted_unstable_by_key(|x| x.0)
                     .map(|(c, v)| {
-                        mismatch = v.len() > 1;
+                        let mismatch = v.len() > 1;
                         let comma_separated = v.iter().map(|(_, v)| v).join(", ");
                         let line = if c.is_some() {
                             format!("{comma_separated} if {}", c.as_ref().unwrap())
@@ -113,13 +113,15 @@ impl Consume for Nuget {
                         if mismatch {
                             line = line.fg(Color::Red);
                         }
+                        solutions_mismatches |= mismatch;
                         Row::from(vec![Cell::new(pkg), line])
                     });
                 table.add_rows(rows);
-                self.mismatches_found |= mismatch;
             });
 
-        if self.show_only_mismatched && !mismatch {
+        self.mismatches_found |= solutions_mismatches;
+
+        if self.show_only_mismatched && !solutions_mismatches {
             return;
         }
 
