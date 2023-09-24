@@ -171,7 +171,11 @@ impl Display for Validate {
         statistic.parsed = statistic.total;
         statistic.total += statistic.not_parsed;
         write!(f, "{statistic}")?;
-        write!(f, "{}", self.errors.borrow())
+        if self.errors.borrow().count() > 0 {
+            write!(f, "{}", self.errors.borrow())
+        } else {
+            Ok(())
+        }
     }
 }
 

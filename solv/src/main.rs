@@ -71,11 +71,11 @@ fn convert(cmd: &ArgMatches) -> Result<()> {
 }
 
 fn scan_path<C: Consume + Display>(cmd: &ArgMatches, consumer: &mut C) -> Result<()> {
+    let now = Instant::now();
     if let Some(path) = cmd.get_one::<String>(PATH) {
         let metadata =
             fs::metadata(path).wrap_err_with(|| format!("Failed to use path: {path}"))?;
         if metadata.is_dir() {
-            let now = Instant::now();
             let empty = String::default();
             let extension = cmd.get_one::<String>("ext").unwrap_or(&empty);
             let recursively = cmd.get_flag(RECURSIVELY_FLAG);
@@ -84,20 +84,19 @@ fn scan_path<C: Consume + Display>(cmd: &ArgMatches, consumer: &mut C) -> Result
             } else {
                 solp::parse_dir(path, extension, consumer);
             }
-
-            print!("{consumer}");
-
-            if cmd.get_flag("time") {
-                let duration = now.elapsed().as_millis();
-                let duration = Duration::from_millis(duration as u64);
-                println!(
-                    " {:>2} {}",
-                    "elapsed:",
-                    humantime::format_duration(duration)
-                );
-            }
         } else {
             solp::parse_file(path, consumer);
+        }
+        print!("{consumer}");
+
+        if cmd.get_flag("time") {
+            let duration = now.elapsed().as_millis();
+            let duration = Duration::from_millis(duration as u64);
+            println!(
+                " {:>2} {}",
+                "elapsed:",
+                humantime::format_duration(duration)
+            );
         }
     }
     Ok(())
@@ -242,13 +241,13 @@ fn convert_cmd() -> Command {
                 .help(RECURSIVELY_DESCR),
         )
         .arg(
-            arg!(-t --time)
+            arg!(-t - -time)
                 .required(false)
                 .action(ArgAction::SetTrue)
                 .help(BENCHMARK_DESCR),
         )
         .arg(
-            arg!(-p --pretty)
+            arg!(-p - -pretty)
                 .required(false)
                 .action(ArgAction::SetTrue)
                 .help("Pretty-printed output. False by default"),

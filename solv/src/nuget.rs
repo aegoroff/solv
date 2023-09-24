@@ -145,7 +145,11 @@ impl Display for Nuget {
             )?;
             writeln!(f)?;
         }
-        write!(f, "{}", self.errors.borrow())
+        if self.errors.borrow().count() > 0 {
+            write!(f, "{}", self.errors.borrow())
+        } else {
+            Ok(())
+        }
     }
 }
 
