@@ -94,15 +94,12 @@ impl<'a> Visitor<'a> for ProjectVisitor {
             if let Some(p) = Project::from_begin(head) {
                 solution.projects.push(p);
                 solution.dependencies.add_node(p.id);
-            }
-
-            if let Some(last_project) = solution.projects.last() {
                 let edges = sections
                     .iter()
                     .filter_map(|sect| section_content!(sect, "ProjectDependencies"))
                     .flatten()
                     .filter_map(|expr| match expr {
-                        Node::SectionContent(left, _) => Some((left.string(), last_project.id)),
+                        Node::SectionContent(left, _) => Some((left.string(), p.id)),
                         _ => None,
                     });
 
@@ -260,7 +257,7 @@ mod tests {
     fn parse_arbitrary_str() {
         let mut runner = TestRunner::default();
         for _ in 0..2048 {
-			// Arrange
+            // Arrange
             let val = ("\\PC*").new_tree(&mut runner).unwrap();
             let s = val.current();
 
