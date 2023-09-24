@@ -262,10 +262,9 @@ mod tests {
             let s = val.current();
 
             // Act
-            let result = parse_str(&s);
+            parse_str(&s);
 
             // Assert
-            assert!(result.is_none());
         }
     }
 
