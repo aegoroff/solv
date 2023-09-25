@@ -29,7 +29,7 @@ jobs:
     steps:
       - name: Update rust
         run: rustup update
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Build
         run: cargo build
       - name: Run cargo-tarpaulin
