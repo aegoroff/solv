@@ -1,5 +1,4 @@
 use std::{
-    cell::RefCell,
     collections::{BTreeSet, HashMap},
     fmt::{self, Display},
 };
@@ -8,11 +7,8 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use solp::Consume;
 
-use crate::error::Collector;
-
 pub struct Json {
     serialized: Vec<String>,
-    errors: RefCell<Collector>,
     pretty: bool,
 }
 
@@ -112,7 +108,6 @@ impl Json {
     pub fn new(pretty: bool) -> Self {
         Self {
             serialized: vec![],
-            errors: RefCell::new(Collector::new()),
             pretty,
         }
     }
@@ -131,9 +126,7 @@ impl Consume for Json {
         }
     }
 
-    fn err(&self, path: &str) {
-        self.errors.borrow_mut().add_path(path);
-    }
+    fn err(&self, _path: &str) {}
 }
 
 impl Display for Json {
