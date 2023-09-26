@@ -16,8 +16,8 @@ workspace = ".."
 comfy-table = "=7.0.1"
 crossterm = "=0.27.0"
 humantime = "=2.1.0"
-clap = { version = "=4.4.4", features = ["std", "color", "suggestions", "cargo"] }
-clap_complete = "=4.4.1"
+clap = { version = "=4.4.5", features = ["std", "color", "suggestions", "cargo"] }
+clap_complete = "=4.4.2"
 fnv = "=1.0.7"
 solp = { path = "../solp/", version = "0.13.0" }
 petgraph = "=0.6.4"
