@@ -1,128 +1,10 @@
-use std::{
-    collections::{BTreeSet, HashMap},
-    fmt::{self, Display},
-};
+use std::fmt::{self, Display};
 
-use itertools::Itertools;
-use serde::{Deserialize, Serialize};
 use solp::Consume;
 
 pub struct Json {
     serialized: Vec<String>,
     pretty: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Solution<'a> {
-    pub path: &'a str,
-    pub format: &'a str,
-    pub product: &'a str,
-    pub versions: Vec<Version<'a>>,
-    pub projects: Vec<Project<'a>>,
-    pub configurations: Vec<Configuration<'a>>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Version<'a> {
-    pub name: &'a str,
-    pub version: &'a str,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct Project<'a> {
-    pub type_id: &'a str,
-    pub type_description: &'a str,
-    pub id: &'a str,
-    pub name: &'a str,
-    pub path_or_uri: &'a str,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub configurations: Option<BTreeSet<Configuration<'a>>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub items: Option<Vec<&'a str>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub depends_from: Option<Vec<&'a str>>,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct Configuration<'a> {
-    pub configuration: &'a str,
-    pub platform: &'a str,
-}
-
-impl<'a> Solution<'a> {
-    #[must_use]
-    pub fn from(solution: &'a solp::api::Solution) -> Self {
-        let versions = solution
-            .versions
-            .iter()
-            .map(|v| Version {
-                name: v.name,
-                version: v.ver,
-            })
-            .collect();
-        let project_configs = solution
-            .project_configs
-            .iter()
-            .map(|c| {
-                (
-                    c.project_id,
-                    c.configs
-                        .iter()
-                        .map(|pc| Configuration {
-                            configuration: pc.config,
-                            platform: pc.platform,
-                        })
-                        .collect(),
-                )
-            })
-            .collect::<HashMap<&str, BTreeSet<Configuration>>>();
-        let projects = solution
-            .projects
-            .iter()
-            .map(|p| {
-                let items = if p.items.is_empty() {
-                    None
-                } else {
-                    Some(p.items.clone())
-                };
-                let depends_from = solution
-                    .dependencies
-                    .neighbors_directed(p.id, petgraph::Direction::Incoming)
-                    .collect_vec();
-                let depends_from = if depends_from.is_empty() {
-                    None
-                } else {
-                    Some(depends_from)
-                };
-                Project {
-                    type_id: p.type_id,
-                    type_description: p.type_descr,
-                    id: p.id,
-                    name: p.name,
-                    path_or_uri: p.path_or_uri,
-                    configurations: project_configs.get(p.id).cloned(),
-                    items,
-                    depends_from,
-                }
-            })
-            .collect();
-        let configurations = solution
-            .solution_configs
-            .iter()
-            .map(|c| Configuration {
-                configuration: c.config,
-                platform: c.platform,
-            })
-            .collect_vec();
-        Self {
-            path: solution.path,
-            format: solution.format,
-            product: solution.product,
-            versions,
-            projects,
-            configurations,
-        }
-    }
 }
 
 impl Json {
@@ -142,8 +24,7 @@ impl Consume for Json {
         } else {
             serde_json::to_string
         };
-        let sol = Solution::from(solution);
-        if let Ok(s) = conveter(&sol) {
+        if let Ok(s) = conveter(solution) {
             self.serialized.push(s);
         }
     }
@@ -189,7 +70,7 @@ mod tests {
 
         // Assert
         let s = format!("{validator}");
-        let deserialized = serde_json::from_str::<Solution>(&s);
+        let deserialized = serde_json::from_str::<solp::api::Solution>(&s);
         assert!(deserialized.is_ok());
         assert_eq!(4, deserialized.unwrap().projects.len())
     }

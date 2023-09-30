@@ -43,7 +43,7 @@ impl Consume for Info {
             if msbuild::is_solution_folder(prj.type_id) {
                 continue;
             }
-            *projects_by_type.entry(prj.type_descr).or_insert(0) += 1;
+            *projects_by_type.entry(prj.type_description).or_insert(0) += 1;
         }
 
         let mut solution_table = ux::create_solution_table(solution.path);
@@ -65,7 +65,7 @@ impl Consume for Info {
         for version in &solution.versions {
             table.add_row(vec![
                 Cell::new(version.name),
-                Cell::new(version.ver).add_attribute(Attribute::Bold),
+                Cell::new(version.version).add_attribute(Attribute::Bold),
             ]);
         }
         solution_table.add_row(vec![Cell::new(table)]);
@@ -91,13 +91,13 @@ impl Consume for Info {
         solution_table.add_row(vec![Cell::new(table)]);
 
         let configurations = solution
-            .solution_configs
+            .configurations
             .iter()
-            .map(|c| c.config)
+            .map(|c| c.configuration)
             .collect::<BTreeSet<&str>>();
 
         let platforms = solution
-            .solution_configs
+            .configurations
             .iter()
             .map(|c| c.platform)
             .collect::<BTreeSet<&str>>();

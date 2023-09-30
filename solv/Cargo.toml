@@ -18,7 +18,6 @@ crossterm = "=0.27.0"
 humantime = "=2.1.0"
 clap = { version = "=4.4.6", features = ["std", "color", "suggestions", "cargo"] }
 clap_complete = "=4.4.3"
-fnv = "=1.0.7"
 solp = { path = "../solp/", version = "0.13.0" }
 petgraph = "=0.6.4"
 num-format = "=0.4.4"
@@ -27,7 +26,6 @@ exitcode = "=1.1.2"
 url = "=2.4.1"
 color-eyre = "=0.6.2"
 serde_json = "=1.0.107"
-serde = { version = "=1.0.188", features = ["derive"] }
 
 [dev-dependencies]
 rstest = "=0.18.2"

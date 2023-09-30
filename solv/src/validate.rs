@@ -2,12 +2,13 @@ use crate::error::Collector;
 use crate::{calculate_percent, ux, Consume};
 use comfy_table::{Attribute, Cell};
 use crossterm::style::Stylize;
-use fnv::FnvHashSet;
+use itertools::Itertools;
 use num_format::{Locale, ToFormattedString};
 use petgraph::algo::DfsSpace;
-use solp::api::{Conf, Solution};
+use petgraph::prelude::DiGraphMap;
+use solp::api::{Configuration, Solution};
 use std::cell::RefCell;
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::fmt;
 use std::fmt::Display;
 use std::path::PathBuf;
@@ -233,63 +234,46 @@ impl<'a> Validator for NotFouund<'a> {
 
 struct Danglings<'a> {
     solution: &'a Solution<'a>,
-    danglings: BTreeSet<String>,
 }
 
 impl<'a> Danglings<'a> {
     pub fn new(solution: &'a Solution<'a>) -> Self {
-        Self {
-            solution,
-            danglings: BTreeSet::new(),
-        }
+        Self { solution }
     }
 }
 
 impl<'a> Validator for Danglings<'a> {
     fn validate(&mut self, statistic: &mut Statistic) {
-        let project_ids: FnvHashSet<String> = self
-            .solution
-            .iterate_projects()
-            .map(|p| p.id.to_uppercase())
-            .collect();
-
-        self.danglings = self
-            .solution
-            .project_configs
-            .iter()
-            .map(|p| p.project_id.to_uppercase())
-            .collect::<FnvHashSet<String>>()
-            .difference(&project_ids)
-            .cloned()
-            .collect();
         if !self.validation_result() {
             statistic.dangings += 1;
         }
     }
 
     fn print_results(&self) {
-        ux::print_one_column_table(
-            "Dangling project configurations that can be safely removed",
-            Some(comfy_table::Color::DarkYellow),
-            self.danglings.iter().map(std::string::String::as_str),
-        );
+        if let Some(danglings) = &self.solution.dangling_project_configurations {
+            ux::print_one_column_table(
+                "Dangling project configurations that can be safely removed",
+                Some(comfy_table::Color::DarkYellow),
+                danglings.iter().map(std::string::String::as_str),
+            );
+        }
     }
 
     fn validation_result(&self) -> bool {
-        self.danglings.is_empty()
+        self.solution.dangling_project_configurations.is_none()
     }
 }
 
 struct Missings<'a> {
     solution: &'a Solution<'a>,
-    missings: Vec<(&'a str, Vec<&'a Conf<'a>>)>,
+    missings: HashMap<&'a str, Vec<Configuration<'a>>>,
 }
 
 impl<'a> Missings<'a> {
     pub fn new(solution: &'a Solution<'a>) -> Self {
         Self {
             solution,
-            missings: vec![],
+            missings: HashMap::new(),
         }
     }
 }
@@ -298,30 +282,35 @@ impl<'a> Validator for Missings<'a> {
     fn validate(&mut self, statistic: &mut Statistic) {
         let solution_platforms_configs = self
             .solution
-            .solution_configs
+            .configurations
             .iter()
-            .collect::<FnvHashSet<&Conf>>();
+            .cloned()
+            .collect::<BTreeSet<Configuration>>();
 
         self.missings = self
             .solution
-            .project_configs
+            .projects
             .iter()
-            .filter_map(|pc| {
-                let diff = pc
-                    .configs
+            .filter_map(|p| {
+                let configurations = p
+                    .clone()
+                    .configurations?
                     .iter()
-                    .collect::<FnvHashSet<&Conf>>()
+                    .cloned()
+                    .collect::<BTreeSet<Configuration>>();
+                let diff = configurations
                     .difference(&solution_platforms_configs)
-                    .copied()
-                    .collect::<Vec<&Conf>>();
+                    .cloned()
+                    .collect_vec();
 
                 if diff.is_empty() {
                     None
                 } else {
-                    Some((pc.project_id, diff))
+                    Some((p.id, diff))
                 }
             })
             .collect();
+
         if !self.validation_result() {
             statistic.missings += 1;
         }
@@ -340,7 +329,7 @@ impl<'a> Validator for Missings<'a> {
             for config in configs {
                 table.add_row(vec![
                     Cell::new(*id),
-                    Cell::new(format!("{}|{}", config.config, config.platform)),
+                    Cell::new(format!("{}|{}", config.configuration, config.platform)),
                 ]);
             }
         }
@@ -369,9 +358,21 @@ impl<'a> Cycles<'a> {
 
 impl<'a> Validator for Cycles<'a> {
     fn validate(&mut self, statistic: &mut Statistic) {
-        let mut space = DfsSpace::new(&self.solution.dependencies);
-        self.cycles_detected =
-            petgraph::algo::toposort(&self.solution.dependencies, Some(&mut space)).is_err();
+        let mut graph = DiGraphMap::<&'a str, ()>::new();
+        for p in &self.solution.projects {
+            graph.add_node(p.id);
+            if let Some(depends_from) = &p.depends_from {
+                for d in depends_from {
+                    if !graph.contains_node(d) {
+                        graph.add_node(d);
+                    }
+                    graph.add_edge(d, p.id, ());
+                }
+            }
+        }
+
+        let mut space = DfsSpace::new(&graph);
+        self.cycles_detected = petgraph::algo::toposort(&graph, Some(&mut space)).is_err();
         if !self.validation_result() {
             statistic.cycles += 1;
         }

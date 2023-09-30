@@ -1,5 +1,5 @@
-use crate::api::{Conf, Project, ProjectConfigs, Solution, Version};
 use crate::ast::Node;
+use crate::ast::{Conf, Prj, ProjectConfigs, Sol, Ver};
 use itertools::Itertools;
 use std::collections::HashSet;
 use std::option::Option::Some;
@@ -7,11 +7,11 @@ use std::option::Option::Some;
 const UTF8_BOM: &[u8; 3] = b"\xEF\xBB\xBF";
 
 trait Visitor<'a> {
-    fn visit(&self, solution: Solution<'a>, node: &Node<'a>) -> Solution<'a>;
+    fn visit(&self, solution: Sol<'a>, node: &Node<'a>) -> Sol<'a>;
 }
 
 /// Perses solution from string into Solution model instance
-pub fn parse_str(contents: &str) -> Option<Solution> {
+pub fn parse_str(contents: &str) -> Option<Sol> {
     if contents.len() < UTF8_BOM.len() {
         return None;
     }
@@ -27,7 +27,7 @@ pub fn parse_str(contents: &str) -> Option<Solution> {
     let lexer = crate::lex::Lexer::new(input);
     match parser.parse(input, lexer) {
         Ok(parsed) => {
-            let solution = Solution::default();
+            let solution = Sol::default();
             let visitor = SolutionVisitor::new();
             Some(visitor.visit(solution, &parsed))
         }
@@ -50,6 +50,19 @@ macro_rules! section_content {
     }};
 }
 
+macro_rules! select_section_content {
+    ($sections:ident, $n:literal) => {{
+        $sections
+            .iter()
+            .filter_map(|sect| section_content!(sect, $n))
+            .flatten()
+            .filter_map(move |expr| match expr {
+                Node::SectionContent(left, _) => Some(left.string()),
+                _ => None,
+            })
+    }};
+}
+
 #[derive(Debug)]
 struct SolutionVisitor {}
 
@@ -60,7 +73,7 @@ impl SolutionVisitor {
 }
 
 impl<'a> Visitor<'a> for SolutionVisitor {
-    fn visit(&self, solution: Solution<'a>, node: &Node<'a>) -> Solution<'a> {
+    fn visit(&self, solution: Sol<'a>, node: &Node<'a>) -> Sol<'a> {
         let mut s = solution;
         if let Node::Solution(first_line, lines) = node {
             if let Node::FirstLine(ver) = first_line.as_ref() {
@@ -89,32 +102,15 @@ impl ProjectVisitor {
 }
 
 impl<'a> Visitor<'a> for ProjectVisitor {
-    fn visit(&self, mut solution: Solution<'a>, node: &Node<'a>) -> Solution<'a> {
+    fn visit(&self, mut solution: Sol<'a>, node: &Node<'a>) -> Sol<'a> {
         if let Node::Project(head, sections) = node {
-            if let Some(mut p) = Project::from_begin(head) {
-                let project_id = p.id.clone();
-                let edges = sections
-                    .iter()
-                    .filter_map(|sect| section_content!(sect, "ProjectDependencies"))
-                    .flatten()
-                    .filter_map(|expr| match expr {
-                        Node::SectionContent(left, _) => Some((left.string(), project_id)),
-                        _ => None,
-                    });
-
-                let items = sections
-                    .iter()
-                    .filter_map(|sect| section_content!(sect, "SolutionItems"))
-                    .flatten()
-                    .filter_map(|expr| match expr {
-                        Node::SectionContent(left, _) => Some(left.string()),
-                        _ => None,
-                    });
+            if let Some(mut p) = Prj::from_begin(head) {
+                let dependencies = select_section_content!(sections, "ProjectDependencies");
+                let items = select_section_content!(sections, "SolutionItems");
 
                 p.items.extend(items);
+                p.depends_from.extend(dependencies);
                 solution.projects.push(p);
-                solution.dependencies.add_node(project_id);
-                solution.dependencies.extend(edges);
             }
         }
         solution
@@ -131,9 +127,9 @@ impl VersionVisitor {
 }
 
 impl<'a> Visitor<'a> for VersionVisitor {
-    fn visit(&self, mut solution: Solution<'a>, node: &Node<'a>) -> Solution<'a> {
+    fn visit(&self, mut solution: Sol<'a>, node: &Node<'a>) -> Sol<'a> {
         if let Node::Version(name, val) = node {
-            let version = Version::from(name, val);
+            let version = Ver::from(name, val);
             solution.versions.push(version);
         }
         solution
@@ -151,7 +147,7 @@ impl GlobalVisitor {
 }
 
 impl<'a> Visitor<'a> for GlobalVisitor {
-    fn visit(&self, mut solution: Solution<'a>, node: &Node<'a>) -> Solution<'a> {
+    fn visit(&self, mut solution: Sol<'a>, node: &Node<'a>) -> Sol<'a> {
         if let Node::Global(sections) = node {
             let configs_and_platforms = sections
                 .iter()
@@ -224,7 +220,7 @@ impl CommentVisitor {
 }
 
 impl<'a> Visitor<'a> for CommentVisitor {
-    fn visit(&self, mut solution: Solution<'a>, node: &Node<'a>) -> Solution<'a> {
+    fn visit(&self, mut solution: Sol<'a>, node: &Node<'a>) -> Sol<'a> {
         if let Node::Comment(s) = node {
             // Only comment text without sharp sign and spacess
             let skip: &[_] = &['#', ' ', '\t'];
@@ -238,7 +234,6 @@ impl<'a> Visitor<'a> for CommentVisitor {
 mod tests {
     use super::*;
     use crate::lex::Lexer;
-    use petgraph::dot::{Config, Dot};
     use proptest::strategy::ValueTree;
     use proptest::{prelude::*, test_runner::TestRunner};
     use rstest::rstest;
@@ -288,16 +283,24 @@ mod tests {
         assert!(result.is_some());
         let solution = result.unwrap();
         assert_eq!(solution.projects.len(), 10);
-        assert!(solution.projects.iter().any(|p| !p.items.is_empty()));
-        assert_eq!(solution.iterate_projects().count(), 8); // solution folders excluded
-        assert_eq!(solution.dependencies.node_count(), 10);
-        assert_eq!(solution.dependencies.edge_count(), 4);
+        assert_eq!(
+            2,
+            solution
+                .projects
+                .iter()
+                .filter(|p| !p.items.is_empty())
+                .count()
+        );
+        assert_eq!(
+            3,
+            solution
+                .projects
+                .iter()
+                .filter(|p| !p.depends_from.is_empty())
+                .count()
+        ); // solution folders excluded
         assert_eq!(solution.format, "12.00");
         assert_eq!(solution.product, "Visual Studio 15");
-        println!(
-            "{:?}",
-            Dot::with_config(&solution.dependencies, &[Config::EdgeNoLabel])
-        );
     }
 
     #[test]

@@ -3,7 +3,7 @@
 
 use std::fs;
 
-use crate::api::Solution;
+use api::Solution;
 use jwalk::{Parallelism, WalkDir};
 use std::option::Option::Some;
 
@@ -50,7 +50,7 @@ pub fn parse_file(path: &str, consumer: &mut dyn Consume) {
 /// `parse_str` parses solution content in memory
 #[must_use]
 pub fn parse_str(contents: &str) -> Option<Solution> {
-    parser::parse_str(contents)
+    Some(Solution::from(parser::parse_str(contents)?))
 }
 
 /// `parse_dir` parses only directory specified by path.
