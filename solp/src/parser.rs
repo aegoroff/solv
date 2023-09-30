@@ -41,7 +41,7 @@ pub fn parse_str(contents: &str) -> Option<Solution> {
 }
 
 macro_rules! section_content {
-    ($s:ident, $n:expr) => {{
+    ($s:ident, $n:literal) => {{
         if let Node::Section(begin, content) = $s {
             begin.is_section($n).then_some(content)
         } else {
@@ -91,18 +91,29 @@ impl ProjectVisitor {
 impl<'a> Visitor<'a> for ProjectVisitor {
     fn visit(&self, mut solution: Solution<'a>, node: &Node<'a>) -> Solution<'a> {
         if let Node::Project(head, sections) = node {
-            if let Some(p) = Project::from_begin(head) {
-                solution.projects.push(p);
-                solution.dependencies.add_node(p.id);
+            if let Some(mut p) = Project::from_begin(head) {
+                let project_id = p.id.clone();
                 let edges = sections
                     .iter()
                     .filter_map(|sect| section_content!(sect, "ProjectDependencies"))
                     .flatten()
                     .filter_map(|expr| match expr {
-                        Node::SectionContent(left, _) => Some((left.string(), p.id)),
+                        Node::SectionContent(left, _) => Some((left.string(), project_id)),
                         _ => None,
                     });
 
+                let items = sections
+                    .iter()
+                    .filter_map(|sect| section_content!(sect, "SolutionItems"))
+                    .flatten()
+                    .filter_map(|expr| match expr {
+                        Node::SectionContent(left, _) => Some(left.string()),
+                        _ => None,
+                    });
+
+                p.items.extend(items);
+                solution.projects.push(p);
+                solution.dependencies.add_node(project_id);
                 solution.dependencies.extend(edges);
             }
         }
@@ -277,6 +288,7 @@ mod tests {
         assert!(result.is_some());
         let solution = result.unwrap();
         assert_eq!(solution.projects.len(), 10);
+        assert!(solution.projects.iter().any(|p| !p.items.is_empty()));
         assert_eq!(solution.iterate_projects().count(), 8); // solution folders excluded
         assert_eq!(solution.dependencies.node_count(), 10);
         assert_eq!(solution.dependencies.edge_count(), 4);

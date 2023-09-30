@@ -37,6 +37,8 @@ pub struct Project<'a> {
     pub path_or_uri: &'a str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub configurations: Option<BTreeSet<Configuration<'a>>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub items: Option<Vec<&'a str>>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -75,13 +77,21 @@ impl<'a> Solution<'a> {
         let projects = solution
             .projects
             .iter()
-            .map(|p| Project {
-                type_id: p.type_id,
-                type_description: p.type_descr,
-                id: p.id,
-                name: p.name,
-                path_or_uri: p.path_or_uri,
-                configurations: project_configs.get(p.id).cloned(),
+            .map(|p| {
+                let items = if p.items.is_empty() {
+                    None
+                } else {
+                    Some(p.items.clone())
+                };
+                Project {
+                    type_id: p.type_id,
+                    type_description: p.type_descr,
+                    id: p.id,
+                    name: p.name,
+                    path_or_uri: p.path_or_uri,
+                    configurations: project_configs.get(p.id).cloned(),
+                    items,
+                }
             })
             .collect();
         let configurations = solution

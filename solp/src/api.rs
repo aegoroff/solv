@@ -47,13 +47,14 @@ pub struct Conf<'a> {
 }
 
 /// Project model
-#[derive(Debug, Copy, Clone, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Project<'a> {
     pub type_id: &'a str,
     pub type_descr: &'a str,
     pub id: &'a str,
     pub name: &'a str,
     pub path_or_uri: &'a str,
+    pub items: Vec<&'a str>,
 }
 
 impl<'a> Solution<'a> {
