@@ -39,6 +39,8 @@ pub struct Project<'a> {
     pub configurations: Option<BTreeSet<Configuration<'a>>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub items: Option<Vec<&'a str>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub depends_from: Option<Vec<&'a str>>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -83,6 +85,15 @@ impl<'a> Solution<'a> {
                 } else {
                     Some(p.items.clone())
                 };
+                let depends_from = solution
+                    .dependencies
+                    .neighbors_directed(p.id, petgraph::Direction::Incoming)
+                    .collect_vec();
+                let depends_from = if depends_from.is_empty() {
+                    None
+                } else {
+                    Some(depends_from)
+                };
                 Project {
                     type_id: p.type_id,
                     type_description: p.type_descr,
@@ -91,6 +102,7 @@ impl<'a> Solution<'a> {
                     path_or_uri: p.path_or_uri,
                     configurations: project_configs.get(p.id).cloned(),
                     items,
+                    depends_from,
                 }
             })
             .collect();
