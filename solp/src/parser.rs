@@ -1,5 +1,5 @@
 use crate::ast::Node;
-use crate::ast::{Conf, Prj, ProjectConfigs, Sol, Ver};
+use crate::ast::{Conf, Prj, PrjConfAggregate, Sol, Ver};
 use itertools::Itertools;
 use std::collections::HashSet;
 use std::option::Option::Some;
@@ -161,7 +161,7 @@ impl<'a> Visitor<'a> for GlobalVisitor {
                 .iter()
                 .filter_map(|sect| section_content!(sect, "ProjectConfigurationPlatforms"))
                 .flatten()
-                .filter_map(ProjectConfigs::from_section_content_key)
+                .filter_map(PrjConfAggregate::from_section_content_key)
                 .group_by(|x| x.project_id);
 
             let project_configs_platforms =
@@ -169,7 +169,7 @@ impl<'a> Visitor<'a> for GlobalVisitor {
                     .into_iter()
                     .map(|(pid, project_configs)| {
                         let c = project_configs.flat_map(|c| c.configs).collect();
-                        ProjectConfigs::from_id_and_configs(pid, c)
+                        PrjConfAggregate::from_id_and_configs(pid, c)
                     });
             solution.project_configs.extend(project_configs_platforms);
 
@@ -177,12 +177,12 @@ impl<'a> Visitor<'a> for GlobalVisitor {
                 .iter()
                 .filter_map(|sect| section_content!(sect, "ProjectConfiguration"))
                 .flatten()
-                .filter_map(ProjectConfigs::from_section_content)
+                .filter_map(PrjConfAggregate::from_section_content)
                 .group_by(|x| x.project_id)
                 .into_iter()
                 .map(|(pid, project_configs)| {
                     let c = project_configs.flat_map(|c| c.configs).collect();
-                    ProjectConfigs::from_id_and_configs(pid, c)
+                    PrjConfAggregate::from_id_and_configs(pid, c)
                 })
                 .collect_vec();
 

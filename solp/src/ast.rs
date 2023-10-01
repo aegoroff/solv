@@ -41,7 +41,7 @@ pub struct Sol<'a> {
     pub projects: Vec<Prj<'a>>,
     pub versions: Vec<Ver<'a>>,
     pub solution_configs: Vec<Conf<'a>>,
-    pub project_configs: Vec<ProjectConfigs<'a>>,
+    pub project_configs: Vec<PrjConfAggregate<'a>>,
 }
 
 /// Solution version descriptor
@@ -51,9 +51,9 @@ pub struct Ver<'a> {
     pub ver: &'a str,
 }
 
-/// Project configuration
+/// Project configurations aggregator
 #[derive(Debug, Clone)]
-pub struct ProjectConfigs<'a> {
+pub struct PrjConfAggregate<'a> {
     pub project_id: &'a str,
     pub configs: Vec<Conf<'a>>,
 }
@@ -161,13 +161,13 @@ impl<'a> Conf<'a> {
 }
 
 #[derive(Default, PartialEq, Debug)]
-struct ProjectConfig<'a> {
+struct PrjConf<'a> {
     id: &'a str,
     configuration: &'a str,
     platform: &'a str,
 }
 
-impl<'a> ProjectConfigs<'a> {
+impl<'a> PrjConfAggregate<'a> {
     #[must_use]
     pub fn from_id_and_configs(project_id: &'a str, configs: Vec<Conf<'a>>) -> Self {
         let mut configurations = Vec::new();
@@ -181,7 +181,7 @@ impl<'a> ProjectConfigs<'a> {
     #[must_use]
     pub fn from_section_content_key(node: &Node<'a>) -> Option<Self> {
         if let Node::SectionContent(left, _) = node {
-            ProjectConfigs::from_project_configuration_platform(left.string())
+            PrjConfAggregate::from_project_configuration_platform(left.string())
         } else {
             None
         }
@@ -190,23 +190,23 @@ impl<'a> ProjectConfigs<'a> {
     #[must_use]
     pub fn from_section_content(node: &Node<'a>) -> Option<Self> {
         if let Node::SectionContent(left, right) = node {
-            ProjectConfigs::from_project_configuration(left.string(), right.string())
+            PrjConfAggregate::from_project_configuration(left.string(), right.string())
         } else {
             None
         }
     }
 
     fn from_project_configuration_platform(k: &'a str) -> Option<Self> {
-        let r = ProjectConfigs::parse_project_configuration_platform::<VerboseError<&str>>(k);
+        let r = PrjConfAggregate::parse_project_configuration_platform::<VerboseError<&str>>(k);
         Self::new(r)
     }
 
     fn from_project_configuration(k: &'a str, v: &'a str) -> Option<Self> {
-        let r = ProjectConfigs::parse_project_configuration::<VerboseError<&str>>(k, v);
+        let r = PrjConfAggregate::parse_project_configuration::<VerboseError<&str>>(k, v);
         Self::new(r)
     }
 
-    fn new(r: IResult<&'a str, ProjectConfig<'a>, VerboseError<&'a str>>) -> Option<Self> {
+    fn new(r: IResult<&'a str, PrjConf<'a>, VerboseError<&'a str>>) -> Option<Self> {
         r.ok().map(|(_, pc)| Self {
             project_id: pc.id,
             configs: vec![Conf::new(pc.configuration, pc.platform)],
@@ -216,16 +216,14 @@ impl<'a> ProjectConfigs<'a> {
     // Configuration, platform parsing made by using nom crate that implement parser combinators
     // method. See more about idea https://en.wikipedia.org/wiki/Parser_combinator
 
-    fn parse_project_configuration_platform<'b, E>(
-        key: &'b str,
-    ) -> IResult<&'b str, ProjectConfig<'b>, E>
+    fn parse_project_configuration_platform<'b, E>(key: &'b str) -> IResult<&'b str, PrjConf<'b>, E>
     where
         E: ParseError<&'b str> + std::fmt::Debug,
     {
         let parser =
             sequence::separated_pair(guid, char('.'), pair(pipe_terminated, tag_terminated));
 
-        combinator::map(parser, |(project_id, (config, platform))| ProjectConfig {
+        combinator::map(parser, |(project_id, (config, platform))| PrjConf {
             id: project_id,
             configuration: config,
             platform,
@@ -235,7 +233,7 @@ impl<'a> ProjectConfigs<'a> {
     fn parse_project_configuration<'b, E>(
         key: &'b str,
         value: &'b str,
-    ) -> IResult<&'b str, ProjectConfig<'b>, E>
+    ) -> IResult<&'b str, PrjConf<'b>, E>
     where
         E: ParseError<&'b str> + std::fmt::Debug,
     {
@@ -243,7 +241,7 @@ impl<'a> ProjectConfigs<'a> {
 
         let conf = Conf::from(value);
 
-        combinator::map(parser, |(project_id, config)| ProjectConfig {
+        combinator::map(parser, |(project_id, config)| PrjConf {
             id: project_id,
             configuration: config,
             platform: conf.platform,
@@ -346,7 +344,7 @@ mod tests {
         let s = "{27060CA7-FB29-42BC-BA66-7FC80D498354}.Debug|Any CPU.ActiveCfg";
 
         // Act
-        let c = ProjectConfigs::from_project_configuration_platform(s);
+        let c = PrjConfAggregate::from_project_configuration_platform(s);
 
         // Assert
         assert!(c.is_some());
@@ -363,7 +361,7 @@ mod tests {
         let s = "{27060CA7-FB29-42BC-BA66-7FC80D498354}.Debug .NET 4.0|Any CPU.ActiveCfg";
 
         // Act
-        let c = ProjectConfigs::from_project_configuration_platform(s);
+        let c = PrjConfAggregate::from_project_configuration_platform(s);
 
         // Assert
         assert!(c.is_some());
@@ -380,7 +378,7 @@ mod tests {
         let s = "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.ActiveCfg";
 
         // Act
-        let c = ProjectConfigs::from_project_configuration_platform(s);
+        let c = PrjConfAggregate::from_project_configuration_platform(s);
 
         // Assert
         assert!(c.is_some());
@@ -397,7 +395,7 @@ mod tests {
         let s = "{5228E9CE-A216-422F-A5E6-58E95E2DD71D}.DLL Debug.ActiveCfg";
 
         // Act
-        let c = ProjectConfigs::from_project_configuration_platform(s);
+        let c = PrjConfAggregate::from_project_configuration_platform(s);
 
         // Assert
         assert!(c.is_none());
@@ -436,35 +434,36 @@ mod tests {
     }
 
     #[rstest]
-    #[case("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.Build.0", ProjectConfig { id: "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", configuration: "Release", platform: ".NET" })]
-    #[case("{60BB14A5-0871-4656-BC38-4F0958230F9A}.Debug|ARM.Deploy.0", ProjectConfig { id: "{60BB14A5-0871-4656-BC38-4F0958230F9A}", configuration: "Debug", platform: "ARM" })]
-    #[case("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.ActiveCfg", ProjectConfig { id: "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", configuration: "Release", platform: ".NET" })]
+    #[case("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.Build.0", PrjConf { id: "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", configuration: "Release", platform: ".NET" })]
+    #[case("{60BB14A5-0871-4656-BC38-4F0958230F9A}.Debug|ARM.Deploy.0", PrjConf { id: "{60BB14A5-0871-4656-BC38-4F0958230F9A}", configuration: "Debug", platform: "ARM" })]
+    #[case("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.ActiveCfg", PrjConf { id: "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", configuration: "Release", platform: ".NET" })]
     #[trace]
     fn project_configs_parse_project_configuration_platform_tests(
         #[case] i: &str,
-        #[case] expected: ProjectConfig,
+        #[case] expected: PrjConf,
     ) {
         // Arrange
 
         // Act
-        let result = ProjectConfigs::parse_project_configuration_platform::<VerboseError<&str>>(i);
+        let result =
+            PrjConfAggregate::parse_project_configuration_platform::<VerboseError<&str>>(i);
 
         // Assert
         assert_eq!(result, Ok(("", expected)));
     }
 
     #[rstest]
-    #[case("{5228E9CE-A216-422F-A5E6-58E95E2DD71D}.DLL Debug.ActiveCfg", "Release|x64", ProjectConfig { id: "{5228E9CE-A216-422F-A5E6-58E95E2DD71D}", configuration: "DLL Debug", platform: "x64" })]
+    #[case("{5228E9CE-A216-422F-A5E6-58E95E2DD71D}.DLL Debug.ActiveCfg", "Release|x64", PrjConf { id: "{5228E9CE-A216-422F-A5E6-58E95E2DD71D}", configuration: "DLL Debug", platform: "x64" })]
     #[trace]
     fn project_configs_parse_project_configuration_tests(
         #[case] k: &str,
         #[case] v: &str,
-        #[case] expected: ProjectConfig,
+        #[case] expected: PrjConf,
     ) {
         // Arrange
 
         // Act
-        let result = ProjectConfigs::parse_project_configuration::<VerboseError<&str>>(k, v);
+        let result = PrjConfAggregate::parse_project_configuration::<VerboseError<&str>>(k, v);
 
         // Assert
         assert_eq!(result, Ok(("", expected)));
