@@ -317,7 +317,7 @@ impl<'a> Validator for Missings<'a> {
     }
 
     fn print_results(&self) {
-        println!("   {}", "Solution contains project configurations that are outside solution's configuration|platform list:".dark_yellow().bold());
+        println!("  {}", "Solution contains project configurations that are outside solution's configuration|platform list:".dark_yellow().bold());
 
         let mut table = ux::new_table();
         table.set_header(vec![
