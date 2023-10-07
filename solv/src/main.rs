@@ -2,7 +2,7 @@ use clap::{command, ArgAction, ArgMatches, Command};
 use clap_complete::{generate, Shell};
 use color_eyre::eyre::{Context, Result};
 use solp::Consume;
-use solv::convert::Json;
+use solv::json::Json;
 use solv::info::Info;
 use solv::nuget::Nuget;
 use solv::validate::Validate;
