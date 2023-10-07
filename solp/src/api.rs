@@ -63,10 +63,10 @@ impl<'a> Solution<'a> {
             path: solution.path,
             format: solution.format,
             product: solution.product,
-            versions: Self::versions(&solution),
-            projects: Self::projects(&solution),
-            configurations: Self::configurations(&solution),
-            dangling_project_configurations: Self::dangings(&solution),
+            versions: Self::versions(solution),
+            projects: Self::projects(solution),
+            configurations: Self::configurations(solution),
+            dangling_project_configurations: Self::dangings(solution),
         }
     }
 
