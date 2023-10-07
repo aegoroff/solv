@@ -34,7 +34,10 @@ fn main() -> Result<()> {
         Some(("info", cmd)) => info(cmd),
         Some(("nuget", cmd)) => nuget(cmd),
         Some(("json", cmd)) => convert(cmd),
-        Some(("completion", cmd)) => print_completions(cmd),
+        Some(("completion", cmd)) => {
+            print_completions(cmd);
+            Ok(())
+        }
         _ => Ok(()),
     }
 }
@@ -85,7 +88,7 @@ fn scan_path<C: Consume + Display>(cmd: &ArgMatches, consumer: &mut C) -> Result
                 solp::parse_dir(path, extension, consumer);
             }
         } else {
-            solp::parse_file(path, consumer);
+            solp::parse_file(path, consumer)?;
         }
         print!("{consumer}");
 
@@ -102,13 +105,12 @@ fn scan_path<C: Consume + Display>(cmd: &ArgMatches, consumer: &mut C) -> Result
     Ok(())
 }
 
-fn print_completions(matches: &ArgMatches) -> Result<()> {
+fn print_completions(matches: &ArgMatches) {
     let mut cmd = build_cli();
     let bin_name = cmd.get_name().to_string();
     if let Some(generator) = matches.get_one::<Shell>("generator") {
         generate(*generator, &mut cmd, bin_name, &mut io::stdout());
     }
-    Ok(())
 }
 
 fn build_cli() -> Command {

@@ -4,6 +4,7 @@
 use std::fs;
 
 use api::Solution;
+use color_eyre::{eyre::Context, Result};
 use jwalk::{Parallelism, WalkDir};
 use std::option::Option::Some;
 
@@ -33,18 +34,24 @@ pub trait Consume {
     fn err(&self, path: &str);
 }
 
-/// `parse_file` parses single solution file specified by path.
-pub fn parse_file(path: &str, consumer: &mut dyn Consume) {
-    match fs::read_to_string(path) {
-        Ok(contents) => match parse_str(&contents) {
-            Some(mut solution) => {
-                solution.path = path;
-                consumer.ok(&solution);
-            }
-            None => consumer.err(path),
-        },
-        Err(e) => eprintln!("{path} - {e}"),
+/// `parse_file` parses single solution file specified by path..
+///
+/// # Errors
+///
+/// This function will return an error if file content cannot be read into memory.
+pub fn parse_file(path: &str, consumer: &mut dyn Consume) -> Result<()> {
+    let contents = fs::read_to_string(path).wrap_err_with(|| {
+        consumer.err(path);
+        format!("Failed to read content from path: {path}")
+    })?;
+    match parse_str(&contents) {
+        Some(mut solution) => {
+            solution.path = path;
+            consumer.ok(&solution);
+        }
+        None => consumer.err(path),
     }
+    Ok(())
 }
 
 /// `parse_str` parses solution content in memory
@@ -65,6 +72,9 @@ pub fn parse_dir(path: &str, extension: &str, consumer: &mut dyn Consume) -> usi
 /// `parse_dir_tree` parses directory specified by path. recursively
 /// it finds all files with extension specified and parses them.
 /// returns the number of scanned solutions
+/// ## Remarks
+/// Any errors occured during parsing of found files will be ignored (so parsing won't stopped)
+/// but error paths will be added into error files list (using err function of `Consumer` trait) 
 pub fn parse_dir_tree(path: &str, extension: &str, consumer: &mut dyn Consume) -> usize {
     let parallelism = Parallelism::RayonNewPool(num_cpus::get_physical());
     let iter = create_dir_iterator(path).parallelism(parallelism);
@@ -85,7 +95,7 @@ fn parse_dir_or_tree(iter: WalkDir, extension: &str, consumer: &mut dyn Consume)
         .map(|f| f.path())
         .filter(|p| p.extension().map(|s| s == ext).unwrap_or_default())
         .map(|f| f.to_str().unwrap_or("").to_string())
-        .inspect(|fp| parse_file(fp, consumer))
+        .filter_map(|fp| parse_file(&fp, consumer).ok())
         .count()
 }
 
