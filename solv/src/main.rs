@@ -144,7 +144,7 @@ fn build_cli() -> Command {
         .subcommand(validate_cmd())
         .subcommand(info_cmd())
         .subcommand(nuget_cmd())
-        .subcommand(convert_cmd())
+        .subcommand(json_cmd())
         .subcommand(completion_cmd())
 }
 
@@ -155,18 +155,21 @@ fn info_cmd() -> Command {
         .arg(
             arg!(-e --ext <EXTENSION>)
                 .required(false)
+                .requires(PATH)
                 .default_value(DEFAULT_SOLUTION_EXT)
                 .help(EXT_DESCR),
         )
         .arg(
             arg!(-r - -recursively)
                 .required(false)
+                .requires(PATH)
                 .action(ArgAction::SetTrue)
                 .help(RECURSIVELY_DESCR),
         )
         .arg(
             arg!(-t - -time)
                 .required(false)
+                .requires(PATH)
                 .action(ArgAction::SetTrue)
                 .help(BENCHMARK_DESCR),
         )
@@ -247,25 +250,28 @@ fn nuget_cmd() -> Command {
     )
 }
 
-fn convert_cmd() -> Command {
+fn json_cmd() -> Command {
     Command::new("json")
         .aliases(["j"])
         .about("Converts solution(s) into json")
         .arg(
             arg!(-e --ext <EXTENSION>)
                 .required(false)
+                .requires(PATH)
                 .default_value(DEFAULT_SOLUTION_EXT)
                 .help(EXT_DESCR),
         )
         .arg(
             arg!(-r - -recursively)
                 .required(false)
+                .requires(PATH)
                 .action(ArgAction::SetTrue)
                 .help(RECURSIVELY_DESCR),
         )
         .arg(
             arg!(-t - -time)
                 .required(false)
+                .requires(PATH)
                 .action(ArgAction::SetTrue)
                 .help(BENCHMARK_DESCR),
         )
