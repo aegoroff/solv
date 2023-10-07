@@ -2,8 +2,8 @@ use clap::{command, ArgAction, ArgMatches, Command};
 use clap_complete::{generate, Shell};
 use color_eyre::eyre::{Context, Result};
 use solp::Consume;
-use solv::json::Json;
 use solv::info::Info;
+use solv::json::Json;
 use solv::nuget::Nuget;
 use solv::validate::Validate;
 use std::fmt::Display;
@@ -34,7 +34,7 @@ fn main() -> Result<()> {
         Some(("validate", cmd)) => validate(cmd),
         Some(("info", cmd)) => info(cmd),
         Some(("nuget", cmd)) => nuget(cmd),
-        Some(("json", cmd)) => convert(cmd),
+        Some(("json", cmd)) => json(cmd),
         Some(("completion", cmd)) => {
             print_completions(cmd);
             Ok(())
@@ -52,12 +52,7 @@ fn validate(cmd: &ArgMatches) -> Result<()> {
 
 fn info(cmd: &ArgMatches) -> Result<()> {
     let mut consumer = Info::new();
-
-    if cmd.get_one::<String>(PATH).is_some() {
-        scan_path(cmd, &mut consumer)
-    } else {
-        scan_stream(io::stdin(), &mut consumer)
-    }
+    scan_path_or_stdin(cmd, &mut consumer)
 }
 
 fn nuget(cmd: &ArgMatches) -> Result<()> {
@@ -72,13 +67,17 @@ fn nuget(cmd: &ArgMatches) -> Result<()> {
     result
 }
 
-fn convert(cmd: &ArgMatches) -> Result<()> {
+fn json(cmd: &ArgMatches) -> Result<()> {
     let pretty = cmd.get_flag("pretty");
     let mut consumer = Json::new(pretty);
+    scan_path_or_stdin(cmd, &mut consumer)
+}
+
+fn scan_path_or_stdin<C: Consume + Display>(cmd: &ArgMatches, consumer: &mut C) -> Result<()> {
     if cmd.get_one::<String>(PATH).is_some() {
-        scan_path(cmd, &mut consumer)
+        scan_path(cmd, consumer)
     } else {
-        scan_stream(io::stdin(), &mut consumer)
+        scan_stream(io::stdin(), consumer)
     }
 }
 
