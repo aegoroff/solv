@@ -8,6 +8,7 @@ use solv::nuget::Nuget;
 use solv::validate::Validate;
 use std::fmt::Display;
 use std::fs;
+use std::io::{BufReader, Read};
 use std::{
     io,
     time::{Duration, Instant},
@@ -52,7 +53,11 @@ fn validate(cmd: &ArgMatches) -> Result<()> {
 fn info(cmd: &ArgMatches) -> Result<()> {
     let mut consumer = Info::new();
 
-    scan_path(cmd, &mut consumer)
+    if cmd.get_one::<String>(PATH).is_some() {
+        scan_path(cmd, &mut consumer)
+    } else {
+        scan_stream(io::stdin(), &mut consumer)
+    }
 }
 
 fn nuget(cmd: &ArgMatches) -> Result<()> {
@@ -70,7 +75,11 @@ fn nuget(cmd: &ArgMatches) -> Result<()> {
 fn convert(cmd: &ArgMatches) -> Result<()> {
     let pretty = cmd.get_flag("pretty");
     let mut consumer = Json::new(pretty);
-    scan_path(cmd, &mut consumer)
+    if cmd.get_one::<String>(PATH).is_some() {
+        scan_path(cmd, &mut consumer)
+    } else {
+        scan_stream(io::stdin(), &mut consumer)
+    }
 }
 
 fn scan_path<C: Consume + Display>(cmd: &ArgMatches, consumer: &mut C) -> Result<()> {
@@ -102,6 +111,19 @@ fn scan_path<C: Consume + Display>(cmd: &ArgMatches, consumer: &mut C) -> Result
             );
         }
     }
+    Ok(())
+}
+
+fn scan_stream<C: Consume + Display, R: Read>(read: R, consumer: &mut C) -> Result<()> {
+    let mut contents = String::new();
+    let mut br = BufReader::new(read);
+    br.read_to_string(&mut contents)
+        .wrap_err_with(|| "Failed to read content from stream")?;
+    let solution = solp::parse_str(&contents).wrap_err_with(|| "Failed to parse solution")?;
+    consumer.ok(&solution);
+
+    print!("{consumer}");
+
     Ok(())
 }
 
@@ -149,7 +171,7 @@ fn info_cmd() -> Command {
                 .action(ArgAction::SetTrue)
                 .help(BENCHMARK_DESCR),
         )
-        .arg(arg!([PATH]).help(PATH_DESCR).required(true))
+        .arg(arg!([PATH]).help(PATH_DESCR))
 }
 
 fn validate_cmd() -> Command {
@@ -254,7 +276,7 @@ fn convert_cmd() -> Command {
                 .action(ArgAction::SetTrue)
                 .help("Pretty-printed output. False by default"),
         )
-        .arg(arg!([PATH]).help(PATH_DESCR).required(true))
+        .arg(arg!([PATH]).help(PATH_DESCR))
 }
 
 fn completion_cmd() -> Command {
