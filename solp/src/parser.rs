@@ -1,5 +1,6 @@
 use crate::ast::Node;
 use crate::ast::{Conf, Prj, PrjConfAggregate, Sol, Ver};
+use color_eyre::eyre::{self, Result};
 use itertools::Itertools;
 use std::collections::HashSet;
 use std::option::Option::Some;
@@ -11,9 +12,9 @@ trait Visitor<'a> {
 }
 
 /// Perses solution from string into Solution model instance
-pub fn parse_str(contents: &str) -> Option<Sol> {
+pub fn parse_str(contents: &str) -> Result<Sol> {
     if contents.len() < UTF8_BOM.len() {
-        return None;
+        return Err(eyre::eyre!("Content is too short or empty"));
     }
     let cb = contents.as_bytes();
     // Skip UTF-8 signature if necessary
@@ -29,14 +30,9 @@ pub fn parse_str(contents: &str) -> Option<Sol> {
         Ok(parsed) => {
             let solution = Sol::default();
             let visitor = SolutionVisitor::new();
-            Some(visitor.visit(solution, &parsed))
+            Ok(visitor.visit(solution, &parsed))
         }
-        Err(e) => {
-            if cfg!(debug_assertions) {
-                println!("{e:?}");
-            }
-            None
-        }
+        Err(e) => Err(eyre::eyre!("{e:?}")),
     }
 }
 
@@ -256,7 +252,7 @@ mod tests {
         let result = parse_str(content);
 
         // Assert
-        assert!(result.is_none());
+        assert!(result.is_err());
     }
 
     #[test]
@@ -268,7 +264,7 @@ mod tests {
             let s = val.current();
 
             // Act
-            parse_str(&s);
+            let _result = parse_str(&s);
 
             // Assert
         }
@@ -280,7 +276,7 @@ mod tests {
         let result = parse_str(REAL_SOLUTION);
 
         // Assert
-        assert!(result.is_some());
+        assert!(result.is_ok());
         let solution = result.unwrap();
         assert_eq!(solution.projects.len(), 10);
         assert_eq!(
@@ -315,7 +311,7 @@ mod tests {
         let result = parse_str(&sln);
 
         // Assert
-        assert!(result.is_some());
+        assert!(result.is_ok());
     }
 
     #[test]
@@ -327,7 +323,7 @@ mod tests {
         let result = parse_str(sln);
 
         // Assert
-        assert!(result.is_some());
+        assert!(result.is_ok());
     }
 
     #[test]
@@ -338,7 +334,7 @@ mod tests {
         let sln = parse_str(VERSION8_SOLUTION);
 
         // Assert
-        assert!(sln.is_some());
+        assert!(sln.is_ok());
     }
 
     #[test]
@@ -357,7 +353,7 @@ mod tests {
         let sln = parse_str(APR_SOLUTION);
 
         // Assert
-        assert!(sln.is_some());
+        assert!(sln.is_ok());
     }
 
     #[test]
@@ -369,7 +365,7 @@ mod tests {
         let sln = parse_str(&solution);
 
         // Assert
-        assert!(sln.is_some());
+        assert!(sln.is_ok());
     }
 
     #[test]

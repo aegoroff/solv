@@ -6,7 +6,6 @@ use std::fs;
 use api::Solution;
 use color_eyre::{eyre::Context, Result};
 use jwalk::{Parallelism, WalkDir};
-use std::option::Option::Some;
 
 pub mod api;
 mod ast;
@@ -38,27 +37,31 @@ pub trait Consume {
 ///
 /// # Errors
 ///
-/// This function will return an error if file content cannot be read into memory.
+/// This function will return an error if file content cannot be read into memory
+/// or solution file has invalid syntax.
 pub fn parse_file(path: &str, consumer: &mut dyn Consume) -> Result<()> {
     let contents = fs::read_to_string(path).wrap_err_with(|| {
         consumer.err(path);
         format!("Failed to read content from path: {path}")
     })?;
-    match parse_str(&contents) {
-        Some(mut solution) => {
-            solution.path = path;
-            consumer.ok(&solution);
-        }
-        None => consumer.err(path),
-    }
+    let mut solution = parse_str(&contents).wrap_err_with(|| {
+        consumer.err(path);
+        format!("Failed to parse solution from path: {path}")
+    })?;
+
+    solution.path = path;
+    consumer.ok(&solution);
     Ok(())
 }
 
 /// `parse_str` parses solution content in memory
-#[must_use]
-pub fn parse_str(contents: &str) -> Option<Solution> {
+///
+/// # Errors
+///
+/// This function will return an error if solution file has invalid syntax or corrupted.
+pub fn parse_str(contents: &str) -> Result<Solution> {
     let parsed = parser::parse_str(contents)?;
-    Some(Solution::from(&parsed))
+    Ok(Solution::from(&parsed))
 }
 
 /// `parse_dir` parses only directory specified by path.
@@ -74,7 +77,7 @@ pub fn parse_dir(path: &str, extension: &str, consumer: &mut dyn Consume) -> usi
 /// returns the number of scanned solutions
 /// ## Remarks
 /// Any errors occured during parsing of found files will be ignored (so parsing won't stopped)
-/// but error paths will be added into error files list (using err function of `Consumer` trait) 
+/// but error paths will be added into error files list (using err function of `Consumer` trait)
 pub fn parse_dir_tree(path: &str, extension: &str, consumer: &mut dyn Consume) -> usize {
     let parallelism = Parallelism::RayonNewPool(num_cpus::get_physical());
     let iter = create_dir_iterator(path).parallelism(parallelism);
