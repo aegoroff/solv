@@ -58,7 +58,7 @@ pub struct Configuration<'a> {
 impl<'a> Solution<'a> {
     /// Creates new Solution instance from `ast::Sol` instance
     #[must_use]
-    pub fn from(solution: Sol<'a>) -> Self {
+    pub fn from(solution: &Sol<'a>) -> Self {
         Self {
             path: solution.path,
             format: solution.format,

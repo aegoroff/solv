@@ -50,7 +50,8 @@ pub fn parse_file(path: &str, consumer: &mut dyn Consume) {
 /// `parse_str` parses solution content in memory
 #[must_use]
 pub fn parse_str(contents: &str) -> Option<Solution> {
-    Some(Solution::from(parser::parse_str(contents)?))
+    let parsed = parser::parse_str(contents)?;
+    Some(Solution::from(&parsed))
 }
 
 /// `parse_dir` parses only directory specified by path.
