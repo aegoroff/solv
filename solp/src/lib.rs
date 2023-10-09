@@ -22,7 +22,7 @@ extern crate rstest;
 lalrpop_mod!(
     #[allow(clippy::all)]
     #[allow(unused)]
-    pub solp
+    solp
 );
 
 /// Consume provides parsed solution consumer
