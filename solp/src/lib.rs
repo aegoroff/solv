@@ -54,7 +54,7 @@ pub fn parse_file(path: &str, consumer: &mut dyn Consume) -> Result<()> {
     Ok(())
 }
 
-/// `parse_str` parses solution content in memory
+/// `parse_str` parses solution content from `&str` and returns [`Solution`] in case of success
 ///
 /// # Errors
 ///
@@ -67,6 +67,10 @@ pub fn parse_str(contents: &str) -> Result<Solution> {
 /// `parse_dir` parses only directory specified by path.
 /// it finds all files with extension specified and parses them.
 /// returns the number of scanned solutions
+///
+/// ## Remarks
+/// Any errors occured during parsing of found files will be ignored (so parsing won't stopped)
+/// but error paths will be added into error files list (using err function of [`Consume`] trait)
 pub fn parse_dir(path: &str, extension: &str, consumer: &mut dyn Consume) -> usize {
     let iter = create_dir_iterator(path).max_depth(1);
     parse_dir_or_tree(iter, extension, consumer)
@@ -75,9 +79,10 @@ pub fn parse_dir(path: &str, extension: &str, consumer: &mut dyn Consume) -> usi
 /// `parse_dir_tree` parses directory specified by path. recursively
 /// it finds all files with extension specified and parses them.
 /// returns the number of scanned solutions
+///
 /// ## Remarks
 /// Any errors occured during parsing of found files will be ignored (so parsing won't stopped)
-/// but error paths will be added into error files list (using err function of `Consumer` trait)
+/// but error paths will be added into error files list (using err function of [`Consume`] trait)
 pub fn parse_dir_tree(path: &str, extension: &str, consumer: &mut dyn Consume) -> usize {
     let parallelism = Parallelism::RayonNewPool(num_cpus::get_physical());
     let iter = create_dir_iterator(path).parallelism(parallelism);
