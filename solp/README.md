@@ -47,6 +47,61 @@ let result = parse_str(solution);
 
 assert!(result.is_ok());
 ```
+Will parse solution into structure that may be represented this json
+```json
+{
+  "path": "",
+  "format": "12.00",
+  "product": "",
+  "versions": [],
+  "projects": [
+    {
+      "type_id": "{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}",
+      "type_description": "C#",
+      "id": "{93ED4C31-2F29-49DB-88C3-AEA9AF1CA52D}",
+      "name": "Hiring",
+      "path_or_uri": "Project\\Project.csproj",
+      "configurations": [
+        {
+          "configuration": "Debug",
+          "platform": "Any CPU"
+        },
+        {
+          "configuration": "Release",
+          "platform": "Any CPU"
+        }
+      ]
+    },
+    {
+      "type_id": "{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}",
+      "type_description": "C#",
+      "id": "{D5BBB06B-B46F-4342-A262-C569D4D2967C}",
+      "name": "Project.Test",
+      "path_or_uri": "Project.Test\\Project.Test.csproj",
+      "configurations": [
+        {
+          "configuration": "Debug",
+          "platform": "Any CPU"
+        },
+        {
+          "configuration": "Release",
+          "platform": "Any CPU"
+        }
+      ]
+    }
+  ],
+  "configurations": [
+    {
+      "configuration": "Debug",
+      "platform": "Any CPU"
+    },
+    {
+      "configuration": "Release",
+      "platform": "Any CPU"
+    }
+  ]
+}
+```
 
 ### Minimum Rust version policy
 
