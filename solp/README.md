@@ -59,7 +59,7 @@ Will parse solution into structure that may be represented this json
       "type_id": "{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}",
       "type_description": "C#",
       "id": "{93ED4C31-2F29-49DB-88C3-AEA9AF1CA52D}",
-      "name": "Hiring",
+      "name": "Project",
       "path_or_uri": "Project\\Project.csproj",
       "configurations": [
         {
