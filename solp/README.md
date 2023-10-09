@@ -47,7 +47,7 @@ let result = parse_str(solution);
 
 assert!(result.is_ok());
 ```
-Will parse solution into structure that may be represented this json
+Will parse solution into structure that may be represented by this json
 ```json
 {
   "path": "",
