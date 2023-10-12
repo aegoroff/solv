@@ -1,6 +1,42 @@
+/*!
+A library for parsing Microsoft Visual Studio solution file
+
+
+## Example: parsing solution from [&str]
+
+```
+use solp::parse_str;
+
+const SOLUTION: &str = r#"
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bench", "bench\bench.csproj", "{A61CD222-0F3B-47B6-9F7F-25D658368EEC}"
+EndProject
+Global
+    GlobalSection(SolutionConfigurationPlatforms) = preSolution
+        Debug|Any CPU = Debug|Any CPU
+        Release|Any CPU = Release|Any CPU
+    EndGlobalSection
+    GlobalSection(ProjectConfigurationPlatforms) = postSolution
+        {A61CD222-0F3B-47B6-9F7F-25D658368EEC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+        {A61CD222-0F3B-47B6-9F7F-25D658368EEC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+        {A61CD222-0F3B-47B6-9F7F-25D658368EEC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+        {A61CD222-0F3B-47B6-9F7F-25D658368EEC}.Release|Any CPU.Build.0 = Release|Any CPU
+    EndGlobalSection
+EndGlobal
+"#;
+
+let result = parse_str(SOLUTION);
+assert!(result.is_ok());
+let solution = result.unwrap();
+assert_eq!(solution.projects.len(), 1);
+assert_eq!(solution.configurations.len(), 2);
+assert_eq!(solution.format, "12.00");
+
+```
+*/
+
 #![warn(unused_extern_crates)]
 #![allow(clippy::missing_errors_doc)]
-
 use std::fs;
 
 use api::Solution;
