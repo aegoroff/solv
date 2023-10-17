@@ -11,7 +11,7 @@ trait Visitor<'a> {
     fn visit(&self, solution: Sol<'a>, node: &Node<'a>) -> Sol<'a>;
 }
 
-/// Perses solution from string into Solution model instance
+/// Parses solution from string into Solution model instance
 pub fn parse_str(contents: &str) -> Result<Sol> {
     if contents.len() < UTF8_BOM.len() {
         return Err(eyre::eyre!("Content is too short or empty"));
