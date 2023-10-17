@@ -3,11 +3,15 @@ use std::{fs::File, io::Read, path::Path};
 
 use serde::Deserialize;
 
+/// Shows whether id specified is ID of
+/// solution folder type project
 #[must_use]
 pub fn is_solution_folder(id: &str) -> bool {
     id == ID_SOLUTION_FOLDER
 }
 
+/// Shows whether id specified is ID of
+/// Web Site type project
 #[must_use]
 pub fn is_web_site_project(id: &str) -> bool {
     id == ID_WEB_SITE_PROJECT
@@ -21,17 +25,22 @@ pub fn describe_project(id: &str) -> &str {
     PROJECT_TYPES.get(id).unwrap_or(&id)
 }
 
+/// MSBuild project structure
 #[derive(Debug, Deserialize)]
 pub struct Project {
+    /// MSBuild SDK if applcable
     #[serde(rename = "Sdk", default)]
     pub sdk: Option<String>,
 
+    /// MSBuild project item gouups
     #[serde(rename = "ItemGroup", default)]
     pub item_group: Option<Vec<ItemGroup>>,
 
+    /// MSBuild project import groups
     #[serde(rename = "ImportGroup", default)]
     pub import_group: Option<Vec<ImportGroup>>,
 
+    /// MSBuild project imports
     #[serde(rename = "Import")]
     pub imports: Option<Vec<Import>>,
 }
