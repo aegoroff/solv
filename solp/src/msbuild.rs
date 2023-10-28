@@ -25,7 +25,7 @@ pub fn describe_project(id: &str) -> &str {
     PROJECT_TYPES.get(id).unwrap_or(&id)
 }
 
-/// MSBuild project structure
+/// `MSBuild` project structure
 #[derive(Debug, Deserialize)]
 pub struct Project {
     /// MSBuild SDK if applcable

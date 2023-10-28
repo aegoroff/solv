@@ -58,6 +58,14 @@ extern crate rstest;
 lalrpop_mod!(
     #[allow(clippy::all)]
     #[allow(unused)]
+    #[allow(clippy::no_effect_underscore_binding)]
+    #[allow(clippy::trivially_copy_pass_by_ref)]
+    #[allow(clippy::cloned_instead_of_copied)]
+    #[allow(clippy::cast_sign_loss)]
+    #[allow(clippy::too_many_lines)]
+    #[allow(clippy::match_same_arms)]
+    #[allow(clippy::uninlined_format_args)]
+    #[allow(clippy::unused_self)]
     solp
 );
 
