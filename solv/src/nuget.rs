@@ -20,6 +20,7 @@ pub struct Nuget {
     pub mismatches_found: bool,
     errors: RefCell<Collector>,
 }
+
 struct MsbuildProject {
     pub project: Option<msbuild::Project>,
     pub path: PathBuf,
