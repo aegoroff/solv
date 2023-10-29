@@ -114,12 +114,13 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    /// UUID parsing
+    /// UUID parsing only inside string, i.e. chars between double quotes.
+    /// Guids in section keys parsed on Ast visiting stage using nom crate. See ast module for details
     fn guid(&mut self, i: usize) -> (usize, Tok<'a>, usize) {
         loop {
             match self.chars.peek() {
                 Some((j, '}')) => {
-                    // include } so increment j and advance chars
+                    // include '}' char so increment j and advance chars
                     let finish = *j + 1;
                     self.chars.next();
                     return (i, Tok::Guid(&self.input[i..finish]), finish);
@@ -184,6 +185,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    /// REMARK: Guid inside section key will be parsed by nom crate on Ast visiting stage
     fn section_key(&mut self, i: usize) -> Option<Spanned<Tok<'a>, usize, LexicalError>> {
         let mut start = i;
 
@@ -208,7 +210,9 @@ impl<'a> Lexer<'a> {
 
         loop {
             match self.chars.peek() {
+                // Section key content until first '=' char
                 Some((j, '=')) => {
+                    // trim space before '=' char
                     let finish = Lexer::trim_end(self.input, *j);
                     let val = if finish < start {
                         ""
@@ -236,7 +240,7 @@ impl<'a> Lexer<'a> {
     fn section_value(&mut self, i: usize) -> Option<Spanned<Tok<'a>, usize, LexicalError>> {
         match self.context {
             LexerContext::InsideSection => {
-                // i + 1 skips equal sign (=)
+                // i + 1 skips '=' char
                 let start = Lexer::trim_start(self.input, i + 1);
 
                 loop {
@@ -304,7 +308,6 @@ impl<'a> Lexer<'a> {
             ',' => Some(Ok((i, Tok::Comma, i + 1))),
             ')' | ' ' | '\t' => Some(Ok((i, Tok::Skip, i + 1))),
             '0'..='9' => self.digits_with_dots(i),
-            '{' => Some(Ok(self.guid(i))),
             '"' => self.string(i),
             '#' => self.comment(i),
             'a'..='z' | 'A'..='Z' => {
