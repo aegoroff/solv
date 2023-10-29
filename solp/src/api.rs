@@ -25,14 +25,14 @@ pub struct Solution<'a> {
     pub dangling_project_configurations: Option<Vec<String>>,
 }
 
-/// Represnts Solution version
+/// Represnts [`Solution`] version. NOTE: [`Solution`] may have several versions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Version<'a> {
     pub name: &'a str,
     pub version: &'a str,
 }
 
-/// Represent project inside solution
+/// Represent project inside [`Solution`]
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Project<'a> {
     pub type_id: &'a str,
@@ -56,7 +56,7 @@ pub struct Configuration<'a> {
 }
 
 impl<'a> Solution<'a> {
-    /// Creates new Solution instance from `ast::Sol` instance
+    /// Creates new [`Solution`] instance from [`ast::Sol`] instance
     #[must_use]
     pub fn from(solution: &Sol<'a>) -> Self {
         Self {
@@ -70,7 +70,7 @@ impl<'a> Solution<'a> {
         }
     }
 
-    /// Iterates all but solution folder projects inside solution
+    /// Iterates all but solution folder projects inside [`Solution`]
     pub fn iterate_projects(&'a self) -> impl Iterator<Item = &'a Project<'a>> {
         self.projects
             .iter()

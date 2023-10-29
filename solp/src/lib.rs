@@ -69,7 +69,7 @@ lalrpop_mod!(
     solp
 );
 
-/// Consume provides parsed solution consumer
+/// Consume provides parsed [`Solution`] consumer
 pub trait Consume {
     /// Called in case of success parsing
     fn ok(&mut self, solution: &Solution);
