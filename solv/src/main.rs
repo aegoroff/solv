@@ -1,4 +1,4 @@
-use clap::{command, ArgAction, ArgMatches, Command};
+use clap::{command, Arg, ArgAction, ArgMatches, Command};
 use clap_complete::{generate, Shell};
 use color_eyre::eyre::{Context, Result};
 use solp::Consume;
@@ -152,27 +152,9 @@ fn info_cmd() -> Command {
     Command::new("info")
         .aliases(["i"])
         .about("Get information about found solutions")
-        .arg(
-            arg!(-e --ext <EXTENSION>)
-                .required(false)
-                .requires(PATH)
-                .default_value(DEFAULT_SOLUTION_EXT)
-                .help(EXT_DESCR),
-        )
-        .arg(
-            arg!(-r - -recursively)
-                .required(false)
-                .requires(PATH)
-                .action(ArgAction::SetTrue)
-                .help(RECURSIVELY_DESCR),
-        )
-        .arg(
-            arg!(-t - -time)
-                .required(false)
-                .requires(PATH)
-                .action(ArgAction::SetTrue)
-                .help(BENCHMARK_DESCR),
-        )
+        .arg(extension_arg())
+        .arg(recursively_arg())
+        .arg(time_arg())
         .arg(arg!([PATH]).help(PATH_DESCR))
 }
 
@@ -180,30 +162,15 @@ fn validate_cmd() -> Command {
     Command::new("validate")
         .aliases(["va"])
         .about("Validates solutions within directory or file specified")
-        .arg(
-            arg!(-e --ext <EXTENSION>)
-                .required(false)
-                .default_value(DEFAULT_SOLUTION_EXT)
-                .help(EXT_DESCR),
-        )
+        .arg(extension_arg())
         .arg(
             arg!(-p - -problems)
                 .required(false)
                 .action(ArgAction::SetTrue)
                 .help("Show only solutions with problems. Correct solutions will not be shown."),
         )
-        .arg(
-            arg!(-r - -recursively)
-                .required(false)
-                .action(ArgAction::SetTrue)
-                .help(RECURSIVELY_DESCR),
-        )
-        .arg(
-            arg!(-t - -time)
-                .required(false)
-                .action(ArgAction::SetTrue)
-                .help(BENCHMARK_DESCR),
-        )
+        .arg(recursively_arg())
+        .arg(time_arg())
         .arg(arg!([PATH]).help(PATH_DESCR).required(true))
 }
 
@@ -211,12 +178,7 @@ fn nuget_cmd() -> Command {
     Command::new("nuget")
     .aliases(["nu"])
     .about("Get nuget packages information within solutions")
-    .arg(
-        arg!(-e --ext <EXTENSION>)
-            .required(false)
-            .default_value(DEFAULT_SOLUTION_EXT)
-            .help(EXT_DESCR),
-    )
+    .arg(extension_arg())
     .arg(
         arg!(-m --mismatch)
             .required(false)
@@ -231,18 +193,8 @@ fn nuget_cmd() -> Command {
             .action(ArgAction::SetTrue)
             .help("Return not zero exit code if nuget mismatches found"),
     )
-    .arg(
-        arg!(-r --recursively)
-            .required(false)
-            .action(ArgAction::SetTrue)
-            .help(RECURSIVELY_DESCR),
-    )
-    .arg(
-        arg!(-t --time)
-            .required(false)
-            .action(ArgAction::SetTrue)
-            .help(BENCHMARK_DESCR),
-    )
+    .arg(recursively_arg())
+    .arg(time_arg())
     .arg(
         arg!([PATH])
             .help(PATH_DESCR)
@@ -254,27 +206,9 @@ fn json_cmd() -> Command {
     Command::new("json")
         .aliases(["j"])
         .about("Converts solution(s) into json")
-        .arg(
-            arg!(-e --ext <EXTENSION>)
-                .required(false)
-                .requires(PATH)
-                .default_value(DEFAULT_SOLUTION_EXT)
-                .help(EXT_DESCR),
-        )
-        .arg(
-            arg!(-r - -recursively)
-                .required(false)
-                .requires(PATH)
-                .action(ArgAction::SetTrue)
-                .help(RECURSIVELY_DESCR),
-        )
-        .arg(
-            arg!(-t - -time)
-                .required(false)
-                .requires(PATH)
-                .action(ArgAction::SetTrue)
-                .help(BENCHMARK_DESCR),
-        )
+        .arg(extension_arg())
+        .arg(recursively_arg())
+        .arg(time_arg())
         .arg(
             arg!(-p - -pretty)
                 .required(false)
@@ -282,6 +216,29 @@ fn json_cmd() -> Command {
                 .help("Pretty-printed output. False by default"),
         )
         .arg(arg!([PATH]).help(PATH_DESCR))
+}
+
+fn time_arg() -> Arg {
+    arg!(-t --time)
+        .required(false)
+        .action(ArgAction::SetTrue)
+        .help(BENCHMARK_DESCR)
+}
+
+fn extension_arg() -> Arg {
+    arg!(-e --ext <EXTENSION>)
+        .required(false)
+        .requires(PATH)
+        .default_value(DEFAULT_SOLUTION_EXT)
+        .help(EXT_DESCR)
+}
+
+fn recursively_arg() -> Arg {
+    arg!(-r --recursively)
+        .required(false)
+        .requires(PATH)
+        .action(ArgAction::SetTrue)
+        .help(RECURSIVELY_DESCR)
 }
 
 fn completion_cmd() -> Command {
