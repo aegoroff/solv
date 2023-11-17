@@ -66,6 +66,7 @@ lalrpop_mod!(
     #[allow(clippy::match_same_arms)]
     #[allow(clippy::uninlined_format_args)]
     #[allow(clippy::unused_self)]
+    #[allow(clippy::needless_raw_string_hashes)]
     solp
 );
 

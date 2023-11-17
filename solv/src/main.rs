@@ -81,6 +81,7 @@ fn scan_path_or_stdin<C: Consume + Display>(cmd: &ArgMatches, consumer: &mut C) 
     }
 }
 
+#[allow(clippy::cast_possible_truncation)]
 fn scan_path<C: Consume + Display>(cmd: &ArgMatches, consumer: &mut C) -> Result<()> {
     let now = Instant::now();
     if let Some(path) = cmd.get_one::<String>(PATH) {

@@ -40,6 +40,7 @@ struct Statistic {
 }
 
 impl Display for Statistic {
+    #[allow(clippy::cast_possible_truncation)]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "{}", " Statistic:".dark_red().bold())?;
 
