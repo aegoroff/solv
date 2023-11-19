@@ -10,3 +10,6 @@ resolver = "2"
 panic = 'abort'
 lto = true
 strip = true
+
+[workspace.lints.rust]
+unsafe_code = "forbid"

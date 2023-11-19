@@ -40,3 +40,6 @@ assets = [
 assets = [
     { source = "../target/x86_64-unknown-linux-musl/release/solv", dest = "/usr/bin/solv", mode = "0755" },
 ]
+
+[lints]
+workspace = true
