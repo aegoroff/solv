@@ -156,7 +156,7 @@ fn info_cmd() -> Command {
         .arg(extension_arg())
         .arg(recursively_arg())
         .arg(time_arg())
-        .arg(arg!([PATH]).help(PATH_DESCR))
+        .arg(path_arg())
 }
 
 fn validate_cmd() -> Command {
@@ -172,7 +172,7 @@ fn validate_cmd() -> Command {
         )
         .arg(recursively_arg())
         .arg(time_arg())
-        .arg(arg!([PATH]).help(PATH_DESCR).required(true))
+        .arg(path_arg().required(true))
 }
 
 fn nuget_cmd() -> Command {
@@ -196,11 +196,7 @@ fn nuget_cmd() -> Command {
     )
     .arg(recursively_arg())
     .arg(time_arg())
-    .arg(
-        arg!([PATH])
-            .help(PATH_DESCR)
-            .required(true),
-    )
+    .arg(path_arg().required(true))
 }
 
 fn json_cmd() -> Command {
@@ -216,11 +212,15 @@ fn json_cmd() -> Command {
                 .action(ArgAction::SetTrue)
                 .help("Pretty-printed output. False by default"),
         )
-        .arg(arg!([PATH]).help(PATH_DESCR))
+        .arg(path_arg())
+}
+
+fn path_arg() -> Arg {
+    arg!([PATH]).help(PATH_DESCR)
 }
 
 fn time_arg() -> Arg {
-    arg!(-t --time)
+    arg!(-t - -time)
         .required(false)
         .action(ArgAction::SetTrue)
         .help(BENCHMARK_DESCR)
@@ -235,7 +235,7 @@ fn extension_arg() -> Arg {
 }
 
 fn recursively_arg() -> Arg {
-    arg!(-r --recursively)
+    arg!(-r - -recursively)
         .required(false)
         .requires(PATH)
         .action(ArgAction::SetTrue)
