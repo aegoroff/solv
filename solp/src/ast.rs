@@ -170,11 +170,9 @@ struct PrjConf<'a> {
 impl<'a> PrjConfAggregate<'a> {
     #[must_use]
     pub fn from_id_and_configs(project_id: &'a str, configs: Vec<Conf<'a>>) -> Self {
-        let mut configurations = Vec::new();
-        configurations.extend(configs);
         Self {
             project_id,
-            configs: configurations,
+            configs,
         }
     }
 
