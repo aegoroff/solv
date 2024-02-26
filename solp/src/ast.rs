@@ -9,6 +9,10 @@ use nom::{
     IResult,
 };
 
+const ACTIVE_CFG_TAG: &str = ".ActiveCfg";
+const BUILD_TAG: &str = ".Build.0";
+const DEPLOY_TAG: &str = ".Deploy.0";
+
 /// Represents AST node type
 #[derive(Debug)]
 pub enum Node<'a> {
@@ -55,7 +59,7 @@ pub struct Ver<'a> {
 #[derive(Debug, Clone)]
 pub struct PrjConfAggregate<'a> {
     pub project_id: &'a str,
-    pub configs: Vec<Conf<'a>>,
+    pub configs: Vec<PrjConf<'a>>,
 }
 
 /// Configration and platform pair
@@ -160,16 +164,26 @@ impl<'a> Conf<'a> {
     }
 }
 
-#[derive(Default, PartialEq, Debug)]
-struct PrjConf<'a> {
-    id: &'a str,
-    configuration: &'a str,
-    platform: &'a str,
+#[derive(Default, PartialEq, Debug, Clone)]
+pub struct PrjConf<'a> {
+    pub id: &'a str,
+    pub solution_config: &'a str,
+    pub project_config: &'a str,
+    pub platform: &'a str,
+    pub tag: ProjectConfigTag,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum ProjectConfigTag {
+    #[default]
+    ActiveCfg,
+    Build,
+    Deploy,
 }
 
 impl<'a> PrjConfAggregate<'a> {
     #[must_use]
-    pub fn from_id_and_configs(project_id: &'a str, configs: Vec<Conf<'a>>) -> Self {
+    pub fn from_id_and_configs(project_id: &'a str, configs: Vec<PrjConf<'a>>) -> Self {
         Self {
             project_id,
             configs,
@@ -177,16 +191,16 @@ impl<'a> PrjConfAggregate<'a> {
     }
 
     #[must_use]
-    pub fn from_section_content_key(node: &Node<'a>) -> Option<Self> {
-        if let Node::SectionContent(left, _) = node {
-            PrjConfAggregate::from_project_configuration_platform(left.string())
+    pub fn handle_project_config_platform(node: &Node<'a>) -> Option<Self> {
+        if let Node::SectionContent(left, right) = node {
+            PrjConfAggregate::from_project_configuration_platform(left.string(), right.string())
         } else {
             None
         }
     }
 
     #[must_use]
-    pub fn from_section_content(node: &Node<'a>) -> Option<Self> {
+    pub fn handle_project_config(node: &Node<'a>) -> Option<Self> {
         if let Node::SectionContent(left, right) = node {
             PrjConfAggregate::from_project_configuration(left.string(), right.string())
         } else {
@@ -194,8 +208,8 @@ impl<'a> PrjConfAggregate<'a> {
         }
     }
 
-    fn from_project_configuration_platform(k: &'a str) -> Option<Self> {
-        let r = PrjConfAggregate::parse_project_configuration_platform::<VerboseError<&str>>(k);
+    fn from_project_configuration_platform(k: &'a str, v: &'a str) -> Option<Self> {
+        let r = PrjConfAggregate::parse_project_configuration_platform::<VerboseError<&str>>(k, v);
         Self::new(r)
     }
 
@@ -207,24 +221,33 @@ impl<'a> PrjConfAggregate<'a> {
     fn new(r: IResult<&'a str, PrjConf<'a>, VerboseError<&'a str>>) -> Option<Self> {
         r.ok().map(|(_, pc)| Self {
             project_id: pc.id,
-            configs: vec![Conf::new(pc.configuration, pc.platform)],
+            configs: vec![pc],
         })
     }
 
     // Configuration, platform parsing made by using nom crate that implement parser combinators
     // method. See more about idea https://en.wikipedia.org/wiki/Parser_combinator
 
-    fn parse_project_configuration_platform<'b, E>(key: &'b str) -> IResult<&'b str, PrjConf<'b>, E>
+    fn parse_project_configuration_platform<'b, E>(
+        key: &'b str,
+        value: &'b str,
+    ) -> IResult<&'b str, PrjConf<'b>, E>
     where
         E: ParseError<&'b str> + std::fmt::Debug,
     {
         let parser =
             sequence::separated_pair(guid, char('.'), pair(pipe_terminated, tag_terminated));
 
-        combinator::map(parser, |(project_id, (config, platform))| PrjConf {
-            id: project_id,
-            configuration: config,
-            platform,
+        let project_conf = Conf::from(value);
+
+        combinator::map(parser, |(project_id, (solution_config, platform))| {
+            PrjConf {
+                id: project_id,
+                solution_config,
+                project_config: project_conf.config,
+                platform,
+                tag: define_tag(key),
+            }
         })(key)
     }
 
@@ -237,13 +260,25 @@ impl<'a> PrjConfAggregate<'a> {
     {
         let parser = sequence::separated_pair(guid, char('.'), tag_terminated);
 
-        let conf = Conf::from(value);
+        let project_conf = Conf::from(value);
 
-        combinator::map(parser, |(project_id, config)| PrjConf {
+        combinator::map(parser, |(project_id, solution_config)| PrjConf {
             id: project_id,
-            configuration: config,
-            platform: conf.platform,
+            solution_config,
+            project_config: project_conf.config,
+            platform: project_conf.platform,
+            tag: define_tag(key),
         })(key)
+    }
+}
+
+fn define_tag(key: &str) -> ProjectConfigTag {
+    if key.ends_with(BUILD_TAG) {
+        ProjectConfigTag::Build
+    } else if key.ends_with(DEPLOY_TAG) {
+        ProjectConfigTag::Deploy
+    } else {
+        ProjectConfigTag::ActiveCfg
     }
 }
 
@@ -262,9 +297,6 @@ fn tag_terminated<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
 where
     E: ParseError<&'a str> + std::fmt::Debug,
 {
-    const ACTIVE_CFG_TAG: &str = ".ActiveCfg";
-    const BUILD_TAG: &str = ".Build.0";
-    const DEPLOY_TAG: &str = ".Deploy.0";
     sequence::terminated(
         alt((
             take_until(ACTIVE_CFG_TAG),
@@ -339,61 +371,68 @@ mod tests {
     #[test]
     fn from_project_configurations_correct() {
         // Arrange
-        let s = "{27060CA7-FB29-42BC-BA66-7FC80D498354}.Debug|Any CPU.ActiveCfg";
+        let k = "{27060CA7-FB29-42BC-BA66-7FC80D498354}.Debug|Any CPU.ActiveCfg";
+        let v = "Debug|x86";
 
         // Act
-        let c = PrjConfAggregate::from_project_configuration_platform(s);
+        let c = PrjConfAggregate::from_project_configuration_platform(k, v);
 
         // Assert
         assert!(c.is_some());
         let c = c.unwrap();
         assert_eq!(c.project_id, "{27060CA7-FB29-42BC-BA66-7FC80D498354}");
         assert_eq!(c.configs.len(), 1);
-        assert_eq!(c.configs[0].config, "Debug");
+        assert_eq!(c.configs[0].solution_config, "Debug");
+        assert_eq!(c.configs[0].project_config, "Debug");
         assert_eq!(c.configs[0].platform, "Any CPU");
     }
 
     #[test]
     fn from_project_configurations_config_with_dot() {
         // Arrange
-        let s = "{27060CA7-FB29-42BC-BA66-7FC80D498354}.Debug .NET 4.0|Any CPU.ActiveCfg";
+        let k = "{27060CA7-FB29-42BC-BA66-7FC80D498354}.Debug .NET 4.0|Any CPU.ActiveCfg";
+        let v = "Debug|x86";
 
         // Act
-        let c = PrjConfAggregate::from_project_configuration_platform(s);
+        let c = PrjConfAggregate::from_project_configuration_platform(k, v);
 
         // Assert
         assert!(c.is_some());
         let c = c.unwrap();
         assert_eq!(c.project_id, "{27060CA7-FB29-42BC-BA66-7FC80D498354}");
         assert_eq!(c.configs.len(), 1);
-        assert_eq!(c.configs[0].config, "Debug .NET 4.0");
+        assert_eq!(c.configs[0].solution_config, "Debug .NET 4.0");
+        assert_eq!(c.configs[0].project_config, "Debug");
         assert_eq!(c.configs[0].platform, "Any CPU");
     }
 
     #[test]
     fn from_project_configurations_platform_with_dot_active() {
         // Arrange
-        let s = "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.ActiveCfg";
+        let k = "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.ActiveCfg";
+        let v = "Release|x86";
 
         // Act
-        let c = PrjConfAggregate::from_project_configuration_platform(s);
+        let c = PrjConfAggregate::from_project_configuration_platform(k, v);
 
         // Assert
         assert!(c.is_some());
         let c = c.unwrap();
         assert_eq!(c.project_id, "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}");
         assert_eq!(c.configs.len(), 1);
-        assert_eq!(c.configs[0].config, "Release");
+        assert_eq!(c.configs[0].solution_config, "Release");
+        assert_eq!(c.configs[0].project_config, "Release");
         assert_eq!(c.configs[0].platform, ".NET");
     }
 
     #[test]
     fn from_project_configurations_without_platform() {
         // Arrange
-        let s = "{5228E9CE-A216-422F-A5E6-58E95E2DD71D}.DLL Debug.ActiveCfg";
+        let k = "{5228E9CE-A216-422F-A5E6-58E95E2DD71D}.DLL Debug.ActiveCfg";
+        let v = "Debug|x86";
 
         // Act
-        let c = PrjConfAggregate::from_project_configuration_platform(s);
+        let c = PrjConfAggregate::from_project_configuration_platform(k, v);
 
         // Assert
         assert!(c.is_none());
@@ -432,26 +471,28 @@ mod tests {
     }
 
     #[rstest]
-    #[case("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.Build.0", PrjConf { id: "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", configuration: "Release", platform: ".NET" })]
-    #[case("{60BB14A5-0871-4656-BC38-4F0958230F9A}.Debug|ARM.Deploy.0", PrjConf { id: "{60BB14A5-0871-4656-BC38-4F0958230F9A}", configuration: "Debug", platform: "ARM" })]
-    #[case("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.ActiveCfg", PrjConf { id: "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", configuration: "Release", platform: ".NET" })]
+    #[case("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.Build.0", "Release|.NET", PrjConf { id: "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", solution_config: "Release", project_config: "Release", platform: ".NET", tag: ProjectConfigTag::Build })]
+    #[case("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.SolutionRelease|.NET.Build.0", "ProjectRelease|.NET", PrjConf { id: "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", solution_config: "SolutionRelease", project_config: "ProjectRelease", platform: ".NET", tag: ProjectConfigTag::Build })]
+    #[case("{60BB14A5-0871-4656-BC38-4F0958230F9A}.Debug|ARM.Deploy.0", "Debug|ARM", PrjConf { id: "{60BB14A5-0871-4656-BC38-4F0958230F9A}", solution_config: "Debug", project_config: "Debug", platform: "ARM", tag: ProjectConfigTag::Deploy })]
+    #[case("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.ActiveCfg", "Release|.NET", PrjConf { id: "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", solution_config: "Release", project_config: "Release", platform: ".NET", tag: ProjectConfigTag::ActiveCfg })]
     #[trace]
     fn project_configs_parse_project_configuration_platform_tests(
-        #[case] i: &str,
+        #[case] k: &str,
+        #[case] v: &str,
         #[case] expected: PrjConf,
     ) {
         // Arrange
 
         // Act
         let result =
-            PrjConfAggregate::parse_project_configuration_platform::<VerboseError<&str>>(i);
+            PrjConfAggregate::parse_project_configuration_platform::<VerboseError<&str>>(k, v);
 
         // Assert
         assert_eq!(result, Ok(("", expected)));
     }
 
     #[rstest]
-    #[case("{5228E9CE-A216-422F-A5E6-58E95E2DD71D}.DLL Debug.ActiveCfg", "Release|x64", PrjConf { id: "{5228E9CE-A216-422F-A5E6-58E95E2DD71D}", configuration: "DLL Debug", platform: "x64" })]
+    #[case("{5228E9CE-A216-422F-A5E6-58E95E2DD71D}.DLL Debug.ActiveCfg", "Debug|x64", PrjConf { id: "{5228E9CE-A216-422F-A5E6-58E95E2DD71D}", solution_config: "DLL Debug", project_config: "Debug", platform: "x64", tag: ProjectConfigTag::ActiveCfg })]
     #[trace]
     fn project_configs_parse_project_configuration_tests(
         #[case] k: &str,

@@ -71,8 +71,23 @@ mod tests {
         // Assert
         let s = format!("{validator}");
         let deserialized = serde_json::from_str::<solp::api::Solution>(&s);
-        assert!(deserialized.is_ok());
         assert_eq!(4, deserialized.unwrap().projects.len())
+    }
+
+    #[test]
+    fn different_solution_configs() {
+        // Arrange
+        let solution = solp::parse_str(SOLUTION_WITH_DIFFERENT_SOLUTION_CONFIGS).unwrap();
+        let mut validator = Json::new(true);
+
+        // Act
+        validator.ok(&solution);
+
+        // Assert
+        let s = format!("{validator}");
+        let deserialized = serde_json::from_str::<solp::api::Solution>(&s);
+        assert!(deserialized.is_ok());
+        assert_eq!(2, deserialized.unwrap().projects.len())
     }
 
     const CORRECT_SOLUTION: &str = r#"
@@ -122,4 +137,26 @@ Global
 	EndGlobalSection
 EndGlobal
 "#;
+
+    const SOLUTION_WITH_DIFFERENT_SOLUTION_CONFIGS: &str = r#"Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Project", "Project.csproj", "{93ED4C31-2F29-49DB-88C3-AEA9AF1CA52D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Project.Test", "Project.Test.csproj", "{D5BBB06B-B46F-4342-A262-C569D4D2967C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		SolutionDebug|Any CPU = SolutionDebug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{93ED4C31-2F29-49DB-88C3-AEA9AF1CA52D}.SolutionDebug|Any CPU.ActiveCfg = Debug|Any CPU
+		{93ED4C31-2F29-49DB-88C3-AEA9AF1CA52D}.SolutionDebug|Any CPU.Build.0 = Debug|Any CPU
+		{93ED4C31-2F29-49DB-88C3-AEA9AF1CA52D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{93ED4C31-2F29-49DB-88C3-AEA9AF1CA52D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D5BBB06B-B46F-4342-A262-C569D4D2967C}.SolutionDebug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D5BBB06B-B46F-4342-A262-C569D4D2967C}.SolutionDebug|Any CPU.Build.0 = Debug|Any CPU
+		{D5BBB06B-B46F-4342-A262-C569D4D2967C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D5BBB06B-B46F-4342-A262-C569D4D2967C}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal"#;
 }

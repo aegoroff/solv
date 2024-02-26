@@ -157,7 +157,7 @@ impl<'a> Visitor<'a> for GlobalVisitor {
                 .iter()
                 .filter_map(|sect| section_content!(sect, "ProjectConfigurationPlatforms"))
                 .flatten()
-                .filter_map(PrjConfAggregate::from_section_content_key)
+                .filter_map(PrjConfAggregate::handle_project_config_platform)
                 .group_by(|x| x.project_id);
 
             let project_configs_platforms =
@@ -173,7 +173,7 @@ impl<'a> Visitor<'a> for GlobalVisitor {
                 .iter()
                 .filter_map(|sect| section_content!(sect, "ProjectConfiguration"))
                 .flatten()
-                .filter_map(PrjConfAggregate::from_section_content)
+                .filter_map(PrjConfAggregate::handle_project_config)
                 .group_by(|x| x.project_id)
                 .into_iter()
                 .map(|(pid, project_configs)| {
@@ -195,7 +195,9 @@ impl<'a> Visitor<'a> for GlobalVisitor {
             let from_project_configurations = project_configs
                 .iter()
                 .flat_map(|pc| pc.configs.iter())
-                .filter(|c| solution_configurations.contains(c.config));
+                .filter(|c| solution_configurations.contains(c.solution_config))
+                .map(|c| Conf::new(c.solution_config, c.platform));
+
             solution
                 .solution_configs
                 .extend(from_project_configurations);

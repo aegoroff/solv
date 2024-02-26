@@ -19,7 +19,7 @@ pub struct Solution<'a> {
     /// Solution's projects
     pub projects: Vec<Project<'a>>,
     /// All solution's configuraion/platform pairs
-    pub configurations: Vec<Configuration<'a>>,
+    pub configurations: BTreeSet<SolutionConfiguration<'a>>,
     /// Dangling (projects with such ids not exist in the solution file) projects configurations inside solution
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dangling_project_configurations: Option<Vec<String>>,
@@ -41,18 +41,43 @@ pub struct Project<'a> {
     pub name: &'a str,
     pub path_or_uri: &'a str,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub configurations: Option<BTreeSet<Configuration<'a>>>,
+    pub configurations: Option<BTreeSet<ProjectConfiguration<'a>>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub items: Option<Vec<&'a str>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub depends_from: Option<Vec<&'a str>>,
 }
 
+/// Represents solution configuration/platform pair
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct SolutionConfiguration<'a> {
+    /// Solution's configuration name
+    pub configuration: &'a str,
+    /// Platform i.e. Any CPU, Win32, x86 etc.
+    pub platform: &'a str,
+}
+
 /// Represents project configuration/platform pair
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct Configuration<'a> {
+pub struct ProjectConfiguration<'a> {
+    /// Project configuration
     pub configuration: &'a str,
+    /// Solution's configuration this project config belongs to
+    pub solution_configuration: &'a str,
+    /// Platform i.e. Asny CPU, Win32, x86 etc.
     pub platform: &'a str,
+    /// Configuration tag
+    pub tags: Vec<Tag>,
+}
+
+/// Represents project configuration tag
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Tag {
+    /// Defines project configuration buildable
+    #[default]
+    Build,
+    /// Defines project configuration deployable
+    Deploy,
 }
 
 impl<'a> Solution<'a> {
@@ -94,11 +119,11 @@ impl<'a> Solution<'a> {
             .collect()
     }
 
-    fn configurations(solution: &Sol<'a>) -> Vec<Configuration<'a>> {
+    fn configurations(solution: &Sol<'a>) -> BTreeSet<SolutionConfiguration<'a>> {
         solution
             .solution_configs
             .iter()
-            .map(|c| Configuration {
+            .map(|c| SolutionConfiguration {
                 configuration: c.config,
                 platform: c.platform,
             })
@@ -114,14 +139,30 @@ impl<'a> Solution<'a> {
                     c.project_id,
                     c.configs
                         .iter()
-                        .map(|pc| Configuration {
-                            configuration: pc.config,
-                            platform: pc.platform,
+                        .into_grouping_map_by(|pc| {
+                            (pc.project_config, pc.solution_config, pc.platform)
                         })
+                        .fold(
+                            ProjectConfiguration::default(),
+                            |mut pc, (p, s, plat), val| {
+                                pc.configuration = p;
+                                pc.solution_configuration = s;
+                                pc.platform = plat;
+                                match val.tag {
+                                    crate::ast::ProjectConfigTag::ActiveCfg => {}
+                                    crate::ast::ProjectConfigTag::Build => pc.tags.push(Tag::Build),
+                                    crate::ast::ProjectConfigTag::Deploy => {
+                                        pc.tags.push(Tag::Deploy)
+                                    }
+                                };
+                                pc
+                            },
+                        )
+                        .into_values()
                         .collect(),
                 )
             })
-            .collect::<HashMap<&str, BTreeSet<Configuration>>>();
+            .collect::<HashMap<&str, BTreeSet<ProjectConfiguration>>>();
         solution
             .projects
             .iter()

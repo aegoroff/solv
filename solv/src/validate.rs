@@ -6,7 +6,7 @@ use itertools::Itertools;
 use num_format::{Locale, ToFormattedString};
 use petgraph::algo::DfsSpace;
 use petgraph::prelude::DiGraphMap;
-use solp::api::{Configuration, Solution};
+use solp::api::{Solution, SolutionConfiguration};
 use std::cell::RefCell;
 use std::collections::{BTreeSet, HashMap};
 use std::fmt;
@@ -267,7 +267,7 @@ impl<'a> Validator for Danglings<'a> {
 
 struct Missings<'a> {
     solution: &'a Solution<'a>,
-    missings: HashMap<&'a str, Vec<Configuration<'a>>>,
+    missings: HashMap<&'a str, Vec<SolutionConfiguration<'a>>>,
 }
 
 impl<'a> Missings<'a> {
@@ -286,7 +286,7 @@ impl<'a> Validator for Missings<'a> {
             .configurations
             .iter()
             .cloned()
-            .collect::<BTreeSet<Configuration>>();
+            .collect::<BTreeSet<SolutionConfiguration>>();
 
         self.missings = self
             .solution
@@ -297,8 +297,11 @@ impl<'a> Validator for Missings<'a> {
                     .clone()
                     .configurations?
                     .iter()
-                    .cloned()
-                    .collect::<BTreeSet<Configuration>>();
+                    .map(|c| SolutionConfiguration {
+                        configuration: c.solution_configuration,
+                        platform: c.platform,
+                    })
+                    .collect::<BTreeSet<SolutionConfiguration>>();
                 let diff = configurations
                     .difference(&solution_platforms_configs)
                     .cloned()

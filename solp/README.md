@@ -64,11 +64,19 @@ Will parse solution into structure that may be represented by this json
       "configurations": [
         {
           "configuration": "Debug",
-          "platform": "Any CPU"
+          "solution_configuration": "Debug",
+          "platform": "Any CPU",
+          "tags": [
+            "Build"
+          ]
         },
         {
           "configuration": "Release",
-          "platform": "Any CPU"
+          "solution_configuration": "Release",
+          "platform": "Any CPU",
+          "tags": [
+            "Build"
+          ]
         }
       ]
     },
@@ -81,11 +89,19 @@ Will parse solution into structure that may be represented by this json
       "configurations": [
         {
           "configuration": "Debug",
-          "platform": "Any CPU"
+          "solution_configuration": "Debug",
+          "platform": "Any CPU",
+          "tags": [
+            "Build"
+          ]
         },
         {
           "configuration": "Release",
-          "platform": "Any CPU"
+          "solution_configuration": "Release",
+          "platform": "Any CPU",
+          "tags": [
+            "Build"
+          ]
         }
       ]
     }
