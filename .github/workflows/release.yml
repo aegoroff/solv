@@ -12,7 +12,7 @@ env:
   WINDOWS_TARGET: x86_64-pc-windows-msvc
   MACOS_TARGET: x86_64-apple-darwin
   LINUX_TARGET: x86_64-unknown-linux-musl
-  RELEASER_VER: 0.11.1
+  RELEASER_VER: 0.11.2
 
 jobs:
   build:
@@ -116,7 +116,7 @@ jobs:
           7z a -ttar -so -an ./dist/* | 7z a -si ./${{ env.RELEASE_DIR }}/${{ env.RELEASE_BIN }}-${{ steps.get_version.outputs.VERSION }}-${{ env.MACOS_TARGET }}.tar.gz
 
       - name: Upload Zip
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.build }}
           path: ./${{ env.RELEASE_DIR }}
@@ -164,19 +164,19 @@ jobs:
           body: "${{ needs.generate-changelog.outputs.release_body }}"
 
       - name: Download Linux tarball
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: linux
           path: linux
 
       - name: Download Windows tarball
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: windows
           path: windows
 
       - name: Download MacOS tarball
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: macos
           path: macos
@@ -192,7 +192,6 @@ jobs:
         env:
           API_TOKEN_GITHUB: ${{ secrets.GH_TOKEN }}
         with:
-          github_server: "github.com"
           source_file: ${{ env.RELEASE_BIN }}.rb
           destination_repo: "aegoroff/homebrew-tap"
           user_email: "egoroff@email.com"
@@ -206,7 +205,6 @@ jobs:
         env:
           API_TOKEN_GITHUB: ${{ secrets.GH_TOKEN }}
         with:
-          github_server: "github.com"
           source_file: ${{ env.RELEASE_BIN }}.json
           destination_repo: "aegoroff/scoop-bucket"
           user_email: "egoroff@email.com"
