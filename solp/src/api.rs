@@ -152,7 +152,7 @@ impl<'a> Solution<'a> {
                                     crate::ast::ProjectConfigTag::ActiveCfg => {}
                                     crate::ast::ProjectConfigTag::Build => pc.tags.push(Tag::Build),
                                     crate::ast::ProjectConfigTag::Deploy => {
-                                        pc.tags.push(Tag::Deploy)
+                                        pc.tags.push(Tag::Deploy);
                                     }
                                 };
                                 pc
