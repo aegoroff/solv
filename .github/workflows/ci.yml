@@ -40,7 +40,7 @@ jobs:
           args: "--workspace -- --test-threads 1"
       - name: Upload to codecov.io
         if: matrix.build == 'linux'
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
       - name: Run tests
         if: matrix.build != 'linux'
         run: cargo test --workspace
