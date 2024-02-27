@@ -41,6 +41,8 @@ jobs:
       - name: Upload to codecov.io
         if: matrix.build == 'linux'
         uses: codecov/codecov-action@v4
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       - name: Run tests
         if: matrix.build != 'linux'
         run: cargo test --workspace
