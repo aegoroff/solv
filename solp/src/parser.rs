@@ -158,7 +158,7 @@ impl<'a> Visitor<'a> for GlobalVisitor {
                 .filter_map(|sect| section_content!(sect, "ProjectConfigurationPlatforms"))
                 .flatten()
                 .filter_map(PrjConfAggregate::handle_project_config_platform)
-                .group_by(|x| x.project_id);
+                .chunk_by(|x| x.project_id);
 
             let project_configs_platforms =
                 project_config_platform_grp
@@ -174,7 +174,7 @@ impl<'a> Visitor<'a> for GlobalVisitor {
                 .filter_map(|sect| section_content!(sect, "ProjectConfiguration"))
                 .flatten()
                 .filter_map(PrjConfAggregate::handle_project_config)
-                .group_by(|x| x.project_id)
+                .chunk_by(|x| x.project_id)
                 .into_iter()
                 .map(|(pid, project_configs)| {
                     let c = project_configs.flat_map(|c| c.configs).collect();

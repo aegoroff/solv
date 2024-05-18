@@ -22,7 +22,7 @@ clap_complete = "=4.5.2"
 solp = { path = "../solp/", version = "0.16.0" }
 petgraph = "=0.6.5"
 num-format = "=0.4.4"
-itertools = "=0.12.1"
+itertools = "=0.13.0"
 exitcode = "=1.1.2"
 url = "=2.5.0"
 color-eyre = "=0.6.3"

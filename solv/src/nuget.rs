@@ -349,7 +349,7 @@ mod tests {
         let has_mismatches = actual.iter().any(|(_, v)| has_mismatches(v));
         assert!(!has_mismatches);
         let different_vers_key = "a".to_owned();
-        assert!(actual.get(&different_vers_key).is_some());
+        assert!(actual.contains_key(&different_vers_key));
         assert_eq!(2, actual.get(&different_vers_key).unwrap().len());
     }
 
