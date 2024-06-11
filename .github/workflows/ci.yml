@@ -43,7 +43,7 @@ jobs:
           command: "build"
           target: ${{ matrix.target }}
           toolchain: stable
-          args: "--release"
+          args: "--workspace --release"
           strip: true
       - name: Run cargo-tarpaulin
         if: matrix.build == 'linux'
@@ -58,7 +58,12 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       - name: Run tests
         if: matrix.build != 'linux'
-        run: cargo test --workspace
+        uses: houseabsolute/actions-rust-cross@v0
+        with:
+          command: "test"
+          target: ${{ matrix.target }}
+          toolchain: stable
+          args: "--workspace --release"
       - name: Run linter
         if: matrix.build == 'linux'
         uses: actions-rs/clippy-check@v1
