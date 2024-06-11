@@ -35,6 +35,7 @@ jobs:
 
     steps:
       - name: Update rust
+        if: matrix.build == 'linux'
         run: rustup update
       - uses: actions/checkout@v4
       - name: Build
