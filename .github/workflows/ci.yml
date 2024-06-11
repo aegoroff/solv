@@ -42,7 +42,7 @@ jobs:
         with:
           command: "build"
           target: ${{ matrix.target }}
-          toolchain: stable
+          toolchain: ${{ matrix.rust }}
           args: "--workspace --release"
           strip: true
       - name: Run cargo-tarpaulin
@@ -62,7 +62,7 @@ jobs:
         with:
           command: "test"
           target: ${{ matrix.target }}
-          toolchain: stable
+          toolchain: ${{ matrix.rust }}
           args: "--workspace --release"
       - name: Run linter
         if: matrix.build == 'linux'
