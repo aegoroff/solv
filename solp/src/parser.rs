@@ -262,7 +262,7 @@ mod tests {
         let mut runner = TestRunner::default();
         for _ in 0..2048 {
             // Arrange
-            let val = ("\\PC*").new_tree(&mut runner).unwrap();
+            let val = "\\PC*".new_tree(&mut runner).unwrap();
             let s = val.current();
 
             // Act
