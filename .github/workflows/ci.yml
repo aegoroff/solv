@@ -8,6 +8,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  RELEASE_BIN: solv
 
 jobs:
   build:
@@ -50,6 +51,22 @@ jobs:
           toolchain: ${{ matrix.rust }}
           args: "--workspace --release"
           strip: true
+      - name: Build Debian package
+        if: matrix.build == 'linux-x64' || matrix.build == 'linux-aarch64'
+        working-directory: ./solv
+        run: |
+          cargo install cargo-deb
+          [[ -d ../target/release/ ]] || mkdir ../target/release/
+          [[ -f ../target/release/${{ env.RELEASE_BIN }} ]] || cp ../target/${{ matrix.target }}/release/${{ env.RELEASE_BIN }} ../target/release/
+          cargo deb --no-strip --no-build --target ${{ matrix.target }}
+          ls -lah ../target/${{ matrix.target }}/debian/
+      - name: Build RPM package
+        if: matrix.build == 'linux-x64' || matrix.build == 'linux-aarch64'
+        working-directory: ./solv
+        run: |
+          cargo install cargo-generate-rpm
+          cargo generate-rpm --target ${{ matrix.target }}
+          ls -lah ../target/${{ matrix.target }}/generate-rpm/
       - name: Run cargo-tarpaulin
         if: matrix.build == 'linux-x64'
         uses: actions-rs/tarpaulin@v0.1

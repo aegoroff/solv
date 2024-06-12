@@ -33,12 +33,12 @@ rstest = "=0.21.0"
 
 [package.metadata.deb]
 assets = [
-    ["../target/x86_64-unknown-linux-musl/release/solv", "usr/bin/", "755"],
+    ["../target/release/solv", "usr/bin/", "755"],
 ]
 
 [package.metadata.generate-rpm]
 assets = [
-    { source = "../target/x86_64-unknown-linux-musl/release/solv", dest = "/usr/bin/solv", mode = "0755" },
+    { source = "../target/release/solv", dest = "/usr/bin/solv", mode = "0755" },
 ]
 
 [lints]
