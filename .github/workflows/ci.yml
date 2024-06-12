@@ -66,7 +66,7 @@ jobs:
         run: |
           cargo install cargo-generate-rpm
           cargo generate-rpm --target ${{ matrix.target }}
-          ls -lah ../target/${{ matrix.target }}/generate-rpm/
+          ls -lah ./target/${{ matrix.target }}/generate-rpm/
       - name: Run cargo-tarpaulin
         if: matrix.build == 'linux-x64'
         uses: actions-rs/tarpaulin@v0.1
