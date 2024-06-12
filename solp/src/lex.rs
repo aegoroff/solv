@@ -282,7 +282,7 @@ impl<'a> Lexer<'a> {
         // but without allocations
         let mut it = val.chars();
 
-        let mut next_is = |c: char| -> bool { it.next().map(|x| x == c).unwrap_or_default() };
+        let mut next_is = |c: char| -> bool { it.next().is_some_and(|x| x == c) };
 
         next_is('E') && next_is('n') && next_is('d')
     }
