@@ -14,12 +14,16 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        build: [linux, macos-x64, macos-arm64, windows]
+        build: [linux-x64, linux-aarch64, macos-x64, macos-arm64, windows]
         include:
-          - build: linux
+          - build: linux-x64
             os: ubuntu-latest
             rust: stable
             target: x86_64-unknown-linux-musl
+          - build: linux-aarch64
+            os: ubuntu-latest
+            rust: stable
+            target: aarch64-unknown-linux-musl
           - build: macos-x64
             os: macos-latest
             rust: stable
@@ -35,7 +39,7 @@ jobs:
 
     steps:
       - name: Update rust
-        if: matrix.build == 'linux'
+        if: matrix.build == 'linux-x64'
         run: rustup update
       - uses: actions/checkout@v4
       - name: Build
@@ -47,18 +51,18 @@ jobs:
           args: "--workspace --release"
           strip: true
       - name: Run cargo-tarpaulin
-        if: matrix.build == 'linux'
+        if: matrix.build == 'linux-x64'
         uses: actions-rs/tarpaulin@v0.1
         with:
           version: "0.15.0"
           args: "--workspace -- --test-threads 1"
       - name: Upload to codecov.io
-        if: matrix.build == 'linux'
+        if: matrix.build == 'linux-x64'
         uses: codecov/codecov-action@v4
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       - name: Run tests
-        if: matrix.build != 'linux'
+        if: matrix.build != 'linux-x64'
         uses: houseabsolute/actions-rust-cross@v0
         with:
           command: "test"
@@ -66,13 +70,13 @@ jobs:
           toolchain: ${{ matrix.rust }}
           args: "--workspace --release"
       - name: Run linter
-        if: matrix.build == 'linux'
+        if: matrix.build == 'linux-x64'
         uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features --release -- -Dwarnings
       - name: Run audit
-        if: matrix.build == 'linux'
+        if: matrix.build == 'linux-x64'
         uses: actions-rs/audit-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
