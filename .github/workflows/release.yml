@@ -70,7 +70,7 @@ jobs:
           mkdir dist
 
       - name: Create tarball (Linux)
-        if: matrix.build == 'linux-x64' || matrix.build == 'macos-aarch64'
+        if: matrix.build == 'linux-x64' || matrix.build == 'linux-aarch64'
         run: |
           cp ./target/${{ matrix.target }}/release/${{ env.RELEASE_BIN }} ./dist/${{ env.RELEASE_BIN }}
           cp ./LICENSE.txt ./dist/
