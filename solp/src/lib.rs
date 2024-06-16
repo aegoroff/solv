@@ -139,6 +139,39 @@ fn create_dir_iterator(path: &str) -> WalkDir {
     WalkDir::new(root).skip_hidden(false).follow_links(false)
 }
 
+/// Parses the directory or directory tree and processes files with the specified extension.
+///
+/// This function takes an iterator over directory entries (`WalkDir`), a file extension to filter by, 
+/// and a consumer that implements the `Consume` trait. It filters the directory entries to only include 
+/// files with the specified extension, attempts to parse each file, and counts how many files were 
+/// successfully parsed.
+///
+/// # Parameters
+///
+/// - `iter`: An iterator over directory entries (`WalkDir`). This can be configured to either walk a 
+///   single directory or recursively walk a directory tree.
+/// - `extension`: The file extension to filter by. Files must have this extension to be processed.
+/// - `consumer`: A mutable reference to an object that implements the `Consume` trait. This consumer 
+///   will be notified of successful and failed parse attempts.
+///
+/// # Returns
+///
+/// The number of files that were successfully parsed.
+///
+/// # Example
+///
+/// ```rust
+/// let iter = WalkDir::new("path/to/directory");
+/// let extension = "sln";
+/// let mut consumer = MyConsumer::new();
+/// let count = parse_dir_or_tree(iter, extension, &mut consumer);
+/// println!("Successfully parsed {} files.", count);
+/// ```
+///
+/// # Remarks
+///
+/// Any errors that occur during the parsing of files will be ignored, but the paths of the files that 
+/// caused errors will be added to the error files list using the `err` function of the `Consume` trait.
 fn parse_dir_or_tree(iter: WalkDir, extension: &str, consumer: &mut dyn Consume) -> usize {
     let ext = extension.trim_start_matches('.');
 
