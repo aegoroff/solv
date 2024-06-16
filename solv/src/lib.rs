@@ -1,8 +1,8 @@
 #![warn(unused_extern_crates)]
 #![allow(clippy::missing_errors_doc)]
-pub mod json;
 pub mod error;
 pub mod info;
+pub mod json;
 pub mod nuget;
 pub mod ux;
 pub mod validate;
@@ -103,6 +103,45 @@ pub mod tests {
 
         // Act
         let actual = calculate_percent(value, total);
+
+        // Assert
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_parent_of_absolute_path() {
+        // Arrange
+        let path = "/home/user/path";
+        let expected = Path::new("/home/user");
+
+        // Act
+        let actual = parent_of(path);
+
+        // Assert
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_parent_of_relative_path() {
+        // Arrange
+        let path = "file.txt";
+        let expected = Path::new("");
+
+        // Act
+        let actual = parent_of(path);
+
+        // Assert
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_parent_of_empty_string() {
+        // Arrange
+        let path = "";
+        let expected = Path::new("");
+
+        // Act
+        let actual = parent_of(path);
 
         // Assert
         assert_eq!(actual, expected);
