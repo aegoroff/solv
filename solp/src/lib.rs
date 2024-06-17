@@ -78,12 +78,57 @@ pub trait Consume {
     fn err(&self, path: &str);
 }
 
-/// `parse_file` parses single solution file specified by path..
+/// Parses a solution file at the specified path and notifies the consumer of the result.
+///
+/// This function reads the content of the file at the given path and attempts to parse it
+/// as a Microsoft Visual Studio solution file. If the file is successfully read and parsed,
+/// the consumer's `ok` method is called with the parsed `Solution`. If any errors occur during
+/// reading or parsing, the consumer's `err` method is called with the path of the file, and an
+/// error is returned.
+///
+/// # Parameters
+///
+/// - `path`: A string slice that holds the path to the solution file.
+/// - `consumer`: A mutable reference to an object that implements the `Consume` trait. This consumer
+///   will be notified of the result of the parse operation.
+///
+/// # Returns
+///
+/// A `Result` which is `Ok(())` if the file was successfully read and parsed, or an error if any
+/// issues occurred during reading or parsing.
 ///
 /// # Errors
 ///
-/// This function will return an error if file content cannot be read into memory
-/// or solution file has invalid syntax.
+/// This function will return an error if the file cannot be read or if the content cannot be parsed
+/// as a valid solution file. In both cases, the consumer's `err` method will be called with the path
+/// of the file.
+///
+/// # Example
+///
+/// ```rust
+/// use solp::parse_file;
+/// use solp::api::Solution;
+/// use solp::Consume;
+///
+/// struct Consumer;
+///
+/// impl Consume for Consumer {
+///   fn ok(&mut self, solution: &Solution) {
+///      // ...
+///   }
+///
+///   fn err(&self, path: &str) {
+///      // ...
+///   }
+/// }
+///
+/// let path = "path/to/solution.sln";
+/// let mut consumer = Consumer{};
+/// match parse_file(path, &mut consumer) {
+///     Ok(()) => println!("Successfully parsed the solution file."),
+///     Err(e) => eprintln!("Failed to parse the solution file: {:?}", e),
+/// }
+/// ```
 pub fn parse_file(path: &str, consumer: &mut dyn Consume) -> Result<()> {
     let contents = fs::read_to_string(path).wrap_err_with(|| {
         consumer.err(path);
@@ -99,11 +144,58 @@ pub fn parse_file(path: &str, consumer: &mut dyn Consume) -> Result<()> {
     Ok(())
 }
 
-/// `parse_str` parses solution content from `&str` and returns [`Solution`] in case of success
+/// Parses a solution file content from a string slice and returns a [`Solution`] object.
+///
+/// This function takes the content of a solution file as a string slice, attempts to parse it,
+/// and returns a `Solution` object representing the parsed content. If parsing fails, an error
+/// is returned.
+///
+/// # Parameters
+///
+/// - `contents`: A string slice that holds the content of the solution file to be parsed.
+///
+/// # Returns
+///
+/// A `Result` containing a [`Solution`] object if parsing is successful, or an error if parsing fails.
 ///
 /// # Errors
 ///
-/// This function will return an error if solution file has invalid syntax or corrupted.
+/// This function will return an error if the content cannot be parsed as a valid solution file.
+///
+/// # Example
+///
+/// ```rust
+/// use solp::parse_str;
+///
+/// let solution_content = r#"
+/// Microsoft Visual Studio Solution File, Format Version 12.00
+/// # Visual Studio 16
+/// VisualStudioVersion = 16.0.28701.123
+/// MinimumVisualStudioVersion = 10.0.40219.1
+/// Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MyProject", "MyProject.csproj", "{A61CD222-0F3B-47B6-9F7F-25D658368EEC}"
+/// EndProject
+/// Global
+///     GlobalSection(SolutionConfigurationPlatforms) = preSolution
+///         Debug|Any CPU = Debug|Any CPU
+///         Release|Any CPU = Release|Any CPU
+///     EndGlobalSection
+///     GlobalSection(ProjectConfigurationPlatforms) = postSolution
+///         {A61CD222-0F3B-47B6-9F7F-25D658368EEC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+///         {A61CD222-0F3B-47B6-9F7F-25D658368EEC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+///         {A61CD222-0F3B-47B6-9F7F-25D658368EEC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+///         {A61CD222-0F3B-47B6-9F7F-25D658368EEC}.Release|Any CPU.Build.0 = Release|Any CPU
+///     EndGlobalSection
+/// EndGlobal
+/// "#;
+///
+/// parse_str(solution_content);
+/// // This will return a Result containing a Solution object if parsing is successful.
+/// ```
+///
+/// # Remarks
+///
+/// This function uses the `parser::parse_str` function to perform the actual parsing and then
+/// constructs a [`Solution`] object from the parsed data.
 pub fn parse_str(contents: &str) -> Result<Solution> {
     let parsed = parser::parse_str(contents)?;
     Ok(Solution::from(&parsed))
@@ -141,36 +233,26 @@ fn create_dir_iterator(path: &str) -> WalkDir {
 
 /// Parses the directory or directory tree and processes files with the specified extension.
 ///
-/// This function takes an iterator over directory entries (`WalkDir`), a file extension to filter by, 
-/// and a consumer that implements the `Consume` trait. It filters the directory entries to only include 
-/// files with the specified extension, attempts to parse each file, and counts how many files were 
+/// This function takes an iterator over directory entries (`WalkDir`), a file extension to filter by,
+/// and a consumer that implements the `Consume` trait. It filters the directory entries to only include
+/// files with the specified extension, attempts to parse each file, and counts how many files were
 /// successfully parsed.
 ///
 /// # Parameters
 ///
-/// - `iter`: An iterator over directory entries (`WalkDir`). This can be configured to either walk a 
+/// - `iter`: An iterator over directory entries (`WalkDir`). This can be configured to either walk a
 ///   single directory or recursively walk a directory tree.
 /// - `extension`: The file extension to filter by. Files must have this extension to be processed.
-/// - `consumer`: A mutable reference to an object that implements the `Consume` trait. This consumer 
+/// - `consumer`: A mutable reference to an object that implements the `Consume` trait. This consumer
 ///   will be notified of successful and failed parse attempts.
 ///
 /// # Returns
 ///
 /// The number of files that were successfully parsed.
 ///
-/// # Example
-///
-/// ```rust
-/// let iter = WalkDir::new("path/to/directory");
-/// let extension = "sln";
-/// let mut consumer = MyConsumer::new();
-/// let count = parse_dir_or_tree(iter, extension, &mut consumer);
-/// println!("Successfully parsed {} files.", count);
-/// ```
-///
 /// # Remarks
 ///
-/// Any errors that occur during the parsing of files will be ignored, but the paths of the files that 
+/// Any errors that occur during the parsing of files will be ignored, but the paths of the files that
 /// caused errors will be added to the error files list using the `err` function of the `Consume` trait.
 fn parse_dir_or_tree(iter: WalkDir, extension: &str, consumer: &mut dyn Consume) -> usize {
     let ext = extension.trim_start_matches('.');

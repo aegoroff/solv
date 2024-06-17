@@ -11,7 +11,43 @@ trait Visitor<'a> {
     fn visit(&self, solution: Sol<'a>, node: &Node<'a>) -> Sol<'a>;
 }
 
-/// Parses solution from string into [`Sol`] model instance
+/// Parses a given string as a solution file.
+///
+/// This function takes the contents of a solution file as a string, optionally
+/// skips the UTF-8 BOM (Byte Order Mark) if present, and then uses a lexer and
+/// parser to process the input. If parsing is successful, it visits the parsed
+/// nodes to construct a `Sol` (solution) object.
+///
+/// # Arguments
+///
+/// * `contents` - A string slice that holds the contents of the solution file.
+///
+/// # Returns
+///
+/// * `Result<Sol>` - Returns an `Ok(Sol)` containing the parsed solution if
+///   successful, or an `Err` with an error message if parsing fails.
+///
+/// # Errors
+///
+/// Returns an error if the content is too short or empty, or if parsing fails.
+///
+/// # Example
+///
+/// ```
+/// use solp::parse_str;
+///
+/// let contents = "..."; // your solution file contents as a string
+/// match parse_str(contents) {
+///     Ok(solution) => println!("Parsed solution: {:?}", solution),
+///     Err(e) => eprintln!("Failed to parse solution: {:?}", e),
+/// }
+/// ```
+///
+/// # Panics
+///
+/// This function does not explicitly panic. However, it may panic if the input
+/// string is malformed in a way that violates the assumptions of the parser
+/// or lexer.
 pub fn parse_str(contents: &str) -> Result<Sol> {
     if contents.len() < UTF8_BOM.len() {
         return Err(eyre::eyre!("Content is too short or empty"));
