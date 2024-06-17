@@ -158,16 +158,6 @@ fn create_dir_iterator(path: &str) -> WalkDir {
 ///
 /// The number of files that were successfully parsed.
 ///
-/// # Example
-///
-/// ```rust
-/// let iter = WalkDir::new("path/to/directory");
-/// let extension = "sln";
-/// let mut consumer = MyConsumer::new();
-/// let count = parse_dir_or_tree(iter, extension, &mut consumer);
-/// println!("Successfully parsed {} files.", count);
-/// ```
-///
 /// # Remarks
 ///
 /// Any errors that occur during the parsing of files will be ignored, but the paths of the files that 
