@@ -197,10 +197,9 @@ impl<'a> Lexer<'a> {
             _ => return Some(Ok((start, Tok::Skip, start))),
         }
 
-        loop {
-            match self.chars.peek() {
-                // Section key content until first '=' char
-                Some((j, '=')) => {
+        while let Some((j, c)) = self.chars.peek() {
+            match *c {
+                '=' => {
                     // trim space before '=' char
                     let finish = Lexer::trim_end(self.input, *j);
                     let val = if finish < start {
@@ -210,20 +209,19 @@ impl<'a> Lexer<'a> {
                     };
                     return Some(Ok((start, Tok::SectionKey(val), finish)));
                 }
-                None => {
-                    let val = &self.input[start..];
-
-                    if Lexer::is_close_element(val) {
-                        return Some(Ok((start, Tok::CloseElement(val), self.input.len())));
-                    }
-
-                    return Some(Ok((start, Tok::SectionKey(val), self.input.len())));
-                }
                 _ => {
                     self.chars.next();
                 }
             }
         }
+        let val = &self.input[start..];
+
+        let token = if Lexer::is_close_element(val) {
+            Tok::CloseElement(val)
+        } else {
+            Tok::SectionKey(val)
+        };
+        Some(Ok((start, token, self.input.len())))
     }
 
     fn section_value(&mut self, i: usize) -> Option<Spanned<Tok<'a>, usize, LexicalError>> {
