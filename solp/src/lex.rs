@@ -287,14 +287,12 @@ impl<'a> Lexer<'a> {
         next_is('E') && next_is('n') && next_is('d')
     }
 
-    fn trim_start(s: &str, mut i: usize) -> usize {
-        i += Lexer::count_whitespaces(s[i..].chars());
-        i
+    fn trim_start(s: &str, i: usize) -> usize {
+        i + Lexer::count_whitespaces(s[i..].chars())
     }
 
-    fn trim_end(s: &str, mut i: usize) -> usize {
-        i -= Lexer::count_whitespaces(s[..i].chars().rev());
-        i
+    fn trim_end(s: &str, i: usize) -> usize {
+        i - Lexer::count_whitespaces(s[..i].chars().rev())
     }
 
     fn count_whitespaces<I: Iterator<Item = char>>(it: I) -> usize {
