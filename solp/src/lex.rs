@@ -272,7 +272,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn count_whitespaces<I: Iterator<Item = char>>(it: I) -> usize {
-        it.take_while(|c| ' ' == *c || '\t' == *c).count()
+        it.take_while(|c| matches!(*c, ' ' |'\t')).count()
     }
 
     fn current(&mut self, i: usize, ch: char) -> Option<Spanned<Tok<'a>, usize, LexicalError>> {
