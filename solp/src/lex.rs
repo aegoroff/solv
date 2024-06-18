@@ -59,13 +59,13 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn identifier(&mut self, i: usize) -> (Tok<'a>, usize) {
-        let mut id_or_close_element = |collected, position| -> (Tok<'a>, usize) {
+    fn identifier(&mut self, i: usize) -> (usize, Tok<'a>, usize) {
+        let mut id_or_close_element = |collected, position| -> (usize, Tok<'a>, usize) {
             if Lexer::is_close_element(collected) {
                 self.context = LexerContext::None;
-                (Tok::CloseElement(collected), position)
+                (i, Tok::CloseElement(collected), position)
             } else {
-                (Tok::Id(collected), position)
+                (i, Tok::Id(collected), position)
             }
         };
         while let Some((j, c)) = self.chars.peek() {
@@ -83,7 +83,7 @@ impl<'a> Lexer<'a> {
                     if collected.ends_with(SECTION_SUFFIX) {
                         self.context = LexerContext::SectionDefinition;
                     }
-                    return (Tok::OpenElement(collected), finish);
+                    return (i, Tok::OpenElement(collected), finish);
                 }
                 _ => return id_or_close_element(&self.input[i..finish], finish),
             }
@@ -91,18 +91,18 @@ impl<'a> Lexer<'a> {
         id_or_close_element(&self.input[i..], self.input.len())
     }
 
-    fn comment(&mut self, i: usize) -> Spanned<Tok<'a>, usize, LexicalError> {
+    fn comment(&mut self, i: usize) -> (usize, Tok<'a>, usize) {
         while let Some((j, c)) = self.chars.peek() {
             match *c {
                 '\n' | '\r' => {
-                    return Ok((i, Tok::Comment(&self.input[i..*j]), *j));
+                    return (i, Tok::Comment(&self.input[i..*j]), *j);
                 }
                 _ => {
                     self.chars.next();
                 }
             }
         }
-        Ok((i, Tok::Comment(&self.input[i..]), self.input.len()))
+        (i, Tok::Comment(&self.input[i..]), self.input.len())
     }
 
     /// UUID parsing only inside string, i.e. chars between double quotes.
@@ -124,23 +124,23 @@ impl<'a> Lexer<'a> {
         (i, Tok::Guid(&self.input[i..]), self.input.len())
     }
 
-    fn digits_with_dots(&mut self, i: usize) -> Spanned<Tok<'a>, usize, LexicalError> {
+    fn digits_with_dots(&mut self, i: usize) -> (usize, Tok<'a>, usize) {
         while let Some((j, c)) = self.chars.peek() {
             match *c {
                 '0'..='9' | '.' => {
                     self.chars.next();
                 }
-                _ => return Ok((i, Tok::DigitsAndDots(&self.input[i..*j]), *j)),
+                _ => return (i, Tok::DigitsAndDots(&self.input[i..*j]), *j),
             }
         }
-        Ok((i, Tok::DigitsAndDots(&self.input[i..]), self.input.len()))
+        (i, Tok::DigitsAndDots(&self.input[i..]), self.input.len())
     }
 
-    fn string(&mut self, i: usize) -> Spanned<Tok<'a>, usize, LexicalError> {
+    fn string(&mut self, i: usize) -> (usize, Tok<'a>, usize) {
         match self.context {
             LexerContext::InsideString => {
                 self.context = LexerContext::None;
-                return Ok((i, Tok::Skip, i + 1));
+                return (i, Tok::Skip, i + 1);
             }
             _ => {
                 self.context = LexerContext::InsideString;
@@ -152,22 +152,22 @@ impl<'a> Lexer<'a> {
                 '"' => {
                     let start = i + 1;
                     let val = &self.input[start..*j];
-                    return Ok((start, Tok::Str(val), *j));
+                    return (start, Tok::Str(val), *j);
                 }
                 '{' => {
                     // Guid start
-                    return Ok(self.guid(i + 1));
+                    return self.guid(i + 1);
                 }
                 _ => {
                     self.chars.next();
                 }
             }
         }
-        Ok((i, Tok::Str(&self.input[i..]), self.input.len()))
+        (i, Tok::Str(&self.input[i..]), self.input.len())
     }
 
     /// REMARK: Guid inside section key will be parsed by nom crate on Ast visiting stage
-    fn section_key(&mut self, i: usize) -> Spanned<Tok<'a>, usize, LexicalError> {
+    fn section_key(&mut self, i: usize) -> (usize, Tok<'a>, usize) {
         let mut start = i;
 
         // skip whitespaces
@@ -179,14 +179,14 @@ impl<'a> Lexer<'a> {
         // If close element just return Skip token
         if Lexer::is_close_element(&self.input[start..]) {
             self.context = LexerContext::None;
-            return Ok((start, Tok::Skip, start));
+            return (start, Tok::Skip, start);
         }
 
         // If section definition context just return Skip token
         match self.context {
             LexerContext::InsideSection => {}
             LexerContext::SectionDefinition => self.context = LexerContext::InsideSection,
-            _ => return Ok((start, Tok::Skip, start)),
+            _ => return (start, Tok::Skip, start),
         }
 
         while let Some((j, c)) = self.chars.peek() {
@@ -199,7 +199,7 @@ impl<'a> Lexer<'a> {
                     } else {
                         &self.input[start..finish]
                     };
-                    return Ok((start, Tok::SectionKey(val), finish));
+                    return (start, Tok::SectionKey(val), finish);
                 }
                 _ => {
                     self.chars.next();
@@ -213,10 +213,10 @@ impl<'a> Lexer<'a> {
         } else {
             Tok::SectionKey(val)
         };
-        Ok((start, token, self.input.len()))
+        (start, token, self.input.len())
     }
 
-    fn section_value(&mut self, i: usize) -> Spanned<Tok<'a>, usize, LexicalError> {
+    fn section_value(&mut self, i: usize) -> (usize, Tok<'a>, usize) {
         match self.context {
             LexerContext::InsideSection => {
                 // i + 1 skips '=' char
@@ -227,11 +227,7 @@ impl<'a> Lexer<'a> {
                     match *c {
                         '\r' | '\n' => {
                             let finish = *j;
-                            return Ok((
-                                start,
-                                Tok::SectionValue(&self.input[start..finish]),
-                                finish,
-                            ));
+                            return (start, Tok::SectionValue(&self.input[start..finish]), finish);
                         }
                         _ => {
                             self.chars.next();
@@ -239,13 +235,13 @@ impl<'a> Lexer<'a> {
                     }
                 }
                 // just return all string from start as section value
-                Ok((
+                (
                     start,
                     Tok::SectionValue(&self.input[start..]),
                     self.input.len(),
-                ))
+                )
             }
-            _ => Ok((i, Tok::Eq, i + 1)),
+            _ => (i, Tok::Eq, i + 1),
         }
     }
 
@@ -280,17 +276,14 @@ impl<'a> Lexer<'a> {
 
     fn current(&mut self, i: usize, ch: char) -> Option<Spanned<Tok<'a>, usize, LexicalError>> {
         match ch {
-            '\r' | '\n' => Some(self.section_key(i)),
-            '=' => Some(self.section_value(i)),
+            '\r' | '\n' => Some(Ok(self.section_key(i))),
+            '=' => Some(Ok(self.section_value(i))),
             ',' => Some(Ok((i, Tok::Comma, i + 1))),
             ')' | ' ' | '\t' => Some(Ok((i, Tok::Skip, i + 1))),
-            '0'..='9' => Some(self.digits_with_dots(i)),
-            '"' => Some(self.string(i)),
-            '#' => Some(self.comment(i)),
-            'a'..='z' | 'A'..='Z' => {
-                let (tok, loc) = self.identifier(i);
-                Some(Ok((i, tok, loc)))
-            }
+            '0'..='9' => Some(Ok(self.digits_with_dots(i))),
+            '"' => Some(Ok(self.string(i))),
+            '#' => Some(Ok(self.comment(i))),
+            'a'..='z' | 'A'..='Z' => Some(Ok(self.identifier(i))),
             _ => None,
         }
     }
