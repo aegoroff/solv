@@ -156,7 +156,8 @@ impl<'a> Lexer<'a> {
                 }
                 '{' => {
                     // Guid start
-                    return self.guid(i + 1);
+                    let start = *j;
+                    return self.guid(start);
                 }
                 _ => {
                     self.chars.next();
