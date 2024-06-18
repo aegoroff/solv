@@ -132,23 +132,15 @@ impl<'a> Lexer<'a> {
     }
 
     fn digits_with_dots(&mut self, i: usize) -> Option<Spanned<Tok<'a>, usize, LexicalError>> {
-        loop {
-            match self.chars.peek() {
-                Some((j, c)) => match *c {
+        while let Some((j, c)) = self.chars.peek() {
+            match *c {
                     '0'..='9' | '.' => {
                         self.chars.next();
                     }
                     _ => return Some(Ok((i, Tok::DigitsAndDots(&self.input[i..*j]), *j))),
-                },
-                None => {
-                    return Some(Ok((
-                        i,
-                        Tok::DigitsAndDots(&self.input[i..]),
-                        self.input.len(),
-                    )));
-                }
             }
         }
+        Some(Ok((i, Tok::DigitsAndDots(&self.input[i..]), self.input.len())))
     }
 
     fn string(&mut self, i: usize) -> Option<Spanned<Tok<'a>, usize, LexicalError>> {
