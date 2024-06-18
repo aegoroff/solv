@@ -68,30 +68,27 @@ impl<'a> Lexer<'a> {
                 (Tok::Id(collected), position)
             }
         };
-        loop {
-            if let Some((j, c)) = self.chars.peek() {
-                let finish = *j;
-                match *c {
-                    'a'..='z' | 'A'..='Z' => {
-                        self.chars.next();
-                    }
-                    '(' => {
-                        // Skip '('
-                        self.chars.next();
-
-                        let collected = &self.input[i..finish];
-                        // Check if identifier is suffixed with 'Section' and update context if so
-                        if collected.ends_with(SECTION_SUFFIX) {
-                            self.context = LexerContext::SectionDefinition;
-                        }
-                        return (Tok::OpenElement(collected), finish);
-                    }
-                    _ => return id_or_close_element(&self.input[i..finish], finish),
+        while let Some((j, c)) = self.chars.peek() {
+            let finish = *j;
+            match *c {
+                'a'..='z' | 'A'..='Z' => {
+                    self.chars.next();
                 }
-            } else {
-                return id_or_close_element(&self.input[i..], self.input.len());
+                '(' => {
+                    // Skip '('
+                    self.chars.next();
+
+                    let collected = &self.input[i..finish];
+                    // Check if identifier is suffixed with 'Section' and update context if so
+                    if collected.ends_with(SECTION_SUFFIX) {
+                        self.context = LexerContext::SectionDefinition;
+                    }
+                    return (Tok::OpenElement(collected), finish);
+                }
+                _ => return id_or_close_element(&self.input[i..finish], finish),
             }
         }
+        id_or_close_element(&self.input[i..], self.input.len())
     }
 
     fn comment(&mut self, i: usize) -> Option<Spanned<Tok<'a>, usize, LexicalError>> {
@@ -134,13 +131,17 @@ impl<'a> Lexer<'a> {
     fn digits_with_dots(&mut self, i: usize) -> Option<Spanned<Tok<'a>, usize, LexicalError>> {
         while let Some((j, c)) = self.chars.peek() {
             match *c {
-                    '0'..='9' | '.' => {
-                        self.chars.next();
-                    }
-                    _ => return Some(Ok((i, Tok::DigitsAndDots(&self.input[i..*j]), *j))),
+                '0'..='9' | '.' => {
+                    self.chars.next();
+                }
+                _ => return Some(Ok((i, Tok::DigitsAndDots(&self.input[i..*j]), *j))),
             }
         }
-        Some(Ok((i, Tok::DigitsAndDots(&self.input[i..]), self.input.len())))
+        Some(Ok((
+            i,
+            Tok::DigitsAndDots(&self.input[i..]),
+            self.input.len(),
+        )))
     }
 
     fn string(&mut self, i: usize) -> Option<Spanned<Tok<'a>, usize, LexicalError>> {
