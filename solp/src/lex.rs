@@ -155,23 +155,23 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        loop {
-            match self.chars.peek() {
-                // Guid start
-                Some((_, '{')) => {
-                    return Some(Ok(self.guid(i + 1)));
-                }
-                Some((j, '"')) => {
+        while let Some((j, c)) = self.chars.peek() {
+            match *c {
+                '"' => {
                     let start = i + 1;
                     let val = &self.input[start..*j];
                     return Some(Ok((start, Tok::Str(val), *j)));
                 }
-                None => return Some(Ok((i, Tok::Str(&self.input[i..]), self.input.len()))),
+                '{' => {
+                    // Guid start
+                    return Some(Ok(self.guid(i + 1)));
+                }
                 _ => {
                     self.chars.next();
                 }
             }
         }
+        Some(Ok((i, Tok::Str(&self.input[i..]), self.input.len())))
     }
 
     /// REMARK: Guid inside section key will be parsed by nom crate on Ast visiting stage
