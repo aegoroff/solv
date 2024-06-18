@@ -92,40 +92,36 @@ impl<'a> Lexer<'a> {
     }
 
     fn comment(&mut self, i: usize) -> Option<Spanned<Tok<'a>, usize, LexicalError>> {
-        loop {
-            match self.chars.peek() {
-                Some((j, '\n' | '\r')) => {
+        while let Some((j, c)) = self.chars.peek() {
+            match *c {
+                '\n' | '\r' => {
                     return Some(Ok((i, Tok::Comment(&self.input[i..*j]), *j)));
-                }
-                None => {
-                    return Some(Ok((i, Tok::Comment(&self.input[i..]), self.input.len())));
                 }
                 _ => {
                     self.chars.next();
                 }
             }
         }
+        Some(Ok((i, Tok::Comment(&self.input[i..]), self.input.len())))
     }
 
     /// UUID parsing only inside string, i.e. chars between double quotes.
     /// Guids in section keys parsed on Ast visiting stage using nom crate. See ast module for details
     fn guid(&mut self, i: usize) -> (usize, Tok<'a>, usize) {
-        loop {
-            match self.chars.peek() {
-                Some((j, '}')) => {
+        while let Some((j, c)) = self.chars.peek() {
+            match *c {
+                '}' => {
                     // include '}' char so increment j and advance chars
                     let finish = *j + 1;
                     self.chars.next();
                     return (i, Tok::Guid(&self.input[i..finish]), finish);
-                }
-                None => {
-                    return (i, Tok::Guid(&self.input[i..]), self.input.len());
                 }
                 _ => {
                     self.chars.next();
                 }
             }
         }
+        (i, Tok::Guid(&self.input[i..]), self.input.len())
     }
 
     fn digits_with_dots(&mut self, i: usize) -> Option<Spanned<Tok<'a>, usize, LexicalError>> {
