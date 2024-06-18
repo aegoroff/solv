@@ -76,17 +76,13 @@ impl<'a> Lexer<'a> {
                         self.chars.next();
                     }
                     '(' => {
-                        // Skip (
+                        // Skip '('
                         self.chars.next();
 
                         let collected = &self.input[i..finish];
-                        // If identier suffixed 'Section' in this position (after oper paren)
-                        // We start section definition - so we change lexer context
-                        if collected.len() > SECTION_SUFFIX.len() {
-                            let start = collected.len() - SECTION_SUFFIX.len();
-                            if &collected[start..] == SECTION_SUFFIX {
-                                self.context = LexerContext::SectionDefinition;
-                            };
+                        // Check if identifier is suffixed with 'Section' and update context if so
+                        if collected.ends_with(SECTION_SUFFIX) {
+                            self.context = LexerContext::SectionDefinition;
                         }
                         return (Tok::OpenElement(collected), finish);
                     }
