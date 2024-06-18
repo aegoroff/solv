@@ -239,9 +239,10 @@ impl<'a> Lexer<'a> {
                 // i + 1 skips '=' char
                 let start = Lexer::trim_start(self.input, i + 1);
 
-                loop {
-                    match self.chars.peek() {
-                        Some((j, '\r' | '\n')) => {
+                // advance iterator until end of line and return section value if line end
+                while let Some((j, c)) = self.chars.peek() {
+                    match *c {
+                        '\r' | '\n' => {
                             let finish = *j;
                             return Some(Ok((
                                 start,
@@ -249,18 +250,17 @@ impl<'a> Lexer<'a> {
                                 finish,
                             )));
                         }
-                        None => {
-                            return Some(Ok((
-                                start,
-                                Tok::SectionValue(&self.input[start..]),
-                                self.input.len(),
-                            )));
-                        }
                         _ => {
                             self.chars.next();
                         }
                     }
                 }
+                // just return all string from start as section value
+                Some(Ok((
+                    start,
+                    Tok::SectionValue(&self.input[start..]),
+                    self.input.len(),
+                )))
             }
             _ => Some(Ok((i, Tok::Eq, i + 1))),
         }
