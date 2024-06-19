@@ -241,20 +241,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn is_close_element(val: &str) -> bool {
-        // IMPORTANT: This implementation needed because slicing substring val[..3]
-        // and compare it to End not working in some extreme cases (multibyte encondings)
-        // when char may contain more then one byte so getting part of the char using
-        // index will lead invalid UTF-8 code point and panic will occur.
-        // So, if you run fuzzing it'll immediately crash
-        // This implementation is ugly equivalent of:
-        // let substr: String = val.chars().take("End".len()).collect();
-        // substr == "End"
-        // but without allocations
-        let mut it = val.chars();
-
-        let mut is = |c: char| -> bool { it.next().is_some_and(|x| x == c) };
-
-        is('E') && is('n') && is('d')
+        val.starts_with("End")
     }
 
     fn trim_start(s: &str, i: usize) -> usize {
