@@ -4,7 +4,7 @@ pub type Spanned<Tok, Loc, Error> = Result<(Loc, Tok, Loc), Error>;
 
 #[derive(Copy, Clone, Debug)]
 pub enum LexicalError {
-    /// Occurs when end of stream is reached when a next token is expected.
+    /// Occurs when end of stream is reached when a next token is expected or no correct token end found
     PrematureEndOfStream,
 }
 
