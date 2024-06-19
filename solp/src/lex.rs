@@ -60,15 +60,22 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    #[inline]
+    fn id_or_close_element(
+        &mut self,
+        collected: &'a str,
+        start: usize,
+        end: usize,
+    ) -> (usize, Tok<'a>, usize) {
+        if Lexer::is_close_element(collected) {
+            self.context = LexerContext::None;
+            (start, Tok::CloseElement(collected), end)
+        } else {
+            (start, Tok::Id(collected), end)
+        }
+    }
+
     fn identifier(&mut self, i: usize) -> (usize, Tok<'a>, usize) {
-        let mut id_or_close_element = |collected, position| -> (usize, Tok<'a>, usize) {
-            if Lexer::is_close_element(collected) {
-                self.context = LexerContext::None;
-                (i, Tok::CloseElement(collected), position)
-            } else {
-                (i, Tok::Id(collected), position)
-            }
-        };
         while let Some((j, c)) = self.chars.peek() {
             let finish = *j;
             match *c {
@@ -86,10 +93,10 @@ impl<'a> Lexer<'a> {
                     }
                     return (i, Tok::OpenElement(collected), finish);
                 }
-                _ => return id_or_close_element(&self.input[i..finish], finish),
+                _ => return self.id_or_close_element(&self.input[i..finish], i, finish),
             }
         }
-        id_or_close_element(&self.input[i..], self.input.len())
+        self.id_or_close_element(&self.input[i..], i, self.input.len())
     }
 
     fn comment(&mut self, i: usize) -> (usize, Tok<'a>, usize) {
@@ -240,18 +247,22 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    #[inline]
     fn is_close_element(val: &str) -> bool {
         val.starts_with("End")
     }
 
+    #[inline]
     fn trim_start(s: &str, i: usize) -> usize {
         i + Lexer::count_whitespaces(s[i..].chars())
     }
 
+    #[inline]
     fn trim_end(s: &str, i: usize) -> usize {
         i - Lexer::count_whitespaces(s[..i].chars().rev())
     }
 
+    #[inline]
     fn count_whitespaces<I: Iterator<Item = char>>(it: I) -> usize {
         it.take_while(|c| matches!(*c, ' ' | '\t')).count()
     }
