@@ -4,7 +4,8 @@ pub type Spanned<Tok, Loc, Error> = Result<(Loc, Tok, Loc), Error>;
 
 #[derive(Copy, Clone, Debug)]
 pub enum LexicalError {
-    // Not possible
+    /// Occurs when end of stream is reached when a next token is expected.
+    PrematureEndOfStream,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -102,45 +103,46 @@ impl<'a> Lexer<'a> {
                 }
             }
         }
+        // If comment last file line
         (i, Tok::Comment(&self.input[i..]), self.input.len())
     }
 
     /// UUID parsing only inside string, i.e. chars between double quotes.
     /// Guids in section keys parsed on Ast visiting stage using nom crate. See ast module for details
-    fn guid(&mut self, i: usize) -> (usize, Tok<'a>, usize) {
+    fn guid(&mut self, i: usize) -> Spanned<Tok<'a>, usize, LexicalError> {
         while let Some((j, c)) = self.chars.peek() {
             match *c {
                 '}' => {
                     // include '}' char so increment j and advance chars
                     let finish = *j + 1;
                     self.chars.next();
-                    return (i, Tok::Guid(&self.input[i..finish]), finish);
+                    return Ok((i, Tok::Guid(&self.input[i..finish]), finish));
                 }
                 _ => {
                     self.chars.next();
                 }
             }
         }
-        (i, Tok::Guid(&self.input[i..]), self.input.len())
+        Err(LexicalError::PrematureEndOfStream)
     }
 
-    fn digits_with_dots(&mut self, i: usize) -> (usize, Tok<'a>, usize) {
+    fn digits_with_dots(&mut self, i: usize) -> Spanned<Tok<'a>, usize, LexicalError> {
         while let Some((j, c)) = self.chars.peek() {
             match *c {
                 '0'..='9' | '.' => {
                     self.chars.next();
                 }
-                _ => return (i, Tok::DigitsAndDots(&self.input[i..*j]), *j),
+                _ => return Ok((i, Tok::DigitsAndDots(&self.input[i..*j]), *j)),
             }
         }
-        (i, Tok::DigitsAndDots(&self.input[i..]), self.input.len())
+        Err(LexicalError::PrematureEndOfStream)
     }
 
-    fn string(&mut self, i: usize) -> (usize, Tok<'a>, usize) {
+    fn string(&mut self, i: usize) -> Spanned<Tok<'a>, usize, LexicalError> {
         match self.context {
             LexerContext::InsideString => {
                 self.context = LexerContext::None;
-                return (i, Tok::Skip, i + 1);
+                return Ok((i, Tok::Skip, i + 1));
             }
             _ => {
                 self.context = LexerContext::InsideString;
@@ -152,7 +154,7 @@ impl<'a> Lexer<'a> {
                 '"' => {
                     let start = i + 1;
                     let val = &self.input[start..*j];
-                    return (start, Tok::Str(val), *j);
+                    return Ok((start, Tok::Str(val), *j));
                 }
                 '{' => {
                     // Guid start
@@ -164,11 +166,11 @@ impl<'a> Lexer<'a> {
                 }
             }
         }
-        (i, Tok::Str(&self.input[i..]), self.input.len())
+        Err(LexicalError::PrematureEndOfStream)
     }
 
     /// REMARK: Guid inside section key will be parsed by nom crate on Ast visiting stage
-    fn section_key(&mut self, i: usize) -> (usize, Tok<'a>, usize) {
+    fn section_key(&mut self, i: usize) -> Spanned<Tok<'a>, usize, LexicalError> {
         let mut start = i;
 
         // skip whitespaces
@@ -180,14 +182,14 @@ impl<'a> Lexer<'a> {
         // If close element just return Skip token
         if Lexer::is_close_element(&self.input[start..]) {
             self.context = LexerContext::None;
-            return (start, Tok::Skip, start);
+            return Ok((start, Tok::Skip, start));
         }
 
         // If section definition context just return Skip token
         match self.context {
             LexerContext::InsideSection => {}
             LexerContext::SectionDefinition => self.context = LexerContext::InsideSection,
-            _ => return (start, Tok::Skip, start),
+            _ => return Ok((start, Tok::Skip, start)),
         }
 
         while let Some((j, c)) = self.chars.peek() {
@@ -200,24 +202,17 @@ impl<'a> Lexer<'a> {
                     } else {
                         &self.input[start..finish]
                     };
-                    return (start, Tok::SectionKey(val), finish);
+                    return Ok((start, Tok::SectionKey(val), finish));
                 }
                 _ => {
                     self.chars.next();
                 }
             }
         }
-        let val = &self.input[start..];
-
-        let token = if Lexer::is_close_element(val) {
-            Tok::CloseElement(val)
-        } else {
-            Tok::SectionKey(val)
-        };
-        (start, token, self.input.len())
+        Err(LexicalError::PrematureEndOfStream)
     }
 
-    fn section_value(&mut self, i: usize) -> (usize, Tok<'a>, usize) {
+    fn section_value(&mut self, i: usize) -> Spanned<Tok<'a>, usize, LexicalError> {
         match self.context {
             LexerContext::InsideSection => {
                 // i + 1 skips '=' char
@@ -228,21 +223,20 @@ impl<'a> Lexer<'a> {
                     match *c {
                         '\r' | '\n' => {
                             let finish = *j;
-                            return (start, Tok::SectionValue(&self.input[start..finish]), finish);
+                            return Ok((
+                                start,
+                                Tok::SectionValue(&self.input[start..finish]),
+                                finish,
+                            ));
                         }
                         _ => {
                             self.chars.next();
                         }
                     }
                 }
-                // just return all string from start as section value
-                (
-                    start,
-                    Tok::SectionValue(&self.input[start..]),
-                    self.input.len(),
-                )
+                Err(LexicalError::PrematureEndOfStream)
             }
-            _ => (i, Tok::Eq, i + 1),
+            _ => Ok((i, Tok::Eq, i + 1)),
         }
     }
 
@@ -272,22 +266,22 @@ impl<'a> Lexer<'a> {
     }
 
     fn count_whitespaces<I: Iterator<Item = char>>(it: I) -> usize {
-        it.take_while(|c| matches!(*c, ' ' |'\t')).count()
+        it.take_while(|c| matches!(*c, ' ' | '\t')).count()
     }
 
     fn current(&mut self, i: usize, ch: char) -> Option<Spanned<Tok<'a>, usize, LexicalError>> {
-        let span = match ch {
+        let spanned = match ch {
             '\r' | '\n' => self.section_key(i),
             '=' => self.section_value(i),
-            ',' => (i, Tok::Comma, i + 1),
-            ')' | ' ' | '\t' => (i, Tok::Skip, i + 1),
+            ',' => Ok((i, Tok::Comma, i + 1)),
+            ')' | ' ' | '\t' => Ok((i, Tok::Skip, i + 1)),
             '0'..='9' => self.digits_with_dots(i),
             '"' => self.string(i),
-            '#' => self.comment(i),
-            'a'..='z' | 'A'..='Z' => self.identifier(i),
+            '#' => Ok(self.comment(i)),
+            'a'..='z' | 'A'..='Z' => Ok(self.identifier(i)),
             _ => return None,
         };
-        Some(Ok(span))
+        Some(spanned)
     }
 }
 
