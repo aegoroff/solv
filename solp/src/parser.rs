@@ -109,7 +109,7 @@ impl<'a> Visitor<'a> for SolutionVisitor {
         let mut s = solution;
         if let Node::Solution(first_line, lines) = node {
             if let Node::FirstLine(ver) = first_line.as_ref() {
-                s.format = ver.digit_or_dot();
+                s.format = ver;
             }
 
             s = lines.iter().fold(s, |mut s, line| {

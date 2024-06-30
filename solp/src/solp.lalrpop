@@ -17,13 +17,13 @@ HeaderLine = {
     <Version>,
 };
 
-FirstLine : Node<'a> = <id1:Identifier> <id2:Identifier*> "comma" <id3:Identifier*> <v:DigitOrDot> => Node::FirstLine(Box::new(v));
+FirstLine : Node<'a> = <id1:"id"> <id2:"id"*> "comma" <id3:"id"*> <v:"digit_and_dot"> => Node::FirstLine(v);
 
-Version : Node<'a> = <id:Identifier> "eq" <r:DigitOrDot> => Node::Version(Box::new(id),Box::new(r));
+Version : Node<'a> = <id:"id"> "eq" <r:"digit_and_dot"> => Node::Version(id, r);
 
 Project : Node<'a> = <b:ProjectBegin> <s:Section*> "close_element" => Node::Project(Box::new(b), s);
 
-Global : Node<'a> = <id:Identifier> <s:Section*> "close_element" => Node::Global(s);
+Global : Node<'a> = <id:"id"> <s:Section*> "close_element" => Node::Global(s);
 
 ProjectBegin : Node<'a> = {
     "open_element" <t:"guid"> "eq" <n:"str"> "comma" <p:"str"> "comma" <id:"guid"> => {
@@ -34,8 +34,8 @@ ProjectBegin : Node<'a> = {
 Section : Node<'a> = <b:SectionBegin> <c:SectionContent*> "close_element" => Node::Section(Box::new(b), c);
 
 SectionBegin : Node<'a> = {
-    "open_element" <name:Identifier+> "eq" <stage:Identifier> => {
-        Node::SectionBegin(name, Box::new(stage))
+    "open_element" <name:"id"+> "eq" <stage:"id"> => {
+        Node::SectionBegin(name, stage)
     },
 };
 
@@ -46,10 +46,6 @@ SectionContent : Node<'a> = {
 };
 
 Comment : Node<'a> = "comment" => Node::Comment(<>);
-
-DigitOrDot: Node<'a> = "digit_and_dot" => Node::DigitOrDot(<>);
-
-Identifier: Node<'a> = "id" => Node::Identifier(<>);
 
 extern {
     type Location = usize;

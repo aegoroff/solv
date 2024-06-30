@@ -17,15 +17,13 @@ const DEPLOY_TAG: &str = ".Deploy.0";
 #[derive(Debug)]
 pub enum Node<'a> {
     Comment(&'a str),
-    DigitOrDot(&'a str),
-    Identifier(&'a str),
-    Version(Box<Node<'a>>, Box<Node<'a>>),
-    FirstLine(Box<Node<'a>>),
+    Version(&'a str, &'a str),
+    FirstLine(&'a str),
     Global(Vec<Node<'a>>),
     Project(Box<Node<'a>>, Vec<Node<'a>>),
     ProjectBegin(&'a str, &'a str, &'a str, &'a str),
     Section(Box<Node<'a>>, Vec<Node<'a>>),
-    SectionBegin(Vec<Node<'a>>, Box<Node<'a>>),
+    SectionBegin(Vec<&'a str>, &'a str),
     SectionContent(&'a str, &'a str),
     Solution(Box<Node<'a>>, Vec<Node<'a>>),
 }
@@ -117,10 +115,8 @@ impl<'a> Ver<'a> {
     }
 
     #[must_use]
-    pub fn from(name: &Node<'a>, val: &Node<'a>) -> Self {
-        let n = name.identifier();
-        let v = val.digit_or_dot();
-        Ver::new(n, v)
+    pub fn from(name: &'a str, val: &'a str) -> Self {
+        Ver::new(name, val)
     }
 }
 
@@ -302,28 +298,11 @@ where
     sequence::terminated(is_not("|"), char('|'))(input)
 }
 
-/// Generates simple &str getters from Node variants
-macro_rules! impl_str_getters {
-    ($(($name:ident, $variant:ident)),*) => {
-        $(
-            #[must_use] pub fn $name(&self) -> &'a str {
-                if let Node::$variant(s) = self {
-                    *s
-                } else {
-                    ""
-                }
-            }
-        )*
-    };
-}
-
 impl<'a> Node<'a> {
-    impl_str_getters!((identifier, Identifier), (digit_or_dot, DigitOrDot));
-
     #[must_use]
     pub fn is_section(&self, name: &str) -> bool {
         if let Node::SectionBegin(names, _) = self {
-            names.iter().any(|n| n.identifier() == name)
+            names.iter().any(|n| *n == name)
         } else {
             false
         }
