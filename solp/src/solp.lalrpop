@@ -21,20 +21,20 @@ FirstLine : Node<'a> = <id1:"id"> <id2:"id"*> "comma" <id3:"id"*> <v:"digit_and_
 
 Version : Node<'a> = <id:"id"> "eq" <r:"digit_and_dot"> => Node::Version(id, r);
 
-Project : Node<'a> = <b:ProjectBegin> <s:Section*> "close_element" => Node::Project(Box::new(b), s);
+Project : Node<'a> = "open_element" <b:ProjectBegin> <s:Section*> "close_element" => Node::Project(Box::new(b), s);
 
 Global : Node<'a> = <id:"id"> <s:Section*> "close_element" => Node::Global(s);
 
 ProjectBegin : Node<'a> = {
-    "open_element" <t:"guid"> "eq" <n:"str"> "comma" <p:"str"> "comma" <id:"guid"> => {
+    <t:"guid"> "eq" <n:"str"> "comma" <p:"str"> "comma" <id:"guid"> => {
         Node::ProjectBegin(t, n, p, id)
     },
 };
 
-Section : Node<'a> = <b:SectionBegin> <c:SectionContent*> "close_element" => Node::Section(Box::new(b), c);
+Section : Node<'a> = "open_element" <b:SectionBegin> <c:SectionContent*> "close_element" => Node::Section(Box::new(b), c);
 
 SectionBegin : Node<'a> = {
-    "open_element" <name:"id"+> "eq" <stage:"id"> => {
+    <name:"id"+> "eq" <stage:"id"> => {
         Node::SectionBegin(name, stage)
     },
 };
