@@ -89,7 +89,7 @@ macro_rules! select_section_content {
             .filter_map(|sect| section_content!(sect, $n))
             .flatten()
             .filter_map(move |expr| match expr {
-                Node::SectionContent(left, _) => Some(left.string()),
+                Node::SectionContent(left, _) => Some(left),
                 _ => None,
             })
     }};
@@ -223,7 +223,7 @@ impl<'a> Visitor<'a> for GlobalVisitor {
                 .filter_map(|sect| section_content!(sect, "SolutionConfiguration"))
                 .flatten()
                 .filter_map(|expr| match expr {
-                    Node::SectionContent(_, right) => Some(right.string()),
+                    Node::SectionContent(_, right) => Some(*right),
                     _ => None,
                 })
                 .collect::<HashSet<&str>>();

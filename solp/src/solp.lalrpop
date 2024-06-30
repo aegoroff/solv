@@ -26,8 +26,8 @@ Project : Node<'a> = <b:ProjectBegin> <s:Section*> "close_element" => Node::Proj
 Global : Node<'a> = <id:Identifier> <s:Section*> "close_element" => Node::Global(s);
 
 ProjectBegin : Node<'a> = {
-    "open_element" <t:Guid> "eq" <n:Str> "comma" <p:Str> "comma" <id:Guid> => {
-        Node::ProjectBegin(Box::new(t),Box::new(n),Box::new(p),Box::new(id))
+    "open_element" <t:"guid"> "eq" <n:"str"> "comma" <p:"str"> "comma" <id:"guid"> => {
+        Node::ProjectBegin(t, n, p, id)
     },
 };
 
@@ -40,8 +40,8 @@ SectionBegin : Node<'a> = {
 };
 
 SectionContent : Node<'a> = {
-    <k:SectionKey> <v:SectionValue> => {
-        Node::SectionContent(Box::new(k), Box::new(v))
+    <k:"section_key"> <v:"section_value"> => {
+        Node::SectionContent(k, v)
     },
 };
 
@@ -49,15 +49,7 @@ Comment : Node<'a> = "comment" => Node::Comment(<>);
 
 DigitOrDot: Node<'a> = "digit_and_dot" => Node::DigitOrDot(<>);
 
-Guid: Node<'a> = "guid" => Node::Guid(<>);
-
 Identifier: Node<'a> = "id" => Node::Identifier(<>);
-
-Str: Node<'a> = "str" => Node::Str(<>);
-
-SectionKey: Node<'a> = "section_key" => Node::Str(<>);
-
-SectionValue: Node<'a> = "section_value" => Node::Str(<>);
 
 extern {
     type Location = usize;

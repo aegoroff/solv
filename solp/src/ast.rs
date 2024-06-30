@@ -18,19 +18,15 @@ const DEPLOY_TAG: &str = ".Deploy.0";
 pub enum Node<'a> {
     Comment(&'a str),
     DigitOrDot(&'a str),
-    Guid(&'a str),
     Identifier(&'a str),
-    Str(&'a str),
     Version(Box<Node<'a>>, Box<Node<'a>>),
     FirstLine(Box<Node<'a>>),
     Global(Vec<Node<'a>>),
     Project(Box<Node<'a>>, Vec<Node<'a>>),
-    ProjectBegin(Box<Node<'a>>, Box<Node<'a>>, Box<Node<'a>>, Box<Node<'a>>),
+    ProjectBegin(&'a str, &'a str, &'a str, &'a str),
     Section(Box<Node<'a>>, Vec<Node<'a>>),
     SectionBegin(Vec<Node<'a>>, Box<Node<'a>>),
-    SectionContent(Box<Node<'a>>, Box<Node<'a>>),
-    SectionKey(Box<Node<'a>>),
-    SectionValue(Box<Node<'a>>),
+    SectionContent(&'a str, &'a str),
     Solution(Box<Node<'a>>, Vec<Node<'a>>),
 }
 
@@ -105,18 +101,10 @@ impl<'a> Prj<'a> {
     }
 
     #[must_use]
-    pub fn from(
-        project_type: &Node<'a>,
-        name: &Node<'a>,
-        path_or_uri: &Node<'a>,
-        id: &Node<'a>,
-    ) -> Self {
-        let type_id = project_type.guid();
-        let pid = id.guid();
-
-        let mut prj = Prj::new(pid, type_id);
-        prj.name = name.string();
-        prj.path_or_uri = path_or_uri.string();
+    pub fn from(project_type: &'a str, name: &'a str, path_or_uri: &'a str, id: &'a str) -> Self {
+        let mut prj = Prj::new(id, project_type);
+        prj.name = name;
+        prj.path_or_uri = path_or_uri;
 
         prj
     }
@@ -156,7 +144,7 @@ impl<'a> Conf<'a> {
     #[must_use]
     pub fn from_node(node: &Node<'a>) -> Option<Self> {
         if let Node::SectionContent(left, _) = node {
-            let conf = Conf::from(left.string());
+            let conf = Conf::from(*left);
             Some(conf)
         } else {
             None
@@ -193,7 +181,7 @@ impl<'a> PrjConfAggregate<'a> {
     #[must_use]
     pub fn handle_project_config_platform(node: &Node<'a>) -> Option<Self> {
         if let Node::SectionContent(left, right) = node {
-            PrjConfAggregate::from_project_configuration_platform(left.string(), right.string())
+            PrjConfAggregate::from_project_configuration_platform(left, right)
         } else {
             None
         }
@@ -202,7 +190,7 @@ impl<'a> PrjConfAggregate<'a> {
     #[must_use]
     pub fn handle_project_config(node: &Node<'a>) -> Option<Self> {
         if let Node::SectionContent(left, right) = node {
-            PrjConfAggregate::from_project_configuration(left.string(), right.string())
+            PrjConfAggregate::from_project_configuration(left, right)
         } else {
             None
         }
@@ -330,12 +318,7 @@ macro_rules! impl_str_getters {
 }
 
 impl<'a> Node<'a> {
-    impl_str_getters!(
-        (identifier, Identifier),
-        (digit_or_dot, DigitOrDot),
-        (string, Str),
-        (guid, Guid)
-    );
+    impl_str_getters!((identifier, Identifier), (digit_or_dot, DigitOrDot));
 
     #[must_use]
     pub fn is_section(&self, name: &str) -> bool {
