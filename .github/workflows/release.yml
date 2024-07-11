@@ -90,7 +90,7 @@ jobs:
         if: matrix.build == 'linux-x64' || matrix.build == 'linux-aarch64'
         working-directory: ./solv
         run: |
-          cargo install cargo-generate-rpm --version 0.14.0
+          cargo install cargo-generate-rpm
           cargo generate-rpm --target ${{ matrix.target }}
           cp ./target/${{ matrix.target }}/generate-rpm/${{ env.RELEASE_BIN }}-*.rpm ../${{ env.RELEASE_DIR }}/
 
@@ -134,7 +134,7 @@ jobs:
 
   release:
     name: GitHub Release
-    needs: [ build, generate-changelog ]
+    needs: [build, generate-changelog]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
