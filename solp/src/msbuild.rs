@@ -45,6 +45,10 @@ pub struct Project {
     pub imports: Option<Vec<Import>>,
 }
 
+/// Represents a group of items within an `MSBuild` project.
+///
+/// This struct contains references to other projects, packages,
+/// and conditions that are part of the item group.
 #[derive(Debug, Deserialize)]
 pub struct ItemGroup {
     #[serde(rename = "ProjectReference", default)]
@@ -55,18 +59,28 @@ pub struct ItemGroup {
     pub condition: Option<String>,
 }
 
+/// Represents a group of imported files.
+///
+/// This field contains a list of `Import` objects, which represent individual
+/// imports. The structure and behavior of these imports are defined elsewhere.
 #[derive(Debug, Deserialize)]
 pub struct ImportGroup {
     #[serde(rename = "Import", default)]
     pub imports: Option<Vec<Import>>,
 }
 
+/// Represents a project reference in an MSBuild project.
+///
+/// This structure contains the `Include` element, which specifies the path to the referenced project.
 #[derive(Debug, Deserialize)]
 pub struct ProjectReference {
     #[serde(rename = "Include", default)]
     pub include: String,
 }
 
+/// A Package Reference represents a dependency on an external package.
+///
+/// This structure contains the name and version of the referenced package.
 #[derive(Debug, Deserialize)]
 pub struct PackageReference {
     #[serde(rename = "Include", default)]
@@ -75,12 +89,20 @@ pub struct PackageReference {
     pub version: String,
 }
 
+/// Represents the configuration of packages used by a project.
+///
+/// This structure is a collection of individual package configurations, each
+/// containing information such as the package name and version.
 #[derive(Debug, Deserialize)]
 pub struct PackagesConfig {
     #[serde(rename = "package", default)]
     pub packages: Vec<Package>,
 }
 
+/// Represents a package in the project.
+///
+/// This struct represents a single package in the project's `Packages.config` file.
+/// It contains information about the package, such as its name and version.
 #[derive(Debug, Deserialize)]
 pub struct Package {
     #[serde(rename = "id", default)]
@@ -88,6 +110,15 @@ pub struct Package {
     pub version: String,
 }
 
+///
+/// Represents an import in the MSBuild project.
+///
+/// Attributes:
+///
+/// * `project`: The path to the imported project.
+/// * `sdk`: The SDK version used by the imported project (optional).
+/// * `condition`: A condition that must be met for the import to take effect (optional).
+/// * `label`: An optional label for the import.
 #[derive(Debug, Deserialize)]
 pub struct Import {
     #[serde(rename = "Project", default)]

@@ -43,6 +43,11 @@ enum LexerContext {
     InsideString,
 }
 
+/// A lexer for parsing a configuration file.
+///
+/// This lexer is designed to be used in conjunction with the `ast` module, which will perform the actual
+/// parsing of the configuration file. The purpose of this lexer is to provide a stream of tokens that can
+/// be processed by the `ast` module.
 pub struct Lexer<'a> {
     chars: std::iter::Peekable<CharIndices<'a>>,
     input: &'a str,
@@ -52,6 +57,7 @@ pub struct Lexer<'a> {
 const SECTION_SUFFIX: &str = "Section";
 
 impl<'a> Lexer<'a> {
+    /// Create a new lexer for parsing the given configuration file.
     pub fn new(input: &'a str) -> Self {
         Lexer {
             chars: input.char_indices().peekable(),
