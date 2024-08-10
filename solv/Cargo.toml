@@ -15,10 +15,10 @@ workspace = ".."
 
 [dependencies]
 comfy-table = "=7.1.1"
-crossterm = "=0.27.0"
+crossterm = "=0.28.1"
 humantime = "=2.1.0"
-clap = { version = "=4.5.11", features = ["std", "color", "suggestions", "cargo"] }
-clap_complete = "=4.5.11"
+clap = { version = "=4.5.15", features = ["std", "color", "suggestions", "cargo"] }
+clap_complete = "=4.5.14"
 solp = { path = "../solp/", version = "0.16.5" }
 petgraph = "=0.6.5"
 num-format = "=0.4.4"
@@ -26,10 +26,10 @@ itertools = "=0.13.0"
 exitcode = "=1.1.2"
 url = "=2.5.2"
 color-eyre = "=0.6.3"
-serde_json = "=1.0.120"
+serde_json = "=1.0.122"
 
 [dev-dependencies]
-rstest = "=0.21.0"
+rstest = "=0.22.0"
 
 [package.metadata.deb]
 assets = [
