@@ -18,7 +18,7 @@ comfy-table = "=7.1.1"
 crossterm = "=0.28.1"
 humantime = "=2.1.0"
 clap = { version = "=4.5.16", features = ["std", "color", "suggestions", "cargo"] }
-clap_complete = "=4.5.22"
+clap_complete = "=4.5.23"
 solp = { path = "../solp/", version = "0.16.5" }
 petgraph = "=0.6.5"
 num-format = "=0.4.4"
@@ -26,7 +26,7 @@ itertools = "=0.13.0"
 exitcode = "=1.1.2"
 url = "=2.5.2"
 color-eyre = "=0.6.3"
-serde_json = "=1.0.125"
+serde_json = "=1.0.127"
 
 [dev-dependencies]
 rstest = "=0.22.0"
