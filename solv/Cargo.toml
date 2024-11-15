@@ -14,11 +14,11 @@ workspace = ".."
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-comfy-table = "=7.1.1"
+comfy-table = "=7.1.3"
 crossterm = "=0.28.1"
 humantime = "=2.1.0"
-clap = { version = "=4.5.20", features = ["std", "color", "suggestions", "cargo"] }
-clap_complete = "=4.5.37"
+clap = { version = "=4.5.21", features = ["std", "color", "suggestions", "cargo"] }
+clap_complete = "=4.5.38"
 solp = { path = "../solp/", version = "0.16.5" }
 petgraph = "=0.6.5"
 num-format = "=0.4.4"
