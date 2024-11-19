@@ -91,7 +91,7 @@ impl<'a> Solution<'a> {
             versions: Self::versions(solution),
             projects: Self::projects(solution),
             configurations: Self::configurations(solution),
-            dangling_project_configurations: Self::dangings(solution),
+            dangling_project_configurations: Self::danglings(solution),
         }
     }
 
@@ -191,7 +191,7 @@ impl<'a> Solution<'a> {
             .collect()
     }
 
-    fn dangings(solution: &Sol<'a>) -> Option<Vec<String>> {
+    fn danglings(solution: &Sol<'a>) -> Option<Vec<String>> {
         let project_ids: HashSet<String> = solution
             .projects
             .iter()
