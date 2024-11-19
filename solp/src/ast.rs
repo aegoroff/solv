@@ -28,7 +28,7 @@ pub enum Node<'a> {
     Solution(Box<Node<'a>>, Vec<Node<'a>>),
 }
 
-/// Visual Studion solution file (.sln) model
+/// Visual Studio solution file (.sln) model
 #[derive(Debug, Clone, Default)]
 pub struct Sol<'a> {
     /// Path to solution file. Maybe empty string
@@ -56,7 +56,7 @@ pub struct PrjConfAggregate<'a> {
     pub configs: Vec<PrjConf<'a>>,
 }
 
-/// Configration and platform pair
+/// Configuration and platform pair
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Default)]
 pub struct Conf<'a> {
     pub config: &'a str,

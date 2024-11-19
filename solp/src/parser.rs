@@ -168,7 +168,7 @@ impl<'a> Visitor<'a> for VersionVisitor {
     }
 }
 
-/// Glogal section node visitor
+/// Global section node visitor
 #[derive(Debug)]
 struct GlobalVisitor {}
 
@@ -256,7 +256,7 @@ impl CommentVisitor {
 impl<'a> Visitor<'a> for CommentVisitor {
     fn visit(&self, mut solution: Sol<'a>, node: &Node<'a>) -> Sol<'a> {
         if let Node::Comment(s) = node {
-            // Only comment text without sharp sign and spacess
+            // Only comment text without sharp sign and spaces
             let skip: &[_] = &['#', ' ', '\t'];
             solution.product = s.trim_start_matches(skip);
         }

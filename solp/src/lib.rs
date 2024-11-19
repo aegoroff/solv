@@ -206,7 +206,7 @@ pub fn parse_str(contents: &str) -> Result<Solution> {
 /// returns the number of scanned solutions
 ///
 /// ## Remarks
-/// Any errors occured during parsing of found files will be ignored (so parsing won't stopped)
+/// Any errors occurred during parsing of found files will be ignored (so parsing won't stopped)
 /// but error paths will be added into error files list (using err function of [`Consume`] trait)
 pub fn parse_dir(path: &str, extension: &str, consumer: &mut dyn Consume) -> usize {
     let iter = create_dir_iterator(path).max_depth(1);
@@ -218,7 +218,7 @@ pub fn parse_dir(path: &str, extension: &str, consumer: &mut dyn Consume) -> usi
 /// returns the number of scanned solutions
 ///
 /// ## Remarks
-/// Any errors occured during parsing of found files will be ignored (so parsing won't stopped)
+/// Any errors occurred during parsing of found files will be ignored (so parsing won't stopped)
 /// but error paths will be added into error files list (using err function of [`Consume`] trait)
 pub fn parse_dir_tree(path: &str, extension: &str, consumer: &mut dyn Consume) -> usize {
     let parallelism = Parallelism::RayonNewPool(num_cpus::get_physical());
@@ -267,7 +267,7 @@ fn parse_dir_or_tree(iter: WalkDir, extension: &str, consumer: &mut dyn Consume)
         .count()
 }
 
-/// On Windows trailing back slash (\) to be added if volume and colon passed (like c:).
+/// On Windows trailing backslash (\) to be added if volume and colon passed (like c:).
 /// It needed paths look to be more pleasant
 #[cfg(target_os = "windows")]
 fn decorate_path(path: &str) -> String {
@@ -278,7 +278,7 @@ fn decorate_path(path: &str) -> String {
     }
 }
 
-/// On Unix just passthrough as is
+/// On Unix just pass-through as is
 #[cfg(not(target_os = "windows"))]
 fn decorate_path(path: &str) -> String {
     path.to_owned()

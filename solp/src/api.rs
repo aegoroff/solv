@@ -12,20 +12,20 @@ pub struct Solution<'a> {
     pub path: &'a str,
     /// Solution format
     pub format: &'a str,
-    /// Solution product like Visual Studion 15 etc
+    /// Solution product like Visual Studio 15 etc
     pub product: &'a str,
     /// Solution versions got from lines starts from # char at the beginning of solution file
     pub versions: Vec<Version<'a>>,
     /// Solution's projects
     pub projects: Vec<Project<'a>>,
-    /// All solution's configuraion/platform pairs
+    /// All solution's configuration/platform pairs
     pub configurations: BTreeSet<SolutionConfiguration<'a>>,
     /// Dangling (projects with such ids not exist in the solution file) projects configurations inside solution
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dangling_project_configurations: Option<Vec<String>>,
 }
 
-/// Represnts [`Solution`] version. NOTE: [`Solution`] may have several versions.
+/// Represents [`Solution`] version. NOTE: [`Solution`] may have several versions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Version<'a> {
     pub name: &'a str,
@@ -64,7 +64,7 @@ pub struct ProjectConfiguration<'a> {
     pub configuration: &'a str,
     /// Solution's configuration this project config belongs to
     pub solution_configuration: &'a str,
-    /// Platform i.e. Asny CPU, Win32, x86 etc.
+    /// Platform i.e. Any CPU, Win32, x86 etc.
     pub platform: &'a str,
     /// Configuration tag
     pub tags: Vec<Tag>,
@@ -102,7 +102,7 @@ impl<'a> Solution<'a> {
             .filter(|p| !msbuild::is_solution_folder(p.type_id))
     }
 
-    /// Iterates all but solution folder and web site projects
+    /// Iterates all but solution folder and website projects
     pub fn iterate_projects_without_web_sites(&'a self) -> impl Iterator<Item = &'a Project<'a>> {
         self.iterate_projects()
             .filter(|p| !msbuild::is_web_site_project(p.type_id))
