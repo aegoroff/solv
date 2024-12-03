@@ -24,7 +24,7 @@ pub enum Tok<'a> {
     Skip,
 }
 
-impl<'a> Display for Tok<'a> {
+impl Display for Tok<'_> {
     fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Ok(())
     }

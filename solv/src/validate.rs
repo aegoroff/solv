@@ -195,7 +195,7 @@ impl<'a> NotFouund<'a> {
     }
 }
 
-impl<'a> Validator for NotFouund<'a> {
+impl Validator for NotFouund<'_> {
     fn validate(&mut self, statistic: &mut Statistic) {
         let dir = crate::parent_of(self.solution.path);
         self.bad_paths = self
@@ -243,7 +243,7 @@ impl<'a> Danglings<'a> {
     }
 }
 
-impl<'a> Validator for Danglings<'a> {
+impl Validator for Danglings<'_> {
     fn validate(&mut self, statistic: &mut Statistic) {
         if !self.validation_result() {
             statistic.dangings += 1;
@@ -279,7 +279,7 @@ impl<'a> Missings<'a> {
     }
 }
 
-impl<'a> Validator for Missings<'a> {
+impl Validator for Missings<'_> {
     fn validate(&mut self, statistic: &mut Statistic) {
         let solution_platforms_configs = self
             .solution

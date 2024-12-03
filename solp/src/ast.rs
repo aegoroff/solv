@@ -298,7 +298,7 @@ where
     sequence::terminated(is_not("|"), char('|'))(input)
 }
 
-impl<'a> Node<'a> {
+impl Node<'_> {
     #[must_use]
     pub fn is_section(&self, name: &str) -> bool {
         if let Node::SectionBegin(names, _) = self {
