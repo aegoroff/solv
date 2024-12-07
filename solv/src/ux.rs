@@ -48,8 +48,8 @@ pub fn create_one_column_table<I: ExactSizeIterator<Item = S>, S: ToString>(
         if let Some(fg) = head_color {
             head = head.fg(fg);
         }
-        table.set_header(vec![head]);
-        table.add_rows(rows.into_iter().map(|s| Row::from(vec![s])));
+        table.set_header([head]);
+        table.add_rows(rows.into_iter().map(|s| Row::from([s])));
 
         Some(table)
     }
@@ -58,7 +58,7 @@ pub fn create_one_column_table<I: ExactSizeIterator<Item = S>, S: ToString>(
 #[must_use]
 pub fn create_solution_table(path: &str) -> Table {
     let mut table = new_table();
-    table.set_header(vec![Cell::new(path).add_attribute(Attribute::Bold).fg(
+    table.set_header([Cell::new(path).add_attribute(Attribute::Bold).fg(
         comfy_table::Color::Rgb {
             r: 0xAA,
             g: 0xAA,

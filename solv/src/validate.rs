@@ -46,7 +46,7 @@ impl Display for Statistic {
 
         let mut table = ux::new_table();
 
-        table.set_header(vec![
+        table.set_header([
             Cell::new("Category").add_attribute(Attribute::Bold),
             Cell::new("# Solutions").add_attribute(Attribute::Bold),
             Cell::new("%").add_attribute(Attribute::Bold),
@@ -60,50 +60,50 @@ impl Display for Statistic {
         let not_parsed_percent = calculate_percent(self.not_parsed as i32, self.total as i32);
         let total_percent = calculate_percent(self.total as i32, self.total as i32);
 
-        table.add_row(vec![
+        table.add_row([
             Cell::new("Successfully parsed"),
             Cell::new(self.parsed.to_formatted_string(&Locale::en))
                 .add_attribute(Attribute::Italic),
             Cell::new(format!("{parsed_percent:.2}%")).add_attribute(Attribute::Italic),
         ]);
 
-        table.add_row(vec![
+        table.add_row([
             Cell::new("Contain dependencies cycles"),
             Cell::new(self.cycles.to_formatted_string(&Locale::en))
                 .add_attribute(Attribute::Italic),
             Cell::new(format!("{cycles_percent:.2}%")).add_attribute(Attribute::Italic),
         ]);
 
-        table.add_row(vec![
+        table.add_row([
             Cell::new("Contain project configurations outside solution's list"),
             Cell::new(self.missings.to_formatted_string(&Locale::en))
                 .add_attribute(Attribute::Italic),
             Cell::new(format!("{missings_percent:.2}%")).add_attribute(Attribute::Italic),
         ]);
 
-        table.add_row(vec![
+        table.add_row([
             Cell::new("Contain dangling project configurations"),
             Cell::new(self.dangings.to_formatted_string(&Locale::en))
                 .add_attribute(Attribute::Italic),
             Cell::new(format!("{dangings_percent:.2}%")).add_attribute(Attribute::Italic),
         ]);
 
-        table.add_row(vec![
+        table.add_row([
             Cell::new("Contain projects that not exists"),
             Cell::new(self.not_found.to_formatted_string(&Locale::en))
                 .add_attribute(Attribute::Italic),
             Cell::new(format!("{not_found_percent:.2}%")).add_attribute(Attribute::Italic),
         ]);
 
-        table.add_row(vec![
+        table.add_row([
             Cell::new("Not parsed"),
             Cell::new(self.not_parsed.to_formatted_string(&Locale::en))
                 .add_attribute(Attribute::Italic),
             Cell::new(format!("{not_parsed_percent:.2}%")).add_attribute(Attribute::Italic),
         ]);
 
-        table.add_row(vec!["", "", ""]);
-        table.add_row(vec![
+        table.add_row(["", "", ""]);
+        table.add_row([
             Cell::new("Total"),
             Cell::new(self.total.to_formatted_string(&Locale::en)).add_attribute(Attribute::Italic),
             Cell::new(format!("{total_percent:.2}%")).add_attribute(Attribute::Italic),
@@ -215,6 +215,10 @@ impl Validator for NotFouund<'_> {
         }
     }
 
+    fn validation_result(&self) -> bool {
+        self.bad_paths.is_empty()
+    }
+
     fn print_results(&self) {
         let items: Vec<&str> = self
             .bad_paths
@@ -226,10 +230,6 @@ impl Validator for NotFouund<'_> {
             Some(comfy_table::Color::DarkYellow),
             items.into_iter(),
         );
-    }
-
-    fn validation_result(&self) -> bool {
-        self.bad_paths.is_empty()
     }
 }
 
@@ -250,6 +250,10 @@ impl Validator for Danglings<'_> {
         }
     }
 
+    fn validation_result(&self) -> bool {
+        self.solution.dangling_project_configurations.is_none()
+    }
+
     fn print_results(&self) {
         if let Some(danglings) = &self.solution.dangling_project_configurations {
             ux::print_one_column_table(
@@ -258,10 +262,6 @@ impl Validator for Danglings<'_> {
                 danglings.iter().map(std::string::String::as_str),
             );
         }
-    }
-
-    fn validation_result(&self) -> bool {
-        self.solution.dangling_project_configurations.is_none()
     }
 }
 
@@ -320,18 +320,22 @@ impl Validator for Missings<'_> {
         }
     }
 
+    fn validation_result(&self) -> bool {
+        self.missings.is_empty()
+    }
+
     fn print_results(&self) {
         println!("  {}", "Solution contains project configurations that are outside solution's configuration|platform list:".dark_yellow().bold());
 
         let mut table = ux::new_table();
-        table.set_header(vec![
+        table.set_header([
             Cell::new("Project ID").add_attribute(Attribute::Bold),
             Cell::new("Configuration|Platform").add_attribute(Attribute::Bold),
         ]);
 
         for (id, configs) in &self.missings {
             for config in configs {
-                table.add_row(vec![
+                table.add_row([
                     Cell::new(*id),
                     Cell::new(format!("{}|{}", config.configuration, config.platform)),
                 ]);
@@ -339,10 +343,6 @@ impl Validator for Missings<'_> {
         }
 
         println!("{table}");
-    }
-
-    fn validation_result(&self) -> bool {
-        self.missings.is_empty()
     }
 }
 
@@ -382,6 +382,10 @@ impl<'a> Validator for Cycles<'a> {
         }
     }
 
+    fn validation_result(&self) -> bool {
+        !self.cycles_detected
+    }
+
     fn print_results(&self) {
         println!(
             "   {}",
@@ -389,10 +393,6 @@ impl<'a> Validator for Cycles<'a> {
                 .dark_red()
                 .bold()
         );
-    }
-
-    fn validation_result(&self) -> bool {
-        !self.cycles_detected
     }
 }
 

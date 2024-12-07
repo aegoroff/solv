@@ -51,27 +51,27 @@ impl Consume for Info {
 
         let mut table = ux::new_table();
 
-        table.add_row(vec![
+        table.add_row([
             Cell::new("Format"),
             Cell::new(solution.format).add_attribute(Attribute::Bold),
         ]);
         if !solution.product.is_empty() {
-            table.add_row(vec![
+            table.add_row([
                 Cell::new("Product"),
                 Cell::new(solution.product).add_attribute(Attribute::Bold),
             ]);
         }
 
         for version in &solution.versions {
-            table.add_row(vec![
+            table.add_row([
                 Cell::new(version.name),
                 Cell::new(version.version).add_attribute(Attribute::Bold),
             ]);
         }
-        solution_table.add_row(vec![Cell::new(table)]);
+        solution_table.add_row([Cell::new(table)]);
 
         let mut table = ux::new_table();
-        table.set_header(vec![
+        table.set_header([
             Cell::new("Project type").add_attribute(Attribute::Bold),
             Cell::new("Count").add_attribute(Attribute::Bold),
         ]);
@@ -82,13 +82,13 @@ impl Consume for Info {
                 .projects_in_solutions
                 .entry(String::from(*key))
                 .or_insert(0) += 1;
-            table.add_row(vec![
+            table.add_row([
                 Cell::new(*key),
                 Cell::new(*value).add_attribute(Attribute::Italic),
             ]);
         }
 
-        solution_table.add_row(vec![Cell::new(table)]);
+        solution_table.add_row([Cell::new(table)]);
 
         let configurations = solution
             .configurations
@@ -105,10 +105,10 @@ impl Consume for Info {
         if let Some(t) =
             ux::create_one_column_table("Configuration", None, configurations.into_iter())
         {
-            solution_table.add_row(vec![Cell::new(t)]);
+            solution_table.add_row([Cell::new(t)]);
         }
         if let Some(t) = ux::create_one_column_table("Platform", None, platforms.into_iter()) {
-            solution_table.add_row(vec![Cell::new(t)]);
+            solution_table.add_row([Cell::new(t)]);
         }
         println!("{solution_table}");
     }
@@ -123,7 +123,7 @@ impl Display for Info {
         writeln!(f, " {}", "Statistic:".dark_red().bold())?;
 
         let mut table = ux::new_table();
-        table.set_header(vec![
+        table.set_header([
             Cell::new("Project type").add_attribute(Attribute::Bold),
             Cell::new("Count").add_attribute(Attribute::Bold),
             Cell::new("%").add_attribute(Attribute::Bold),
@@ -137,7 +137,7 @@ impl Display for Info {
             let proj_percent = calculate_percent(*value, projects);
             let in_sols = self.projects_in_solutions.get(key).unwrap();
             let sol_percent = calculate_percent(*in_sols, self.solutions);
-            table.add_row(vec![
+            table.add_row([
                 Cell::new(key),
                 Cell::new(value.to_formatted_string(&Locale::en)).add_attribute(Attribute::Italic),
                 Cell::new(format!("{proj_percent:.2}%")).add_attribute(Attribute::Italic),
@@ -150,12 +150,12 @@ impl Display for Info {
         writeln!(f, "{table}")?;
 
         let mut table = ux::new_table();
-        table.add_row(vec![
+        table.add_row([
             Cell::new("Total solutions"),
             Cell::new(self.solutions.to_formatted_string(&Locale::en))
                 .add_attribute(Attribute::Italic),
         ]);
-        table.add_row(vec![
+        table.add_row([
             Cell::new("Total projects"),
             Cell::new(projects.to_formatted_string(&Locale::en)).add_attribute(Attribute::Italic),
         ]);

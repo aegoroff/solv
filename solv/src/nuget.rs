@@ -87,7 +87,7 @@ impl Consume for Nuget {
 
         let mut table = ux::new_table();
 
-        table.set_header(vec![
+        table.set_header([
             Cell::new("Package").add_attribute(Attribute::Bold),
             Cell::new("Version(s)").add_attribute(Attribute::Bold),
         ]);
