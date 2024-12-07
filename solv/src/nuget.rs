@@ -115,7 +115,7 @@ impl Consume for Nuget {
                             line = line.fg(Color::Red);
                         }
                         solutions_mismatches |= mismatch;
-                        Row::from(vec![Cell::new(pkg), line])
+                        Row::from([Cell::new(pkg), line])
                     });
                 table.add_rows(rows);
             });
