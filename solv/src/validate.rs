@@ -126,7 +126,7 @@ impl Validate {
 
 impl Consume for Validate {
     fn ok(&mut self, solution: &Solution) {
-        let mut validators: Vec<Box<dyn Validator>> = vec![
+        let mut validators: [Box<dyn Validator>; 4] = [
             Box::new(Cycles::new(solution)),
             Box::new(Danglings::new(solution)),
             Box::new(NotFouund::new(solution)),
