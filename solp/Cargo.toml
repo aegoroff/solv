@@ -22,13 +22,13 @@ phf = { version = "=0.11.2", features = ["macros"] }
 itertools = "=0.13.0"
 num_cpus = "=1.16.0"
 nom = "=7.1.3"
-serde = { version = "=1.0.215", features = ["derive"] }
+serde = { version = "=1.0.216", features = ["derive"] }
 serde-xml-rs = "=0.6.0"
 color-eyre = "=0.6.3"
 
 [dev-dependencies]
 rstest = "=0.23.0"
-proptest = "=1.5.0"
+proptest = "=1.6.0"
 
 [lints]
 workspace = true
