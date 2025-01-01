@@ -20,16 +20,16 @@ humantime = "=2.1.0"
 clap = { version = "=4.5.23", features = ["std", "color", "suggestions", "cargo"] }
 clap_complete = "=4.5.40"
 solp = { path = "../solp/", version = "0.16.7" }
-petgraph = "=0.6.5"
+petgraph = "=0.7.0"
 num-format = "=0.4.4"
-itertools = "=0.13.0"
+itertools = "=0.14.0"
 exitcode = "=1.1.2"
 url = "=2.5.4"
 color-eyre = "=0.6.3"
 serde_json = "=1.0.134"
 
 [dev-dependencies]
-rstest = "=0.23.0"
+rstest = "=0.24.0"
 
 [package.metadata.deb]
 assets = [
