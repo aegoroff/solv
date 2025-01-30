@@ -17,6 +17,13 @@ use std::{
 #[macro_use]
 extern crate clap;
 
+#[cfg(not(target_env = "msvc"))]
+use mimalloc_rust::GlobalMiMalloc;
+
+#[cfg(not(target_env = "msvc"))]
+#[global_allocator]
+static GLOBAL_MIMALLOC: GlobalMiMalloc = GlobalMiMalloc;
+
 const PATH: &str = "PATH";
 const EXT_DESCR: &str = "Visual Studio solution extension";
 const RECURSIVELY_FLAG: &str = "recursively";
