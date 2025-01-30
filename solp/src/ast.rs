@@ -4,9 +4,9 @@ use nom::{
     bytes::complete::{is_not, tag, take_until},
     character::complete::{self, char},
     combinator::{self, recognize},
-    error::{ParseError, VerboseError},
+    error::{Error, ParseError},
     sequence::{self, pair},
-    IResult,
+    IResult, Parser,
 };
 
 const ACTIVE_CFG_TAG: &str = ".ActiveCfg";
@@ -122,7 +122,7 @@ impl<'a> Ver<'a> {
 
 impl<'a> From<&'a str> for Conf<'a> {
     fn from(s: &'a str) -> Self {
-        pipe_terminated::<VerboseError<&str>>(s)
+        pipe_terminated::<Error<&str>>(s)
             .map(|(platform, config)| Self { config, platform })
             .unwrap_or_default()
     }
@@ -193,16 +193,16 @@ impl<'a> PrjConfAggregate<'a> {
     }
 
     fn from_project_configuration_platform(k: &'a str, v: &'a str) -> Option<Self> {
-        let r = PrjConfAggregate::parse_project_configuration_platform::<VerboseError<&str>>(k, v);
+        let r = PrjConfAggregate::parse_project_configuration_platform::<Error<&str>>(k, v);
         Self::new(r)
     }
 
     fn from_project_configuration(k: &'a str, v: &'a str) -> Option<Self> {
-        let r = PrjConfAggregate::parse_project_configuration::<VerboseError<&str>>(k, v);
+        let r = PrjConfAggregate::parse_project_configuration::<Error<&str>>(k, v);
         Self::new(r)
     }
 
-    fn new(r: IResult<&'a str, PrjConf<'a>, VerboseError<&'a str>>) -> Option<Self> {
+    fn new(r: IResult<&'a str, PrjConf<'a>, Error<&'a str>>) -> Option<Self> {
         r.ok().map(|(_, pc)| Self {
             project_id: pc.id,
             configs: vec![pc],
@@ -232,7 +232,8 @@ impl<'a> PrjConfAggregate<'a> {
                 platform,
                 tag: define_tag(key),
             }
-        })(key)
+        })
+        .parse(key)
     }
 
     fn parse_project_configuration<'b, E>(
@@ -252,7 +253,8 @@ impl<'a> PrjConfAggregate<'a> {
             project_config: project_conf.config,
             platform: project_conf.platform,
             tag: define_tag(key),
-        })(key)
+        })
+        .parse(key)
     }
 }
 
@@ -274,7 +276,8 @@ where
         complete::char('{'),
         is_not("{}"),
         complete::char('}'),
-    ))(input)
+    ))
+    .parse(input)
 }
 
 fn tag_terminated<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
@@ -288,14 +291,15 @@ where
             take_until(DEPLOY_TAG),
         )),
         alt((tag(ACTIVE_CFG_TAG), tag(BUILD_TAG), tag(DEPLOY_TAG))),
-    )(input)
+    )
+    .parse(input)
 }
 
 fn pipe_terminated<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
 where
     E: ParseError<&'a str> + std::fmt::Debug,
 {
-    sequence::terminated(is_not("|"), char('|'))(input)
+    sequence::terminated(is_not("|"), char('|')).parse(input)
 }
 
 impl Node<'_> {
@@ -406,7 +410,7 @@ mod tests {
         let s = "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.Build.0";
 
         // Act
-        let result = guid::<VerboseError<&str>>(s);
+        let result = guid::<Error<&str>>(s);
 
         // Assert
         assert_eq!(
@@ -426,7 +430,7 @@ mod tests {
         // Arrange
 
         // Act
-        let result = tag_terminated::<VerboseError<&str>>(i);
+        let result = tag_terminated::<Error<&str>>(i);
 
         // Assert
         assert_eq!(result, Ok(("", expected)));
@@ -446,8 +450,7 @@ mod tests {
         // Arrange
 
         // Act
-        let result =
-            PrjConfAggregate::parse_project_configuration_platform::<VerboseError<&str>>(k, v);
+        let result = PrjConfAggregate::parse_project_configuration_platform::<Error<&str>>(k, v);
 
         // Assert
         assert_eq!(result, Ok(("", expected)));
@@ -464,7 +467,7 @@ mod tests {
         // Arrange
 
         // Act
-        let result = PrjConfAggregate::parse_project_configuration::<VerboseError<&str>>(k, v);
+        let result = PrjConfAggregate::parse_project_configuration::<Error<&str>>(k, v);
 
         // Assert
         assert_eq!(result, Ok(("", expected)));
