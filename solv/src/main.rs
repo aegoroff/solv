@@ -17,10 +17,10 @@ use std::{
 #[macro_use]
 extern crate clap;
 
-#[cfg(not(target_env = "msvc"))]
+#[cfg(target_os = "linux")]
 use mimalloc_rust::GlobalMiMalloc;
 
-#[cfg(not(target_env = "msvc"))]
+#[cfg(target_os = "linux")]
 #[global_allocator]
 static GLOBAL_MIMALLOC: GlobalMiMalloc = GlobalMiMalloc;
 
