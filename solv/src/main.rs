@@ -18,11 +18,11 @@ use std::{
 extern crate clap;
 
 #[cfg(target_os = "linux")]
-use mimalloc_rust::GlobalMiMalloc;
+use mimalloc::MiMalloc;
 
 #[cfg(target_os = "linux")]
 #[global_allocator]
-static GLOBAL_MIMALLOC: GlobalMiMalloc = GlobalMiMalloc;
+static GLOBAL: MiMalloc = MiMalloc;
 
 const PATH: &str = "PATH";
 const EXT_DESCR: &str = "Visual Studio solution extension";
