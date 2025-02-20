@@ -262,8 +262,13 @@ fn parse_dir_or_tree(iter: WalkDir, extension: &str, consumer: &mut dyn Consume)
         .filter(|f| f.file_type().is_file())
         .map(|f| f.path())
         .filter(|p| p.extension().is_some_and(|s| s == ext))
-        .map(|f| f.to_str().unwrap_or("").to_string())
-        .filter_map(|fp| parse_file(&fp, consumer).ok())
+        .filter_map(|fp| {
+            if let Some(p) = fp.to_str() {
+                parse_file(p, consumer).ok()
+            } else {
+                None
+            }
+        })
         .count()
 }
 
