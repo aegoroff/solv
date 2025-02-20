@@ -3,7 +3,7 @@ name = "solv"
 description = "SOLution Validation tool that analyzes Microsoft Visual Studio solutions"
 repository = "https://github.com/aegoroff/solv"
 homepage = "https://github.com/aegoroff/solv"
-version = "0.16.9"
+version = "0.16.10"
 authors = ["egoroff <egoroff@gmail.com>"]
 edition = "2021"
 license = "MIT"
@@ -19,7 +19,7 @@ crossterm = "=0.28.1"
 humantime = "=2.1.0"
 clap = { version = "=4.5.30", features = ["std", "color", "suggestions", "cargo"] }
 clap_complete = "=4.5.45"
-solp = { path = "../solp/", version = "0.16.9" }
+solp = { path = "../solp/", version = "0.16.10" }
 petgraph = "=0.7.1"
 num-format = "=0.4.4"
 itertools = "=0.14.0"
