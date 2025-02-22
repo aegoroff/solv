@@ -2,7 +2,7 @@ use comfy_table::{Attribute, Cell, CellAlignment, ContentArrangement};
 use crossterm::style::Stylize;
 use num_format::{Locale, ToFormattedString};
 use solp::api::Solution;
-use solp::{msbuild, Consume};
+use solp::{Consume, msbuild};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;

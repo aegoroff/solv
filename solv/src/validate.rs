@@ -1,5 +1,5 @@
 use crate::error::Collector;
-use crate::{calculate_percent, ux, Consume};
+use crate::{Consume, calculate_percent, ux};
 use comfy_table::{Attribute, Cell};
 use crossterm::style::Stylize;
 use itertools::Itertools;

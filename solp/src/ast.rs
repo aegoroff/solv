@@ -1,12 +1,12 @@
 use crate::msbuild;
 use nom::{
+    IResult, Parser,
     branch::alt,
     bytes::complete::{is_not, tag, take_until},
     character::complete::{self, char},
     combinator::{self, recognize},
     error::{Error, ParseError},
     sequence::{self, pair},
-    IResult, Parser,
 };
 
 const ACTIVE_CFG_TAG: &str = ".ActiveCfg";

@@ -40,7 +40,7 @@ assert_eq!(solution.format, "12.00");
 use std::fs;
 
 use api::Solution;
-use color_eyre::{eyre::Context, Result};
+use color_eyre::{Result, eyre::Context};
 use jwalk::{Parallelism, WalkDir};
 
 pub mod api;

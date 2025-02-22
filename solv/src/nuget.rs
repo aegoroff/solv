@@ -13,7 +13,7 @@ use solp::{
     msbuild::{self, PackagesConfig, Project},
 };
 
-use crate::{error::Collector, ux, Consume};
+use crate::{Consume, error::Collector, ux};
 
 pub struct Nuget {
     show_only_mismatched: bool,

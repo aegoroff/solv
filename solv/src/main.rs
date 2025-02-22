@@ -1,5 +1,5 @@
-use clap::{command, Arg, ArgAction, ArgMatches, Command};
-use clap_complete::{generate, Shell};
+use clap::{Arg, ArgAction, ArgMatches, Command, command};
+use clap_complete::{Shell, generate};
 use color_eyre::eyre::{Context, Result};
 use solp::Consume;
 use solv::info::Info;

@@ -1,5 +1,5 @@
-use comfy_table::{presets, Attribute, Cell, ContentArrangement, Row, Table, TableComponent};
-use crossterm::style::{style, Color, Stylize};
+use comfy_table::{Attribute, Cell, ContentArrangement, Row, Table, TableComponent, presets};
+use crossterm::style::{Color, Stylize, style};
 
 #[must_use]
 pub fn new_table() -> Table {
