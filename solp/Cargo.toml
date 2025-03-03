@@ -27,7 +27,7 @@ serde-xml-rs = "=0.6.0"
 color-eyre = "=0.6.3"
 
 [dev-dependencies]
-rstest = "=0.24.0"
+rstest = "=0.25.0"
 proptest = "=1.6.0"
 
 [lints]
