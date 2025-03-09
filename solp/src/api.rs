@@ -199,14 +199,14 @@ impl<'a> Solution<'a> {
             .map(|p| p.id.to_uppercase())
             .collect();
 
-        let dangilings = solution
-            .project_configs
-            .iter()
-            .map(|p| p.project_id.to_uppercase())
-            .collect::<HashSet<String>>()
-            .difference(&project_ids)
-            .cloned()
-            .collect_vec();
+        let mut dangilings = vec![];
+        for aggr in &solution.project_configs {
+            let id = aggr.project_id.to_uppercase();
+            if !project_ids.contains(&id) {
+                dangilings.push(id);
+            }
+        }
+
         if dangilings.is_empty() {
             None
         } else {

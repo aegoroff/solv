@@ -2,7 +2,6 @@ use crate::error::Collector;
 use crate::{Consume, calculate_percent, ux};
 use comfy_table::{Attribute, Cell};
 use crossterm::style::Stylize;
-use itertools::Itertools;
 use num_format::{Locale, ToFormattedString};
 use petgraph::algo::DfsSpace;
 use petgraph::prelude::DiGraphMap;
@@ -281,36 +280,29 @@ impl<'a> Missings<'a> {
 
 impl Validator for Missings<'_> {
     fn validate(&mut self, statistic: &mut Statistic) {
-        let solution_platforms_configs = self
-            .solution
-            .configurations
-            .iter()
-            .cloned()
-            .collect::<BTreeSet<SolutionConfiguration>>();
-
         self.missings = self
             .solution
             .projects
             .iter()
             .filter_map(|p| {
-                let configurations = p
-                    .clone()
-                    .configurations?
-                    .iter()
-                    .map(|c| SolutionConfiguration {
-                        configuration: c.solution_configuration,
-                        platform: c.platform,
-                    })
-                    .collect::<BTreeSet<SolutionConfiguration>>();
-                let diff = configurations
-                    .difference(&solution_platforms_configs)
-                    .cloned()
-                    .collect_vec();
-
-                if diff.is_empty() {
-                    None
+                let mut result = vec![];
+                if let Some(configurations) = &p.configurations {
+                    for c in configurations {
+                        let solution_conf = SolutionConfiguration {
+                            configuration: c.solution_configuration,
+                            platform: c.platform,
+                        };
+                        if !self.solution.configurations.contains(&solution_conf) {
+                            result.push(solution_conf);
+                        }
+                    }
+                    if result.is_empty() {
+                        None
+                    } else {
+                        Some((p.id, result))
+                    }
                 } else {
-                    Some((p.id, diff))
+                    None
                 }
             })
             .collect();
