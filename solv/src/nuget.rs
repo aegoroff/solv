@@ -5,7 +5,7 @@ use std::{
     path::PathBuf,
 };
 
-use comfy_table::{Attribute, Cell, Color, Row};
+use comfy_table::{Attribute, Cell, Color};
 use crossterm::style::Stylize;
 use itertools::Itertools;
 use solp::{
@@ -115,7 +115,7 @@ impl Consume for Nuget {
                             line = line.fg(Color::Red);
                         }
                         solutions_mismatches |= mismatch;
-                        Row::from([Cell::new(pkg), line])
+                        [Cell::new(pkg), line]
                     });
                 table.add_rows(rows);
             });
