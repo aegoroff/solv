@@ -219,15 +219,11 @@ impl Validator for NotFouund<'_> {
     }
 
     fn print_results(&self) {
-        let items: Vec<&str> = self
-            .bad_paths
-            .iter()
-            .filter_map(|p| p.as_path().to_str())
-            .collect();
+        let items = self.bad_paths.iter().filter_map(|p| p.as_path().to_str());
         ux::print_one_column_table(
             "Unexist project path",
             Some(comfy_table::Color::DarkYellow),
-            items.into_iter(),
+            items,
         );
     }
 }
@@ -258,7 +254,7 @@ impl Validator for Danglings<'_> {
             ux::print_one_column_table(
                 "Dangling project configurations that can be safely removed",
                 Some(comfy_table::Color::DarkYellow),
-                danglings.iter().map(std::string::String::as_str),
+                danglings.iter(),
             );
         }
     }

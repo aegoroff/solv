@@ -25,7 +25,7 @@ pub fn new_table() -> Table {
     table
 }
 
-pub fn print_one_column_table<I: ExactSizeIterator<Item = S>, S: ToString>(
+pub fn print_one_column_table<I: Iterator<Item = S>, S: ToString>(
     head: &str,
     head_color: Option<comfy_table::Color>,
     rows: I,
@@ -35,24 +35,20 @@ pub fn print_one_column_table<I: ExactSizeIterator<Item = S>, S: ToString>(
     }
 }
 
-pub fn create_one_column_table<I: ExactSizeIterator<Item = S>, S: ToString>(
+pub fn create_one_column_table<I: Iterator<Item = S>, S: ToString>(
     head: &str,
     head_color: Option<comfy_table::Color>,
     rows: I,
 ) -> Option<Table> {
-    if rows.len() == 0 {
-        None
-    } else {
-        let mut table = new_table();
-        let mut head = Cell::new(head).add_attribute(Attribute::Bold);
-        if let Some(fg) = head_color {
-            head = head.fg(fg);
-        }
-        table.set_header([head]);
-        table.add_rows(rows.into_iter().map(|s| Row::from([s])));
-
-        Some(table)
+    let mut table = new_table();
+    let mut head = Cell::new(head).add_attribute(Attribute::Bold);
+    if let Some(fg) = head_color {
+        head = head.fg(fg);
     }
+    table.set_header([head]);
+    table.add_rows(rows.map(|s| Row::from([s])));
+
+    if table.is_empty() { None } else { Some(table) }
 }
 
 #[must_use]
