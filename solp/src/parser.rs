@@ -2,10 +2,12 @@ use crate::ast::Node;
 use crate::ast::{Conf, Prj, PrjConfAggregate, Sol, Ver};
 use color_eyre::eyre::{self, Result};
 use itertools::Itertools;
+use miette::{LabeledSpan, SourceSpan, miette};
 use std::collections::HashSet;
 use std::option::Option::Some;
 
 const UTF8_BOM: &[u8; 3] = b"\xEF\xBB\xBF";
+const ERROR_HELP: &str = "Incorrect Visual Studio solution file syntax";
 
 trait Visitor<'a> {
     fn visit(&self, solution: Sol<'a>, node: &Node<'a>) -> Sol<'a>;
@@ -68,7 +70,83 @@ pub fn parse_str(contents: &str) -> Result<Sol> {
             let visitor = SolutionVisitor::new();
             Ok(visitor.visit(solution, &parsed))
         }
-        Err(e) => Err(eyre::eyre!("{e:?}")),
+        Err(e) => {
+            let report;
+            match e.to_owned() {
+                lalrpop_util::ParseError::InvalidToken { location } => {
+                    let span = SourceSpan::new(location.into(), 0);
+                    report = miette!(
+                        labels = vec![LabeledSpan::at(span, "The problem is here"),],
+                        help = ERROR_HELP,
+                        "Invalid token detected"
+                    )
+                }
+                lalrpop_util::ParseError::UnrecognizedEof { location, expected } => {
+                    let span = SourceSpan::new(location.into(), 0);
+                    report = miette!(
+                        labels = vec![LabeledSpan::at(
+                            span,
+                            format!(
+                                "Unexpected file end. Expected one of the following: {}",
+                                expected.join(", ")
+                            )
+                        ),],
+                        help = ERROR_HELP,
+                        "Unexpected end of file"
+                    )
+                }
+                lalrpop_util::ParseError::UnrecognizedToken { token, expected } => {
+                    let len = if token.0 > token.2 {
+                        0
+                    } else {
+                        token.2 - token.0
+                    };
+                    let span = SourceSpan::new(token.0.into(), len);
+                    report = miette!(
+                        labels = vec![LabeledSpan::at(
+                            span,
+                            format!(
+                                "The problem is here. Unrecognized token '{}' expected one of the following: {}",
+                                token.1,
+                                expected.join(", ")
+                            )
+                        ),],
+                        help = ERROR_HELP,
+                        "Unrecognized token found"
+                    )
+                }
+                lalrpop_util::ParseError::ExtraToken { token } => {
+                    let len = if token.0 > token.2 {
+                        0
+                    } else {
+                        token.2 - token.0
+                    };
+                    let span = SourceSpan::new(token.0.into(), len);
+                    report = miette!(
+                        labels = vec![LabeledSpan::at(
+                            span,
+                            format!("The problem is here. Extra token {}", token.1)
+                        ),],
+                        help = ERROR_HELP,
+                        "Extra token found"
+                    )
+                }
+                lalrpop_util::ParseError::User { error } => match error {
+                    crate::lex::LexicalError::PrematureEndOfStream(location) => {
+                        let span = SourceSpan::new(location.into(), 0);
+                        report = miette!(
+                            labels =
+                                vec![LabeledSpan::at(span, "Premature end of stream occured"),],
+                            help = ERROR_HELP,
+                            "Lexer error"
+                        )
+                    }
+                },
+            }
+
+            let report = report.with_source_code(contents.to_owned());
+            Err(eyre::eyre!("{report:?}"))
+        }
     }
 }
 

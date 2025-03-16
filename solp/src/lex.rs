@@ -1,11 +1,11 @@
 use std::{fmt::Display, str::CharIndices};
 
-pub type Spanned<Tok, Loc, Error> = Result<(Loc, Tok, Loc), Error>;
+pub type Spanned<Tok, Loc, Error> = miette::Result<(Loc, Tok, Loc), Error>;
 
 #[derive(Copy, Clone, Debug)]
 pub enum LexicalError {
     /// Occurs when end of stream is reached when a next token is expected or no correct token end found
-    PrematureEndOfStream,
+    PrematureEndOfStream(usize),
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -25,7 +25,21 @@ pub enum Tok<'a> {
 }
 
 impl Display for Tok<'_> {
-    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Tok::Comment(c) => write!(f, "Comment({c})")?,
+            Tok::Str(s) => write!(f, "String({s})")?,
+            Tok::SectionKey(k) => write!(f, "SectionKey({k})")?,
+            Tok::SectionValue(v) => write!(f, "SectionValue({v})")?,
+            Tok::Guid(g) => write!(f, "Guild({g})")?,
+            Tok::Id(id) => write!(f, "Idendifier({id})")?,
+            Tok::DigitsAndDots(d) => write!(f, "DigitsAndDots({d})")?,
+            Tok::OpenElement(elt) => write!(f, "OpenElement({elt})")?,
+            Tok::CloseElement(elt) => write!(f, "CloseElement({elt})")?,
+            Tok::Comma => write!(f, "Comma")?,
+            Tok::Eq => write!(f, "Eq")?,
+            Tok::Skip => write!(f, "Skip")?,
+        }
         Ok(())
     }
 }
@@ -136,7 +150,7 @@ impl<'a> Lexer<'a> {
                 }
             }
         }
-        Err(LexicalError::PrematureEndOfStream)
+        Err(LexicalError::PrematureEndOfStream(i))
     }
 
     fn digits_with_dots(&mut self, i: usize) -> Spanned<Tok<'a>, usize, LexicalError> {
@@ -148,7 +162,7 @@ impl<'a> Lexer<'a> {
                 _ => return Ok((i, Tok::DigitsAndDots(&self.input[i..*j]), *j)),
             }
         }
-        Err(LexicalError::PrematureEndOfStream)
+        Err(LexicalError::PrematureEndOfStream(i))
     }
 
     fn string(&mut self, i: usize) -> Spanned<Tok<'a>, usize, LexicalError> {
@@ -179,7 +193,7 @@ impl<'a> Lexer<'a> {
                 }
             }
         }
-        Err(LexicalError::PrematureEndOfStream)
+        Err(LexicalError::PrematureEndOfStream(i))
     }
 
     /// REMARK: Guid inside section key will be parsed by nom crate on Ast visiting stage
@@ -222,7 +236,7 @@ impl<'a> Lexer<'a> {
                 }
             }
         }
-        Err(LexicalError::PrematureEndOfStream)
+        Err(LexicalError::PrematureEndOfStream(i))
     }
 
     fn section_value(&mut self, i: usize) -> Spanned<Tok<'a>, usize, LexicalError> {
@@ -247,7 +261,7 @@ impl<'a> Lexer<'a> {
                         }
                     }
                 }
-                Err(LexicalError::PrematureEndOfStream)
+                Err(LexicalError::PrematureEndOfStream(i))
             }
             _ => Ok((i, Tok::Eq, i + 1)),
         }
