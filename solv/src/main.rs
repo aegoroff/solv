@@ -1,3 +1,8 @@
+use bugreport::bugreport;
+use bugreport::collector::{
+    CompileTimeInformation, EnvironmentVariables, OperatingSystem, SoftwareVersion,
+};
+use bugreport::format::Markdown;
 use clap::{Arg, ArgAction, ArgMatches, Command, command};
 use clap_complete::{Shell, generate};
 use color_eyre::eyre::{Context, Result};
@@ -44,6 +49,10 @@ fn main() -> Result<()> {
         Some(("json", cmd)) => json(cmd),
         Some(("completion", cmd)) => {
             print_completions(cmd);
+            Ok(())
+        }
+        Some(("bugreport", _)) => {
+            print_bugreport();
             Ok(())
         }
         _ => Ok(()),
@@ -142,6 +151,15 @@ fn print_completions(matches: &ArgMatches) {
     }
 }
 
+fn print_bugreport() {
+    bugreport!()
+        .info(SoftwareVersion::default())
+        .info(OperatingSystem::default())
+        .info(EnvironmentVariables::list(&["SHELL", "TERM"]))
+        .info(CompileTimeInformation::default())
+        .print::<Markdown>();
+}
+
 fn build_cli() -> Command {
     #![allow(non_upper_case_globals)]
     command!(crate_name!())
@@ -154,6 +172,7 @@ fn build_cli() -> Command {
         .subcommand(nuget_cmd())
         .subcommand(json_cmd())
         .subcommand(completion_cmd())
+        .subcommand(bugreport_cmd())
 }
 
 fn info_cmd() -> Command {
@@ -172,7 +191,7 @@ fn validate_cmd() -> Command {
         .about("Validates solutions within directory or file specified")
         .arg(extension_arg())
         .arg(
-            arg!(-p - -problems)
+            arg!(-p --problems)
                 .required(false)
                 .action(ArgAction::SetTrue)
                 .help("Show only solutions with problems. Correct solutions will not be shown."),
@@ -214,7 +233,7 @@ fn json_cmd() -> Command {
         .arg(recursively_arg())
         .arg(time_arg())
         .arg(
-            arg!(-p - -pretty)
+            arg!(-p --pretty)
                 .required(false)
                 .action(ArgAction::SetTrue)
                 .help("Pretty-printed output. False by default"),
@@ -227,7 +246,7 @@ fn path_arg() -> Arg {
 }
 
 fn time_arg() -> Arg {
-    arg!(-t - -time)
+    arg!(-t --time)
         .required(false)
         .action(ArgAction::SetTrue)
         .help(BENCHMARK_DESCR)
@@ -242,7 +261,7 @@ fn extension_arg() -> Arg {
 }
 
 fn recursively_arg() -> Arg {
-    arg!(-r - -recursively)
+    arg!(-r --recursively)
         .required(false)
         .requires(PATH)
         .action(ArgAction::SetTrue)
@@ -258,4 +277,9 @@ fn completion_cmd() -> Command {
                 .required(true)
                 .index(1),
         )
+}
+
+fn bugreport_cmd() -> Command {
+    Command::new("bugreport")
+        .about("Collect information about the system and the environment that users can send along with a bug report")
 }
