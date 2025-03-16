@@ -61,7 +61,7 @@ jobs:
           cargo deb --no-strip --no-build --target ${{ matrix.target }}
           ls -lah ../target/${{ matrix.target }}/debian/
       - name: Build RPM package
-        if: matrix.build == 'none' # TODO: disabled because cargo generate-rpm doesnt support rust 2024 edition
+        if: matrix.build == 'linux-x64' || matrix.build == 'linux-aarch64'
         working-directory: ./solv
         run: |
           cargo install cargo-generate-rpm
