@@ -71,14 +71,14 @@ pub fn parse_str(contents: &str) -> miette::Result<Sol> {
         }
         Err(e) => {
             let report;
-            match e.to_owned() {
+            match e.clone() {
                 lalrpop_util::ParseError::InvalidToken { location } => {
                     let span = SourceSpan::new(location.into(), 0);
                     report = miette!(
                         labels = vec![LabeledSpan::at(span, "The problem is here"),],
                         help = ERROR_HELP,
                         "Invalid token detected"
-                    )
+                    );
                 }
                 lalrpop_util::ParseError::UnrecognizedEof { location, expected } => {
                     let offset = if location >= contents.len() {
@@ -97,7 +97,7 @@ pub fn parse_str(contents: &str) -> miette::Result<Sol> {
                         ),],
                         help = ERROR_HELP,
                         "Unexpected end of file"
-                    )
+                    );
                 }
                 lalrpop_util::ParseError::UnrecognizedToken { token, expected } => {
                     let len = if token.0 > token.2 {
@@ -117,7 +117,7 @@ pub fn parse_str(contents: &str) -> miette::Result<Sol> {
                         ),],
                         help = ERROR_HELP,
                         "Unrecognized token found"
-                    )
+                    );
                 }
                 lalrpop_util::ParseError::ExtraToken { token } => {
                     let len = if token.0 > token.2 {
@@ -133,7 +133,7 @@ pub fn parse_str(contents: &str) -> miette::Result<Sol> {
                         ),],
                         help = ERROR_HELP,
                         "Extra token found"
-                    )
+                    );
                 }
                 lalrpop_util::ParseError::User { error } => match error {
                     crate::lex::LexicalError::PrematureEndOfStream(location) => {
@@ -143,7 +143,7 @@ pub fn parse_str(contents: &str) -> miette::Result<Sol> {
                                 vec![LabeledSpan::at(span, "Premature end of stream occurred"),],
                             help = ERROR_HELP,
                             "Lexer error"
-                        )
+                        );
                     }
                 },
             }
