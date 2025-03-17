@@ -199,18 +199,18 @@ impl<'a> Solution<'a> {
             .map(|p| p.id.to_uppercase())
             .collect();
 
-        let mut dangilings = Vec::with_capacity(solution.project_configs.len());
+        let mut danglings = Vec::with_capacity(solution.project_configs.len());
         for aggr in &solution.project_configs {
             let id = aggr.project_id.to_uppercase();
             if !project_ids.contains(&id) {
-                dangilings.push(id);
+                danglings.push(id);
             }
         }
 
-        if dangilings.is_empty() {
+        if danglings.is_empty() {
             None
         } else {
-            Some(dangilings)
+            Some(danglings)
         }
     }
 }
