@@ -40,8 +40,8 @@ assert_eq!(solution.format, "12.00");
 use std::fs;
 
 use api::Solution;
-use color_eyre::{Result, eyre::Context};
 use jwalk::{Parallelism, WalkDir};
+use miette::{Context, IntoDiagnostic};
 
 pub mod api;
 mod ast;
@@ -129,11 +129,13 @@ pub trait Consume {
 ///     Err(e) => eprintln!("Failed to parse the solution file: {:?}", e),
 /// }
 /// ```
-pub fn parse_file(path: &str, consumer: &mut dyn Consume) -> Result<()> {
-    let contents = fs::read_to_string(path).wrap_err_with(|| {
-        consumer.err(path);
-        format!("Failed to read content from path: {path}")
-    })?;
+pub fn parse_file(path: &str, consumer: &mut dyn Consume) -> miette::Result<()> {
+    let contents = fs::read_to_string(path)
+        .into_diagnostic()
+        .wrap_err_with(|| {
+            consumer.err(path);
+            format!("Failed to read content from path: {path}")
+        })?;
     let mut solution = parse_str(&contents).wrap_err_with(|| {
         consumer.err(path);
         format!("Failed to parse solution from path: {path}")
@@ -196,7 +198,7 @@ pub fn parse_file(path: &str, consumer: &mut dyn Consume) -> Result<()> {
 ///
 /// This function uses the `parser::parse_str` function to perform the actual parsing and then
 /// constructs a [`Solution`] object from the parsed data.
-pub fn parse_str(contents: &str) -> Result<Solution> {
+pub fn parse_str(contents: &str) -> miette::Result<Solution> {
     let parsed = parser::parse_str(contents)?;
     Ok(Solution::from(&parsed))
 }

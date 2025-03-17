@@ -25,9 +25,9 @@ num-format = "=0.4.4"
 itertools = "=0.14.0"
 exitcode = "=1.1.2"
 url = "=2.5.4"
-color-eyre = "=0.6.3"
 serde_json = "=1.0.140"
 bugreport = "=0.5.1"
+miette = { version = "=7.5.0", features = ["fancy"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 mimalloc = "=0.1.43"

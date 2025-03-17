@@ -5,7 +5,7 @@ use bugreport::collector::{
 use bugreport::format::Markdown;
 use clap::{Arg, ArgAction, ArgMatches, Command, command};
 use clap_complete::{Shell, generate};
-use color_eyre::eyre::{Context, Result};
+use miette::{Context, IntoDiagnostic};
 use solp::Consume;
 use solv::info::Info;
 use solv::json::Json;
@@ -37,8 +37,7 @@ const BENCHMARK_DESCR: &str = "Show scanning time in case of directory scanning.
 const PATH_DESCR: &str = "Sets solution path or directory to analyze";
 const DEFAULT_SOLUTION_EXT: &str = "sln";
 
-fn main() -> Result<()> {
-    color_eyre::install()?;
+fn main() -> miette::Result<()> {
     let app = build_cli();
     let matches = app.get_matches();
 
@@ -59,19 +58,19 @@ fn main() -> Result<()> {
     }
 }
 
-fn validate(cmd: &ArgMatches) -> Result<()> {
+fn validate(cmd: &ArgMatches) -> miette::Result<()> {
     let only_problems = cmd.get_flag("problems");
 
     let mut consumer = Validate::new(only_problems);
     scan_path(cmd, &mut consumer)
 }
 
-fn info(cmd: &ArgMatches) -> Result<()> {
+fn info(cmd: &ArgMatches) -> miette::Result<()> {
     let mut consumer = Info::new();
     scan_path_or_stdin(cmd, &mut consumer)
 }
 
-fn nuget(cmd: &ArgMatches) -> Result<()> {
+fn nuget(cmd: &ArgMatches) -> miette::Result<()> {
     let only_mismatched = cmd.get_flag("mismatch");
     let fail_if_mismatched = cmd.get_flag("fail");
 
@@ -83,13 +82,16 @@ fn nuget(cmd: &ArgMatches) -> Result<()> {
     result
 }
 
-fn json(cmd: &ArgMatches) -> Result<()> {
+fn json(cmd: &ArgMatches) -> miette::Result<()> {
     let pretty = cmd.get_flag("pretty");
     let mut consumer = Json::new(pretty);
     scan_path_or_stdin(cmd, &mut consumer)
 }
 
-fn scan_path_or_stdin<C: Consume + Display>(cmd: &ArgMatches, consumer: &mut C) -> Result<()> {
+fn scan_path_or_stdin<C: Consume + Display>(
+    cmd: &ArgMatches,
+    consumer: &mut C,
+) -> miette::Result<()> {
     if cmd.get_one::<String>(PATH).is_some() {
         scan_path(cmd, consumer)
     } else {
@@ -98,11 +100,12 @@ fn scan_path_or_stdin<C: Consume + Display>(cmd: &ArgMatches, consumer: &mut C) 
 }
 
 #[allow(clippy::cast_possible_truncation)]
-fn scan_path<C: Consume + Display>(cmd: &ArgMatches, consumer: &mut C) -> Result<()> {
+fn scan_path<C: Consume + Display>(cmd: &ArgMatches, consumer: &mut C) -> miette::Result<()> {
     let now = Instant::now();
     if let Some(path) = cmd.get_one::<String>(PATH) {
-        let metadata =
-            fs::metadata(path).wrap_err_with(|| format!("Failed to use path: {path}"))?;
+        let metadata = fs::metadata(path)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("Failed to use path: {path}"))?;
         if metadata.is_dir() {
             let empty = String::default();
             let extension = cmd.get_one::<String>("ext").unwrap_or(&empty);
@@ -130,12 +133,13 @@ fn scan_path<C: Consume + Display>(cmd: &ArgMatches, consumer: &mut C) -> Result
     Ok(())
 }
 
-fn scan_stream<C: Consume + Display, R: Read>(read: R, consumer: &mut C) -> Result<()> {
+fn scan_stream<C: Consume + Display, R: Read>(read: R, consumer: &mut C) -> miette::Result<()> {
     let mut contents = String::new();
     let mut br = BufReader::new(read);
     br.read_to_string(&mut contents)
+        .into_diagnostic()
         .wrap_err_with(|| "Failed to read content from stream")?;
-    let solution = solp::parse_str(&contents).wrap_err_with(|| "Failed to parse solution")?;
+    let solution = solp::parse_str(&contents)?;
     consumer.ok(&solution);
 
     print!("{consumer}");

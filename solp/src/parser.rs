@@ -1,6 +1,5 @@
 use crate::ast::Node;
 use crate::ast::{Conf, Prj, PrjConfAggregate, Sol, Ver};
-use color_eyre::eyre::{self, Result};
 use itertools::Itertools;
 use miette::{LabeledSpan, SourceSpan, miette};
 use std::collections::HashSet;
@@ -50,9 +49,9 @@ trait Visitor<'a> {
 /// This function does not explicitly panic. However, it may panic if the input
 /// string is malformed in a way that violates the assumptions of the parser
 /// or lexer.
-pub fn parse_str(contents: &str) -> Result<Sol> {
+pub fn parse_str(contents: &str) -> miette::Result<Sol> {
     if contents.len() < UTF8_BOM.len() {
-        return Err(eyre::eyre!("Content is too short or empty"));
+        return Err(miette!("Content is too short or empty"));
     }
     let cb = contents.as_bytes();
     // Skip UTF-8 signature if necessary
@@ -145,7 +144,7 @@ pub fn parse_str(contents: &str) -> Result<Sol> {
             }
 
             let report = report.with_source_code(contents.to_owned());
-            Err(eyre::eyre!("{report:?}"))
+            Err(report)
         }
     }
 }

@@ -1,4 +1,4 @@
-use color_eyre::{Result, eyre::Context};
+use miette::{IntoDiagnostic, WrapErr};
 use std::{fs::File, io::Read, path::Path};
 
 use serde::Deserialize;
@@ -207,16 +207,19 @@ static PROJECT_TYPES: phf::Map<&'static str, &'static str> = phf::phf_map! {
 };
 
 impl Project {
-    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Project> {
-        let file = File::open(path).wrap_err_with(|| "Failed to read project file")?;
+    pub fn from_path<P: AsRef<Path>>(path: P) -> miette::Result<Project> {
+        let file = File::open(path)
+            .into_diagnostic()
+            .wrap_err("Failed to read project file")?;
         Project::from_reader(file)
     }
 
-    pub fn from_reader<R: Read>(reader: R) -> Result<Project> {
+    pub fn from_reader<R: Read>(reader: R) -> miette::Result<Project> {
         let mut de =
             serde_xml_rs::Deserializer::new_from_reader(reader).non_contiguous_seq_elements(true);
-        let project: Project =
-            Project::deserialize(&mut de).wrap_err_with(|| "Failed to deserialize project file")?;
+        let project: Project = Project::deserialize(&mut de)
+            .into_diagnostic()
+            .wrap_err("Failed to deserialize project file")?;
         Ok(project)
     }
 
@@ -231,16 +234,19 @@ impl Project {
 }
 
 impl PackagesConfig {
-    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<PackagesConfig> {
-        let file = File::open(path).wrap_err_with(|| "Failed to read packages.config")?;
+    pub fn from_path<P: AsRef<Path>>(path: P) -> miette::Result<PackagesConfig> {
+        let file = File::open(path)
+            .into_diagnostic()
+            .wrap_err("Failed to read packages.config")?;
         PackagesConfig::from_reader(file)
     }
 
-    pub fn from_reader<R: Read>(reader: R) -> Result<PackagesConfig> {
+    pub fn from_reader<R: Read>(reader: R) -> miette::Result<PackagesConfig> {
         let mut de =
             serde_xml_rs::Deserializer::new_from_reader(reader).non_contiguous_seq_elements(true);
         let config: PackagesConfig = PackagesConfig::deserialize(&mut de)
-            .wrap_err_with(|| "Failed to deserialize packages.config")?;
+            .into_diagnostic()
+            .wrap_err("Failed to deserialize packages.config")?;
         Ok(config)
     }
 }
