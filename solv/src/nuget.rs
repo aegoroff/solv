@@ -98,8 +98,8 @@ impl Consume for Nuget {
             .filter(|(_, versions)| !self.show_only_mismatched || has_mismatches(versions))
             .sorted_unstable_by(|(a, _), (b, _)| Ord::cmp(&a.to_lowercase(), &b.to_lowercase()))
             .for_each(|(pkg, versions)| {
-                let groupped = versions.iter().into_group_map_by(|x| x.0);
-                let rows = groupped
+                let grouped = versions.iter().into_group_map_by(|x| x.0);
+                let rows = grouped
                     .iter()
                     .sorted_unstable_by_key(|x| x.0)
                     .map(|(c, v)| {
@@ -142,7 +142,7 @@ impl Display for Nuget {
             writeln!(
                 f,
                 " {}",
-                "Solutions with nuget packages inconsistenty found"
+                "Solutions with nuget packages inconsistency found"
                     .dark_red()
                     .bold()
             )?;
@@ -208,7 +208,7 @@ mod tests {
 
     #[test]
     fn nugets_no_mismatches() {
-        // arramge
+        // arrange
         let mut projects = vec![];
         let packs1 = vec![
             PackageReference {
@@ -244,7 +244,7 @@ mod tests {
 
     #[test]
     fn nugets_no_mismatches_same_pgk_in_different_projects() {
-        // arramge
+        // arrange
         let mut projects = vec![];
         let packs1 = vec![
             PackageReference {
@@ -280,7 +280,7 @@ mod tests {
 
     #[test]
     fn nugets_has_mismatches() {
-        // arramge
+        // arrange
         let mut projects = vec![];
         let packs1 = vec![
             PackageReference {
@@ -316,7 +316,7 @@ mod tests {
 
     #[test]
     fn nugets_no_mismatches_by_conditions() {
-        // arramge
+        // arrange
         let mut projects = vec![];
         let packs1 = vec![
             PackageReference {
