@@ -257,6 +257,7 @@ fn create_dir_iterator(path: &str) -> WalkDir {
 /// - `extension`: The file extension to filter by. Files must have this extension to be processed.
 /// - `consumer`: A mutable reference to an object that implements the `Consume` trait. This consumer
 ///   will be notified of successful and failed parse attempts.
+/// - `show_errors`: Whether to show parsing errors during scan.
 ///
 /// # Returns
 ///
