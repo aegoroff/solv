@@ -30,7 +30,7 @@ pub struct Validate {
 #[derive(Default)]
 struct Statistic {
     cycles: u64,
-    dangings: u64,
+    danglings: u64,
     not_found: u64,
     missings: u64,
     parsed: u64,
@@ -53,7 +53,7 @@ impl Display for Statistic {
 
         let cycles_percent = calculate_percent(self.cycles as i32, self.total as i32);
         let missings_percent = calculate_percent(self.missings as i32, self.total as i32);
-        let dangings_percent = calculate_percent(self.dangings as i32, self.total as i32);
+        let danglings_percent = calculate_percent(self.danglings as i32, self.total as i32);
         let not_found_percent = calculate_percent(self.not_found as i32, self.total as i32);
         let parsed_percent = calculate_percent(self.parsed as i32, self.total as i32);
         let not_parsed_percent = calculate_percent(self.not_parsed as i32, self.total as i32);
@@ -82,9 +82,9 @@ impl Display for Statistic {
 
         table.add_row([
             Cell::new("Contain dangling project configurations"),
-            Cell::new(self.dangings.to_formatted_string(&Locale::en))
+            Cell::new(self.danglings.to_formatted_string(&Locale::en))
                 .add_attribute(Attribute::Italic),
-            Cell::new(format!("{dangings_percent:.2}%")).add_attribute(Attribute::Italic),
+            Cell::new(format!("{danglings_percent:.2}%")).add_attribute(Attribute::Italic),
         ]);
 
         table.add_row([
@@ -241,7 +241,7 @@ impl<'a> Danglings<'a> {
 impl Validator for Danglings<'_> {
     fn validate(&mut self, statistic: &mut Statistic) {
         if !self.validation_result() {
-            statistic.dangings += 1;
+            statistic.danglings += 1;
         }
     }
 
@@ -522,7 +522,7 @@ mod tests {
 
         // Assert
         assert!(!validator.validation_result());
-        assert_eq!(1, statistic.dangings);
+        assert_eq!(1, statistic.danglings);
     }
 
     #[test]
