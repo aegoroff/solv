@@ -210,9 +210,14 @@ pub fn parse_str(contents: &str) -> miette::Result<Solution> {
 /// ## Remarks
 /// Any errors occurred during parsing of found files will be ignored (so parsing won't stopped)
 /// but error paths will be added into error files list (using err function of [`Consume`] trait)
-pub fn parse_dir(path: &str, extension: &str, consumer: &mut dyn Consume) -> usize {
+pub fn parse_dir(
+    path: &str,
+    extension: &str,
+    consumer: &mut dyn Consume,
+    show_errors: bool,
+) -> usize {
     let iter = create_dir_iterator(path).max_depth(1);
-    parse_dir_or_tree(iter, extension, consumer)
+    parse_dir_or_tree(iter, extension, consumer, show_errors)
 }
 
 /// `parse_dir_tree` parses directory specified by path. recursively
@@ -222,10 +227,15 @@ pub fn parse_dir(path: &str, extension: &str, consumer: &mut dyn Consume) -> usi
 /// ## Remarks
 /// Any errors occurred during parsing of found files will be ignored (so parsing won't stopped)
 /// but error paths will be added into error files list (using err function of [`Consume`] trait)
-pub fn parse_dir_tree(path: &str, extension: &str, consumer: &mut dyn Consume) -> usize {
+pub fn parse_dir_tree(
+    path: &str,
+    extension: &str,
+    consumer: &mut dyn Consume,
+    show_errors: bool,
+) -> usize {
     let parallelism = Parallelism::RayonNewPool(num_cpus::get_physical());
     let iter = create_dir_iterator(path).parallelism(parallelism);
-    parse_dir_or_tree(iter, extension, consumer)
+    parse_dir_or_tree(iter, extension, consumer, show_errors)
 }
 
 fn create_dir_iterator(path: &str) -> WalkDir {
@@ -256,7 +266,12 @@ fn create_dir_iterator(path: &str) -> WalkDir {
 ///
 /// Any errors that occur during the parsing of files will be ignored, but the paths of the files that
 /// caused errors will be added to the error files list using the `err` function of the `Consume` trait.
-fn parse_dir_or_tree(iter: WalkDir, extension: &str, consumer: &mut dyn Consume) -> usize {
+fn parse_dir_or_tree(
+    iter: WalkDir,
+    extension: &str,
+    consumer: &mut dyn Consume,
+    show_errors: bool,
+) -> usize {
     let ext = extension.trim_start_matches('.');
 
     iter.into_iter()
@@ -266,7 +281,14 @@ fn parse_dir_or_tree(iter: WalkDir, extension: &str, consumer: &mut dyn Consume)
         .filter(|p| p.extension().is_some_and(|s| s == ext))
         .filter_map(|fp| {
             if let Some(p) = fp.to_str() {
-                parse_file(p, consumer).ok()
+                if let Err(e) = parse_file(p, consumer) {
+                    if show_errors {
+                        println!("{e:?}");
+                    }
+                    None
+                } else {
+                    Some(())
+                }
             } else {
                 None
             }

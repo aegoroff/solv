@@ -32,7 +32,10 @@ static GLOBAL: MiMalloc = MiMalloc;
 const PATH: &str = "PATH";
 const EXT_DESCR: &str = "Visual Studio solution extension";
 const RECURSIVELY_FLAG: &str = "recursively";
+const SHOW_ERRORS_FLAG: &str = "showerrors";
 const RECURSIVELY_DESCR: &str = "Scan directory recursively. False by default";
+const SHOW_ERROR_ON_DIR_SCAN_DESCR: &str =
+    "Output solution parsing errors while scanning directories";
 const BENCHMARK_DESCR: &str = "Show scanning time in case of directory scanning. False by default";
 const PATH_DESCR: &str = "Sets solution path or directory to analyze";
 const DEFAULT_SOLUTION_EXT: &str = "sln";
@@ -110,10 +113,11 @@ fn scan_path<C: Consume + Display>(cmd: &ArgMatches, consumer: &mut C) -> miette
             let empty = String::default();
             let extension = cmd.get_one::<String>("ext").unwrap_or(&empty);
             let recursively = cmd.get_flag(RECURSIVELY_FLAG);
+            let show_errors = cmd.get_flag(SHOW_ERRORS_FLAG);
             if recursively {
-                solp::parse_dir_tree(path, extension, consumer);
+                solp::parse_dir_tree(path, extension, consumer, show_errors);
             } else {
-                solp::parse_dir(path, extension, consumer);
+                solp::parse_dir(path, extension, consumer, show_errors);
             }
         } else {
             solp::parse_file(path, consumer)?;
@@ -185,6 +189,7 @@ fn info_cmd() -> Command {
         .about("Get information about found solutions")
         .arg(extension_arg())
         .arg(recursively_arg())
+        .arg(show_errors_on_dir_scan_arg())
         .arg(time_arg())
         .arg(path_arg())
 }
@@ -201,6 +206,7 @@ fn validate_cmd() -> Command {
                 .help("Show only solutions with problems. Correct solutions will not be shown."),
         )
         .arg(recursively_arg())
+        .arg(show_errors_on_dir_scan_arg())
         .arg(time_arg())
         .arg(path_arg().required(true))
 }
@@ -225,6 +231,7 @@ fn nuget_cmd() -> Command {
             .help("Return not zero exit code if nuget mismatches found"),
     )
     .arg(recursively_arg())
+    .arg(show_errors_on_dir_scan_arg())
     .arg(time_arg())
     .arg(path_arg().required(true))
 }
@@ -235,6 +242,7 @@ fn json_cmd() -> Command {
         .about("Converts solution(s) into json")
         .arg(extension_arg())
         .arg(recursively_arg())
+        .arg(show_errors_on_dir_scan_arg())
         .arg(time_arg())
         .arg(
             arg!(-p --pretty)
@@ -270,6 +278,14 @@ fn recursively_arg() -> Arg {
         .requires(PATH)
         .action(ArgAction::SetTrue)
         .help(RECURSIVELY_DESCR)
+}
+
+fn show_errors_on_dir_scan_arg() -> Arg {
+    arg!(--showerrors)
+        .required(false)
+        .requires(PATH)
+        .action(ArgAction::SetTrue)
+        .help(SHOW_ERROR_ON_DIR_SCAN_DESCR)
 }
 
 fn completion_cmd() -> Command {
