@@ -11,14 +11,14 @@ pub fn is_solution_folder(id: &str) -> bool {
 }
 
 /// Shows whether id specified is ID of
-/// Web Site type project
+/// Website type project
 #[must_use]
 pub fn is_web_site_project(id: &str) -> bool {
     id == ID_WEB_SITE_PROJECT
 }
 
 /// Describes project by id.
-/// Returns human readable description
+/// Returns human-readable description
 /// or id itself if it's not match any
 #[must_use]
 pub fn describe_project(id: &str) -> &str {
@@ -28,11 +28,11 @@ pub fn describe_project(id: &str) -> &str {
 /// `MSBuild` project structure
 #[derive(Debug, Deserialize)]
 pub struct Project {
-    /// MSBuild SDK if applcable
+    /// MSBuild SDK if applicable
     #[serde(rename = "Sdk", default)]
     pub sdk: Option<String>,
 
-    /// MSBuild project item gouups
+    /// MSBuild project item groups
     #[serde(rename = "ItemGroup", default)]
     pub item_group: Option<Vec<ItemGroup>>,
 
