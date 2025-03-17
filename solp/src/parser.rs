@@ -140,7 +140,7 @@ pub fn parse_str(contents: &str) -> miette::Result<Sol> {
                         let span = SourceSpan::new(location.into(), 0);
                         report = miette!(
                             labels =
-                                vec![LabeledSpan::at(span, "Premature end of stream occured"),],
+                                vec![LabeledSpan::at(span, "Premature end of stream occurred"),],
                             help = ERROR_HELP,
                             "Lexer error"
                         )
