@@ -19,12 +19,12 @@ impl Json {
 
 impl Consume for Json {
     fn ok(&mut self, solution: &solp::api::Solution) {
-        let conveter = if self.pretty {
+        let converter = if self.pretty {
             serde_json::to_string_pretty
         } else {
             serde_json::to_string
         };
-        if let Ok(s) = conveter(solution) {
+        if let Ok(s) = converter(solution) {
             self.serialized.push(s);
         }
     }
