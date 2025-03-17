@@ -35,7 +35,7 @@ const RECURSIVELY_FLAG: &str = "recursively";
 const SHOW_ERRORS_FLAG: &str = "showerrors";
 const RECURSIVELY_DESCR: &str = "Scan directory recursively. False by default";
 const SHOW_ERROR_ON_DIR_SCAN_DESCR: &str =
-    "Output solution parsing errors while scanning directories";
+    "Output solution parsing errors while scanning directories. False by default";
 const BENCHMARK_DESCR: &str = "Show scanning time in case of directory scanning. False by default";
 const PATH_DESCR: &str = "Sets solution path or directory to analyze";
 const DEFAULT_SOLUTION_EXT: &str = "sln";
