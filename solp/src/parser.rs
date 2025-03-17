@@ -82,7 +82,12 @@ pub fn parse_str(contents: &str) -> Result<Sol> {
                     )
                 }
                 lalrpop_util::ParseError::UnrecognizedEof { location, expected } => {
-                    let span = SourceSpan::new(location.into(), 0);
+                    let offset = if location >= contents.len() {
+                        contents.len() - 1
+                    } else {
+                        location
+                    };
+                    let span = SourceSpan::new(offset.into(), 0);
                     report = miette!(
                         labels = vec![LabeledSpan::at(
                             span,
