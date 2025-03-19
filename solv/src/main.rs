@@ -30,9 +30,24 @@ use mimalloc::MiMalloc;
 static GLOBAL: MiMalloc = MiMalloc;
 
 const PATH: &str = "PATH";
-const EXT_DESCR: &str = "Visual Studio solution extension";
+
+const VALIDATE_CMD: &str = "validate";
+const INFO_CMD: &str = "info";
+const NUGET_CMD: &str = "nuget";
+const JSON_CMD: &str = "json";
+const COMPLETION_CMD: &str = "completion";
+const BUGREPORT_CMD: &str = "bugreport";
+
+const EXT_OPT: &str = "ext";
 const RECURSIVELY_FLAG: &str = "recursively";
 const SHOW_ERRORS_FLAG: &str = "showerrors";
+const PRETTY_FLAG: &str = "pretty";
+const TIME_FLAG: &str = "time";
+const PROBLEMS_FLAG: &str = "problems";
+const FAIL_FLAG: &str = "fail";
+const MISMATCH_FLAG: &str = "mismatch";
+
+const EXT_DESCR: &str = "Visual Studio solution extension";
 const RECURSIVELY_DESCR: &str = "Scan directory recursively. False by default";
 const SHOW_ERROR_ON_DIR_SCAN_DESCR: &str =
     "Output solution parsing errors while scanning directories. False by default";
@@ -45,15 +60,15 @@ fn main() -> miette::Result<()> {
     let matches = app.get_matches();
 
     match matches.subcommand() {
-        Some(("validate", cmd)) => validate(cmd),
-        Some(("info", cmd)) => info(cmd),
-        Some(("nuget", cmd)) => nuget(cmd),
-        Some(("json", cmd)) => json(cmd),
-        Some(("completion", cmd)) => {
+        Some((VALIDATE_CMD, cmd)) => validate(cmd),
+        Some((INFO_CMD, cmd)) => info(cmd),
+        Some((NUGET_CMD, cmd)) => nuget(cmd),
+        Some((JSON_CMD, cmd)) => json(cmd),
+        Some((COMPLETION_CMD, cmd)) => {
             print_completions(cmd);
             Ok(())
         }
-        Some(("bugreport", _)) => {
+        Some((BUGREPORT_CMD, _)) => {
             print_bugreport();
             Ok(())
         }
@@ -62,7 +77,7 @@ fn main() -> miette::Result<()> {
 }
 
 fn validate(cmd: &ArgMatches) -> miette::Result<()> {
-    let only_problems = cmd.get_flag("problems");
+    let only_problems = cmd.get_flag(PROBLEMS_FLAG);
 
     let mut consumer = Validate::new(only_problems);
     scan_path(cmd, &mut consumer)
@@ -74,8 +89,8 @@ fn info(cmd: &ArgMatches) -> miette::Result<()> {
 }
 
 fn nuget(cmd: &ArgMatches) -> miette::Result<()> {
-    let only_mismatched = cmd.get_flag("mismatch");
-    let fail_if_mismatched = cmd.get_flag("fail");
+    let only_mismatched = cmd.get_flag(MISMATCH_FLAG);
+    let fail_if_mismatched = cmd.get_flag(FAIL_FLAG);
 
     let mut consumer = Nuget::new(only_mismatched);
     let result = scan_path(cmd, &mut consumer);
@@ -86,7 +101,7 @@ fn nuget(cmd: &ArgMatches) -> miette::Result<()> {
 }
 
 fn json(cmd: &ArgMatches) -> miette::Result<()> {
-    let pretty = cmd.get_flag("pretty");
+    let pretty = cmd.get_flag(PRETTY_FLAG);
     let mut consumer = Json::new(pretty);
     scan_path_or_stdin(cmd, &mut consumer)
 }
@@ -111,7 +126,7 @@ fn scan_path<C: Consume + Display>(cmd: &ArgMatches, consumer: &mut C) -> miette
             .wrap_err_with(|| format!("Failed to use path: {path}"))?;
         if metadata.is_dir() {
             let empty = String::default();
-            let extension = cmd.get_one::<String>("ext").unwrap_or(&empty);
+            let extension = cmd.get_one::<String>(EXT_OPT).unwrap_or(&empty);
             let recursively = cmd.get_flag(RECURSIVELY_FLAG);
             let show_errors = cmd.get_flag(SHOW_ERRORS_FLAG);
             if recursively {
@@ -124,7 +139,7 @@ fn scan_path<C: Consume + Display>(cmd: &ArgMatches, consumer: &mut C) -> miette
         }
         print!("{consumer}");
 
-        if cmd.get_flag("time") {
+        if cmd.get_flag(TIME_FLAG) {
             let duration = now.elapsed().as_millis();
             let duration = Duration::from_millis(duration as u64);
             println!(
@@ -184,7 +199,7 @@ fn build_cli() -> Command {
 }
 
 fn info_cmd() -> Command {
-    Command::new("info")
+    Command::new(INFO_CMD)
         .aliases(["i"])
         .about("Get information about found solutions")
         .arg(extension_arg())
@@ -195,12 +210,14 @@ fn info_cmd() -> Command {
 }
 
 fn validate_cmd() -> Command {
-    Command::new("validate")
+    Command::new(VALIDATE_CMD)
         .aliases(["va"])
         .about("Validates solutions within directory or file specified")
         .arg(extension_arg())
         .arg(
-            arg!(-p --problems)
+            Arg::new(PROBLEMS_FLAG)
+                .long(PROBLEMS_FLAG)
+                .short('p')
                 .required(false)
                 .action(ArgAction::SetTrue)
                 .help("Show only solutions with problems. Correct solutions will not be shown."),
@@ -212,12 +229,14 @@ fn validate_cmd() -> Command {
 }
 
 fn nuget_cmd() -> Command {
-    Command::new("nuget")
+    Command::new(NUGET_CMD)
     .aliases(["nu"])
     .about("Get nuget packages information within solutions")
     .arg(extension_arg())
     .arg(
-        arg!(-m --mismatch)
+        Arg::new(MISMATCH_FLAG)
+            .long(MISMATCH_FLAG)
+            .short('m')
             .required(false)
             .action(ArgAction::SetTrue)
             .help(
@@ -225,7 +244,9 @@ fn nuget_cmd() -> Command {
         ),
     )
     .arg(
-        arg!(-f --fail)
+        Arg::new(FAIL_FLAG)
+            .long(FAIL_FLAG)
+            .short('f')
             .required(false)
             .action(ArgAction::SetTrue)
             .help("Return not zero exit code if nuget mismatches found"),
@@ -237,7 +258,7 @@ fn nuget_cmd() -> Command {
 }
 
 fn json_cmd() -> Command {
-    Command::new("json")
+    Command::new(JSON_CMD)
         .aliases(["j"])
         .about("Converts solution(s) into json")
         .arg(extension_arg())
@@ -245,7 +266,9 @@ fn json_cmd() -> Command {
         .arg(show_errors_on_dir_scan_arg())
         .arg(time_arg())
         .arg(
-            arg!(-p --pretty)
+            Arg::new(PRETTY_FLAG)
+                .long(PRETTY_FLAG)
+                .short('p')
                 .required(false)
                 .action(ArgAction::SetTrue)
                 .help("Pretty-printed output. False by default"),
@@ -253,43 +276,8 @@ fn json_cmd() -> Command {
         .arg(path_arg())
 }
 
-fn path_arg() -> Arg {
-    arg!([PATH]).help(PATH_DESCR)
-}
-
-fn time_arg() -> Arg {
-    arg!(-t --time)
-        .required(false)
-        .action(ArgAction::SetTrue)
-        .help(BENCHMARK_DESCR)
-}
-
-fn extension_arg() -> Arg {
-    arg!(-e --ext <EXTENSION>)
-        .required(false)
-        .requires(PATH)
-        .default_value(DEFAULT_SOLUTION_EXT)
-        .help(EXT_DESCR)
-}
-
-fn recursively_arg() -> Arg {
-    arg!(-r --recursively)
-        .required(false)
-        .requires(PATH)
-        .action(ArgAction::SetTrue)
-        .help(RECURSIVELY_DESCR)
-}
-
-fn show_errors_on_dir_scan_arg() -> Arg {
-    arg!(--showerrors)
-        .required(false)
-        .requires(PATH)
-        .action(ArgAction::SetTrue)
-        .help(SHOW_ERROR_ON_DIR_SCAN_DESCR)
-}
-
 fn completion_cmd() -> Command {
-    Command::new("completion")
+    Command::new(COMPLETION_CMD)
         .about("Generate the autocompletion script for the specified shell")
         .arg(
             arg!([generator])
@@ -300,6 +288,49 @@ fn completion_cmd() -> Command {
 }
 
 fn bugreport_cmd() -> Command {
-    Command::new("bugreport")
+    Command::new(BUGREPORT_CMD)
         .about("Collect information about the system and the environment that users can send along with a bug report")
+}
+
+fn path_arg() -> Arg {
+    arg!([PATH]).help(PATH_DESCR)
+}
+
+fn time_arg() -> Arg {
+    Arg::new(TIME_FLAG)
+        .long(TIME_FLAG)
+        .short('t')
+        .required(false)
+        .action(ArgAction::SetTrue)
+        .help(BENCHMARK_DESCR)
+}
+
+fn extension_arg() -> Arg {
+    Arg::new(EXT_OPT)
+        .long(EXT_OPT)
+        .short('e')
+        .value_name("EXTENSION")
+        .required(false)
+        .requires(PATH)
+        .default_value(DEFAULT_SOLUTION_EXT)
+        .help(EXT_DESCR)
+}
+
+fn recursively_arg() -> Arg {
+    Arg::new(RECURSIVELY_FLAG)
+        .long(RECURSIVELY_FLAG)
+        .short('r')
+        .required(false)
+        .requires(PATH)
+        .action(ArgAction::SetTrue)
+        .help(RECURSIVELY_DESCR)
+}
+
+fn show_errors_on_dir_scan_arg() -> Arg {
+    Arg::new(SHOW_ERRORS_FLAG)
+        .long(SHOW_ERRORS_FLAG)
+        .required(false)
+        .requires(PATH)
+        .action(ArgAction::SetTrue)
+        .help(SHOW_ERROR_ON_DIR_SCAN_DESCR)
 }
