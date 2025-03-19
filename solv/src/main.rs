@@ -5,7 +5,7 @@ use bugreport::collector::{
 use bugreport::format::Markdown;
 use clap::{Arg, ArgAction, ArgMatches, Command, command};
 use clap_complete::{Shell, generate};
-use miette::{Context, IntoDiagnostic};
+use miette::{Context, IntoDiagnostic, miette};
 use solp::Consume;
 use solv::info::Info;
 use solv::json::Json;
@@ -120,34 +120,35 @@ fn scan_path_or_stdin<C: Consume + Display>(
 #[allow(clippy::cast_possible_truncation)]
 fn scan_path<C: Consume + Display>(cmd: &ArgMatches, consumer: &mut C) -> miette::Result<()> {
     let now = Instant::now();
-    if let Some(path) = cmd.get_one::<String>(PATH) {
-        let metadata = fs::metadata(path)
-            .into_diagnostic()
-            .wrap_err_with(|| format!("Failed to use path: {path}"))?;
-        if metadata.is_dir() {
-            let empty = String::default();
-            let extension = cmd.get_one::<String>(EXT_OPT).unwrap_or(&empty);
-            let recursively = cmd.get_flag(RECURSIVELY_FLAG);
-            let show_errors = cmd.get_flag(SHOW_ERRORS_FLAG);
-            if recursively {
-                solp::parse_dir_tree(path, extension, consumer, show_errors);
-            } else {
-                solp::parse_dir(path, extension, consumer, show_errors);
-            }
+    let path = cmd
+        .get_one::<String>(PATH)
+        .ok_or(miette!("Path is required"))?;
+    let metadata = fs::metadata(path)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("Failed to use path: {path}"))?;
+    if metadata.is_dir() {
+        let empty = String::default();
+        let extension = cmd.get_one::<String>(EXT_OPT).unwrap_or(&empty);
+        let recursively = cmd.get_flag(RECURSIVELY_FLAG);
+        let show_errors = cmd.get_flag(SHOW_ERRORS_FLAG);
+        if recursively {
+            solp::parse_dir_tree(path, extension, consumer, show_errors);
         } else {
-            solp::parse_file(path, consumer)?;
+            solp::parse_dir(path, extension, consumer, show_errors);
         }
-        print!("{consumer}");
+    } else {
+        solp::parse_file(path, consumer)?;
+    }
+    print!("{consumer}");
 
-        if cmd.get_flag(TIME_FLAG) {
-            let duration = now.elapsed().as_millis();
-            let duration = Duration::from_millis(duration as u64);
-            println!(
-                " {:>2} {}",
-                "elapsed:",
-                humantime::format_duration(duration)
-            );
-        }
+    if cmd.get_flag(TIME_FLAG) {
+        let duration = now.elapsed().as_millis();
+        let duration = Duration::from_millis(duration as u64);
+        println!(
+            " {:>2} {}",
+            "elapsed:",
+            humantime::format_duration(duration)
+        );
     }
     Ok(())
 }
