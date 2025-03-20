@@ -281,17 +281,14 @@ fn parse_dir_or_tree(
         .map(|f| f.path())
         .filter(|p| p.extension().is_some_and(|s| s == ext))
         .filter_map(|fp| {
-            if let Some(p) = fp.to_str() {
-                if let Err(e) = parse_file(p, consumer) {
-                    if show_errors {
-                        println!("{e:?}");
-                    }
-                    None
-                } else {
-                    Some(())
+            let p = fp.to_str()?;
+            if let Err(e) = parse_file(p, consumer) {
+                if show_errors {
+                    println!("{e:?}");
                 }
-            } else {
                 None
+            } else {
+                Some(())
             }
         })
         .count()
