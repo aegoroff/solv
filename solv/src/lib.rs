@@ -19,11 +19,8 @@ pub fn parent_of(path: &str) -> &Path {
 #[must_use]
 pub fn try_make_local_path(dir: &Path, relative: &str) -> Option<PathBuf> {
     // We don't need Uri so if parsed successfully throw it away
-    if Url::parse(relative).is_ok() {
-        None
-    } else {
-        Some(make_path(dir, relative))
-    }
+    Url::parse(relative).err()?;
+    Some(make_path(dir, relative))
 }
 
 #[must_use]

@@ -202,11 +202,9 @@ impl Validator for NotFouund<'_> {
             .iterate_projects_without_web_sites()
             .filter_map(|p| crate::try_make_local_path(dir, p.path_or_uri))
             .filter_map(|full_path| {
-                if full_path.canonicalize().is_ok() {
-                    None
-                } else {
-                    Some(full_path)
-                }
+                // we need only not found paths
+                full_path.canonicalize().err()?;
+                Some(full_path)
             })
             .collect();
         if !self.validation_result() {
@@ -282,23 +280,20 @@ impl Validator for Missings<'_> {
             .iter()
             .filter_map(|p| {
                 let mut result = vec![];
-                if let Some(configurations) = &p.configurations {
-                    for c in configurations {
-                        let solution_conf = SolutionConfiguration {
-                            configuration: c.solution_configuration,
-                            platform: c.platform,
-                        };
-                        if !self.solution.configurations.contains(&solution_conf) {
-                            result.push(solution_conf);
-                        }
+                let configurations = p.configurations.as_ref()?;
+                for c in configurations {
+                    let solution_conf = SolutionConfiguration {
+                        configuration: c.solution_configuration,
+                        platform: c.platform,
+                    };
+                    if !self.solution.configurations.contains(&solution_conf) {
+                        result.push(solution_conf);
                     }
-                    if result.is_empty() {
-                        None
-                    } else {
-                        Some((p.id, result))
-                    }
-                } else {
+                }
+                if result.is_empty() {
                     None
+                } else {
+                    Some((p.id, result))
                 }
             })
             .collect();
