@@ -134,6 +134,8 @@ pub struct Import {
 const ID_SOLUTION_FOLDER: &str = "{2150E333-8FDC-42A3-9474-1A3956D46DE8}";
 const ID_WEB_SITE_PROJECT: &str = "{E24C65DC-7377-472B-9ABA-BC803B73C61A}";
 
+// all project guids from here https://github.com/JamesW75/visual-studio-project-type-guid
+// convert command: awk -F '{'  '{print "\"{"$2"\" => \""$1"\","}' ./vs_guids.txt
 static PROJECT_TYPES: phf::Map<&'static str, &'static str> = phf::phf_map! {
     "{CC5FD16D-436D-48AD-A40C-5A424C6E3E79}" => "Azure Project",
     "{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}" => "ASP.NET 5",
@@ -230,6 +232,11 @@ static PROJECT_TYPES: phf::Map<&'static str, &'static str> = phf::phf_map! {
     "{9092AA53-FB77-4645-B42D-1CCCA6BD08BD}" => "Node.js",
     "{E53339B2-1760-4266-BCC7-CA923CBCF16C}" => "Docker Application",
     "{00D1A9C2-B5F0-4AF3-8072-F6C62B433612}" => "SQL Server Database",
+    "{262852C6-CD72-467D-83FE-5EEB1973A190}" => "JScript",
+    "{B69E3092-B931-443C-ABE7-7E7b65f2A37F}" => "Micro Framework",
+    "{EC05E597-79D4-47F3-ADA0-324C4F7C7484}" => "SharePoint (VB.NET)",
+    "{C7167F0D-BC9F-4E6E-AFE1-012C56B48DB5}" => "Windows Application Packaging Project (MSIX)",
+    "{D399B71A-8929-442A-A9AC-8BEC78BB2433}" => "XNA (Zune)",
 };
 
 impl Project {
