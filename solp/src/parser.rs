@@ -100,15 +100,9 @@ pub fn parse_str(contents: &str) -> miette::Result<Sol> {
                     );
                 }
                 lalrpop_util::ParseError::UnrecognizedToken { token, expected } => {
-                    let len = if token.0 > token.2 {
-                        0
-                    } else {
-                        token.2 - token.0
-                    };
-                    let span = SourceSpan::new(token.0.into(), len);
                     report = miette!(
                         labels = vec![LabeledSpan::at(
-                            span,
+                            make_span(token),
                             format!(
                                 "The problem is here. Unrecognized token '{}' expected one of the following: {}",
                                 token.1,
@@ -120,15 +114,9 @@ pub fn parse_str(contents: &str) -> miette::Result<Sol> {
                     );
                 }
                 lalrpop_util::ParseError::ExtraToken { token } => {
-                    let len = if token.0 > token.2 {
-                        0
-                    } else {
-                        token.2 - token.0
-                    };
-                    let span = SourceSpan::new(token.0.into(), len);
                     report = miette!(
                         labels = vec![LabeledSpan::at(
-                            span,
+                            make_span(token),
                             format!("The problem is here. Extra token {}", token.1)
                         ),],
                         help = ERROR_HELP,
@@ -152,6 +140,15 @@ pub fn parse_str(contents: &str) -> miette::Result<Sol> {
             Err(report)
         }
     }
+}
+
+fn make_span(token: (usize, crate::lex::Tok<'_>, usize)) -> SourceSpan {
+    let len = if token.0 > token.2 {
+        0
+    } else {
+        token.2 - token.0
+    };
+    SourceSpan::new(token.0.into(), len)
 }
 
 macro_rules! section_content {
