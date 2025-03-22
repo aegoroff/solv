@@ -6,7 +6,7 @@ use bugreport::format::Markdown;
 use clap::{Arg, ArgAction, ArgMatches, Command, command};
 use clap_complete::{Shell, generate};
 use miette::{Context, IntoDiagnostic, miette};
-use solp::Consume;
+use solp::{Consume, SolpWalker};
 use solv::info::Info;
 use solv::json::Json;
 use solv::nuget::Nuget;
@@ -53,7 +53,6 @@ const SHOW_ERROR_ON_DIR_SCAN_DESCR: &str =
     "Output solution parsing errors while scanning directories. False by default";
 const BENCHMARK_DESCR: &str = "Show scanning time in case of directory scanning. False by default";
 const PATH_DESCR: &str = "Sets solution path or directory to analyze";
-const DEFAULT_SOLUTION_EXT: &str = "sln";
 
 fn main() -> miette::Result<()> {
     let app = build_cli();
@@ -79,46 +78,48 @@ fn main() -> miette::Result<()> {
 fn validate(cmd: &ArgMatches) -> miette::Result<()> {
     let only_problems = cmd.get_flag(PROBLEMS_FLAG);
 
-    let mut consumer = Validate::new(only_problems);
-    scan_path(cmd, &mut consumer)
+    let consumer = Validate::new(only_problems);
+    scan_path(cmd, consumer)?;
+    Ok(())
 }
 
 fn info(cmd: &ArgMatches) -> miette::Result<()> {
-    let mut consumer = Info::new();
-    scan_path_or_stdin(cmd, &mut consumer)
+    let consumer = Info::new();
+    scan_path_or_stdin(cmd, consumer)
 }
 
 fn nuget(cmd: &ArgMatches) -> miette::Result<()> {
     let only_mismatched = cmd.get_flag(MISMATCH_FLAG);
     let fail_if_mismatched = cmd.get_flag(FAIL_FLAG);
 
-    let mut consumer = Nuget::new(only_mismatched);
-    let result = scan_path(cmd, &mut consumer);
-    if consumer.mismatches_found && fail_if_mismatched {
+    let consumer = Nuget::new(only_mismatched);
+    let result = scan_path(cmd, consumer)?;
+    if result.mismatches_found && fail_if_mismatched {
         std::process::exit(exitcode::SOFTWARE);
     }
-    result
+    Ok(())
 }
 
 fn json(cmd: &ArgMatches) -> miette::Result<()> {
     let pretty = cmd.get_flag(PRETTY_FLAG);
-    let mut consumer = Json::new(pretty);
-    scan_path_or_stdin(cmd, &mut consumer)
+    let consumer = Json::new(pretty);
+    scan_path_or_stdin(cmd, consumer)
 }
 
 fn scan_path_or_stdin<C: Consume + Display>(
     cmd: &ArgMatches,
-    consumer: &mut C,
+    mut consumer: C,
 ) -> miette::Result<()> {
     if cmd.get_one::<String>(PATH).is_some() {
-        scan_path(cmd, consumer)
+        scan_path(cmd, consumer)?;
+        Ok(())
     } else {
-        scan_stream(io::stdin(), consumer)
+        scan_stream(io::stdin(), &mut consumer)
     }
 }
 
 #[allow(clippy::cast_possible_truncation)]
-fn scan_path<C: Consume + Display>(cmd: &ArgMatches, consumer: &mut C) -> miette::Result<()> {
+fn scan_path<C: Consume + Display>(cmd: &ArgMatches, mut consumer: C) -> miette::Result<C> {
     let now = Instant::now();
     let path = cmd
         .get_one::<String>(PATH)
@@ -131,26 +132,20 @@ fn scan_path<C: Consume + Display>(cmd: &ArgMatches, consumer: &mut C) -> miette
         let extension = cmd.get_one::<String>(EXT_OPT).unwrap_or(&empty);
         let recursively = cmd.get_flag(RECURSIVELY_FLAG);
         let show_errors = cmd.get_flag(SHOW_ERRORS_FLAG);
-        if recursively {
-            solp::parse_dir_tree(path, extension, consumer, show_errors);
-        } else {
-            solp::parse_dir(path, extension, consumer, show_errors);
-        }
+        let mut walker = SolpWalker::new(consumer)
+            .with_extension(extension)
+            .recursively(recursively)
+            .show_errors(show_errors);
+        walker.walk_and_parse(path);
+        print!("{}", walker.consumer);
+        print_elapsed_time(now, cmd.get_flag(TIME_FLAG));
+        Ok(walker.consumer)
     } else {
-        solp::parse_file(path, consumer)?;
+        solp::parse_file(path, &mut consumer)?;
+        print!("{consumer}");
+        print_elapsed_time(now, cmd.get_flag(TIME_FLAG));
+        Ok(consumer)
     }
-    print!("{consumer}");
-
-    if cmd.get_flag(TIME_FLAG) {
-        let duration = now.elapsed().as_millis();
-        let duration = Duration::from_millis(duration as u64);
-        println!(
-            " {:>2} {}",
-            "elapsed:",
-            humantime::format_duration(duration)
-        );
-    }
-    Ok(())
 }
 
 fn scan_stream<C: Consume + Display, R: Read>(read: R, consumer: &mut C) -> miette::Result<()> {
@@ -165,6 +160,19 @@ fn scan_stream<C: Consume + Display, R: Read>(read: R, consumer: &mut C) -> miet
     print!("{consumer}");
 
     Ok(())
+}
+
+fn print_elapsed_time(now: Instant, print_elapsed: bool) {
+    if !print_elapsed {
+        return;
+    }
+    let duration = now.elapsed().as_millis();
+    let duration = Duration::from_millis(duration as u64);
+    println!(
+        " {:>2} {}",
+        "elapsed:",
+        humantime::format_duration(duration)
+    );
 }
 
 fn print_completions(matches: &ArgMatches) {
@@ -313,7 +321,7 @@ fn extension_arg() -> Arg {
         .value_name("EXTENSION")
         .required(false)
         .requires(PATH)
-        .default_value(DEFAULT_SOLUTION_EXT)
+        .default_value(solp::DEFAULT_SOLUTION_EXT)
         .help(EXT_DESCR)
 }
 

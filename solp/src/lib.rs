@@ -70,12 +70,24 @@ lalrpop_mod!(
     solp
 );
 
+/// Default Visual Studio solution file extension
+pub const DEFAULT_SOLUTION_EXT: &str = "sln";
+
 /// Consume provides parsed [`Solution`] consumer
 pub trait Consume {
     /// Called in case of success parsing
     fn ok(&mut self, solution: &Solution);
     /// Called on error
     fn err(&self, path: &str);
+}
+
+/// Builder for walking a directory structure.
+pub struct SolpWalker<'a, C: Consume> {
+    /// [`Consume`] trait instance that will be applied to each file scanned
+    pub consumer: C,
+    extension: &'a str,
+    show_errors: bool,
+    recursively: bool,
 }
 
 /// Parses a solution file at the specified path and notifies the consumer of the result.
@@ -203,95 +215,77 @@ pub fn parse_str(contents: &str) -> miette::Result<Solution> {
     Ok(Solution::from(&parsed))
 }
 
-/// `parse_dir` parses only directory specified by path.
-/// it finds all files with extension specified and parses them.
-/// returns the number of scanned solutions
-///
-/// ## Remarks
-/// Any errors occurred during parsing of found files will be ignored (so parsing won't stopped)
-/// but error paths will be added into error files list (using err function of [`Consume`] trait)
-pub fn parse_dir(
-    path: &str,
-    extension: &str,
-    consumer: &mut dyn Consume,
-    show_errors: bool,
-) -> usize {
-    let iter = create_dir_iterator(path).max_depth(1);
-    parse_dir_or_tree(iter, extension, consumer, show_errors)
-}
+impl<'a, C: Consume> SolpWalker<'a, C> {
+    /// Create a builder for a directory structure parsing.
+    pub fn new(consumer: C) -> Self {
+        Self {
+            consumer,
+            extension: DEFAULT_SOLUTION_EXT,
+            show_errors: false,
+            recursively: false,
+        }
+    }
 
-/// `parse_dir_tree` parses directory specified by path. recursively
-/// it finds all files with extension specified and parses them.
-/// returns the number of scanned solutions
-///
-/// ## Remarks
-/// Any errors occurred during parsing of found files will be ignored (so parsing won't stopped)
-/// but error paths will be added into error files list (using err function of [`Consume`] trait)
-pub fn parse_dir_tree(
-    path: &str,
-    extension: &str,
-    consumer: &mut dyn Consume,
-    show_errors: bool,
-) -> usize {
-    let parallelism = Parallelism::RayonNewPool(num_cpus::get_physical());
-    let iter = create_dir_iterator(path).parallelism(parallelism);
-    parse_dir_or_tree(iter, extension, consumer, show_errors)
+    /// Setting Visual Studio solution file extension. sln by default.
+    #[must_use]
+    pub fn with_extension(mut self, extension: &'a str) -> Self {
+        self.extension = extension;
+        self
+    }
+
+    /// Scan recursively. Disabled by default.
+    #[must_use]
+    pub fn recursively(mut self, recursively: bool) -> Self {
+        self.recursively = recursively;
+        self
+    }
+
+    /// Whether to show parsing errors during directory scanning. Disabled by default.
+    #[must_use]
+    pub fn show_errors(mut self, show_errors: bool) -> Self {
+        self.show_errors = show_errors;
+        self
+    }
+
+    /// `walk_and_parse` parses directory structure specified by path.
+    /// it finds all files with extension specified and parses them.
+    /// returns the number of scanned solutions
+    ///
+    /// ## Remarks
+    /// Any errors occurred during parsing of found files will be ignored (so parsing won't stopped)
+    /// but error paths will be added into error files list (using err function of [`Consume`] trait)
+    pub fn walk_and_parse(&mut self, path: &str) -> usize {
+        let iter = if self.recursively {
+            let parallelism = Parallelism::RayonNewPool(num_cpus::get_physical());
+            create_dir_iterator(path).parallelism(parallelism)
+        } else {
+            create_dir_iterator(path).max_depth(1)
+        };
+        let ext = self.extension.trim_start_matches('.');
+
+        iter.into_iter()
+            .filter_map(std::result::Result::ok)
+            .filter(|f| f.file_type().is_file())
+            .map(|f| f.path())
+            .filter(|p| p.extension().is_some_and(|s| s == ext))
+            .filter_map(|fp| {
+                let p = fp.to_str()?;
+                if let Err(e) = parse_file(p, &mut self.consumer) {
+                    if self.show_errors {
+                        println!("{e:?}");
+                    }
+                    None
+                } else {
+                    Some(())
+                }
+            })
+            .count()
+    }
 }
 
 fn create_dir_iterator(path: &str) -> WalkDir {
     let root = decorate_path(path);
     WalkDir::new(root).skip_hidden(false).follow_links(false)
-}
-
-/// Parses the directory or directory tree and processes files with the specified extension.
-///
-/// This function takes an iterator over directory entries (`WalkDir`), a file extension to filter by,
-/// and a consumer that implements the `Consume` trait. It filters the directory entries to only include
-/// files with the specified extension, attempts to parse each file, and counts how many files were
-/// successfully parsed.
-///
-/// # Parameters
-///
-/// - `iter`: An iterator over directory entries (`WalkDir`). This can be configured to either walk a
-///   single directory or recursively walk a directory tree.
-/// - `extension`: The file extension to filter by. Files must have this extension to be processed.
-/// - `consumer`: A mutable reference to an object that implements the `Consume` trait. This consumer
-///   will be notified of successful and failed parse attempts.
-/// - `show_errors`: Whether to show parsing errors during scan.
-///
-/// # Returns
-///
-/// The number of files that were successfully parsed.
-///
-/// # Remarks
-///
-/// Any errors that occur during the parsing of files will be ignored, but the paths of the files that
-/// caused errors will be added to the error files list using the `err` function of the `Consume` trait.
-fn parse_dir_or_tree(
-    iter: WalkDir,
-    extension: &str,
-    consumer: &mut dyn Consume,
-    show_errors: bool,
-) -> usize {
-    let ext = extension.trim_start_matches('.');
-
-    iter.into_iter()
-        .filter_map(std::result::Result::ok)
-        .filter(|f| f.file_type().is_file())
-        .map(|f| f.path())
-        .filter(|p| p.extension().is_some_and(|s| s == ext))
-        .filter_map(|fp| {
-            let p = fp.to_str()?;
-            if let Err(e) = parse_file(p, consumer) {
-                if show_errors {
-                    println!("{e:?}");
-                }
-                None
-            } else {
-                Some(())
-            }
-        })
-        .count()
 }
 
 /// On Windows trailing backslash (\) to be added if volume and colon passed (like c:).
