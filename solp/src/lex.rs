@@ -286,21 +286,6 @@ impl<'a> Lexer<'a> {
     fn count_whitespaces<I: Iterator<Item = char>>(it: I) -> usize {
         it.take_while(|c| matches!(*c, ' ' | '\t')).count()
     }
-
-    fn current(&mut self, i: usize, ch: char) -> Option<Spanned<Tok<'a>, usize, LexicalError>> {
-        let spanned = match ch {
-            '\r' | '\n' => self.section_key(i),
-            '=' => self.section_value(i),
-            ',' => Ok((i, Tok::Comma, i + 1)),
-            ')' | ' ' | '\t' => Ok((i, Tok::Skip, i + 1)),
-            '0'..='9' => self.digits_with_dots(i),
-            '"' => self.string(i),
-            '#' => Ok(self.comment(i)),
-            'a'..='z' | 'A'..='Z' => Ok(self.identifier(i)),
-            _ => return None,
-        };
-        Some(spanned)
-    }
 }
 
 impl<'a> Iterator for Lexer<'a> {
@@ -309,7 +294,16 @@ impl<'a> Iterator for Lexer<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             let (i, c) = self.chars.next()?;
-            let tok = self.current(i, c)?;
+            let tok = match c {
+                '\r' | '\n' => self.section_key(i),
+                '=' => self.section_value(i),
+                ',' => Ok((i, Tok::Comma, i + 1)),
+                '0'..='9' => self.digits_with_dots(i),
+                '"' => self.string(i),
+                '#' => Ok(self.comment(i)),
+                'a'..='z' | 'A'..='Z' => Ok(self.identifier(i)),
+                _ => continue,
+            };
 
             if let Ok(_x @ (_, Tok::Skip, _)) = tok {
                 continue;
