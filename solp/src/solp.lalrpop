@@ -34,7 +34,7 @@ ProjectBegin : Node<'a> = {
 Section : Node<'a> = "open_element" <b:SectionBegin> <c:SectionContent*> "close_element" => Node::Section(Box::new(b), c);
 
 SectionBegin : Node<'a> = {
-    <name:"id"+> "eq" <stage:"id"> => {
+    <name:"id"> "eq" <stage:"id"> => {
         Node::SectionBegin(name, stage)
     },
 };

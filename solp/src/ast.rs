@@ -23,7 +23,7 @@ pub enum Node<'a> {
     Project(Box<Node<'a>>, Vec<Node<'a>>),
     ProjectBegin(&'a str, &'a str, &'a str, &'a str),
     Section(Box<Node<'a>>, Vec<Node<'a>>),
-    SectionBegin(Vec<&'a str>, &'a str),
+    SectionBegin(&'a str, &'a str),
     SectionContent(&'a str, &'a str),
     Solution(Box<Node<'a>>, Vec<Node<'a>>),
 }
@@ -89,16 +89,6 @@ impl<'a> Prj<'a> {
     }
 
     #[must_use]
-    pub fn from_begin(head: &Node<'a>) -> Option<Self> {
-        if let Node::ProjectBegin(project_type, name, path_or_uri, id) = head {
-            let prj = Prj::from(project_type, name, path_or_uri, id);
-            Some(prj)
-        } else {
-            None
-        }
-    }
-
-    #[must_use]
     pub fn from(project_type: &'a str, name: &'a str, path_or_uri: &'a str, id: &'a str) -> Self {
         let mut prj = Prj::new(id, project_type);
         prj.name = name;
@@ -136,16 +126,6 @@ impl<'a> Conf<'a> {
             platform,
         }
     }
-
-    #[must_use]
-    pub fn from_node(node: &Node<'a>) -> Option<Self> {
-        if let Node::SectionContent(left, _) = node {
-            let conf = Conf::from(*left);
-            Some(conf)
-        } else {
-            None
-        }
-    }
 }
 
 #[derive(Default, PartialEq, Debug, Clone)]
@@ -175,29 +155,13 @@ impl<'a> PrjConfAggregate<'a> {
     }
 
     #[must_use]
-    pub fn handle_project_config_platform(node: &Node<'a>) -> Option<Self> {
-        if let Node::SectionContent(left, right) = node {
-            PrjConfAggregate::from_project_configuration_platform(left, right)
-        } else {
-            None
-        }
-    }
-
-    #[must_use]
-    pub fn handle_project_config(node: &Node<'a>) -> Option<Self> {
-        if let Node::SectionContent(left, right) = node {
-            PrjConfAggregate::from_project_configuration(left, right)
-        } else {
-            None
-        }
-    }
-
-    fn from_project_configuration_platform(k: &'a str, v: &'a str) -> Option<Self> {
+    pub fn from_project_configuration_platform(k: &'a str, v: &'a str) -> Option<Self> {
         let r = PrjConfAggregate::parse_project_configuration_platform::<Error<&str>>(k, v);
         Self::new(r)
     }
 
-    fn from_project_configuration(k: &'a str, v: &'a str) -> Option<Self> {
+    #[must_use]
+    pub fn from_project_configuration(k: &'a str, v: &'a str) -> Option<Self> {
         let r = PrjConfAggregate::parse_project_configuration::<Error<&str>>(k, v);
         Self::new(r)
     }
@@ -300,17 +264,6 @@ where
     E: ParseError<&'a str> + std::fmt::Debug,
 {
     sequence::terminated(is_not("|"), char('|')).parse(input)
-}
-
-impl Node<'_> {
-    #[must_use]
-    pub fn is_section(&self, name: &str) -> bool {
-        if let Node::SectionBegin(names, _) = self {
-            names.iter().any(|n| *n == name)
-        } else {
-            false
-        }
-    }
 }
 
 #[cfg(test)]
