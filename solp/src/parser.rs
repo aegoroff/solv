@@ -74,8 +74,8 @@ pub fn parse_str(contents: &str) -> miette::Result<Sol> {
     let lexer = crate::lex::Lexer::new(input);
     match parser.parse(input, lexer) {
         Ok(parsed) => {
-            let builder = SolutionBuilder::new();
-            Ok(builder.build(&parsed))
+            let visitor = AstVisitor::new();
+            Ok(visitor.visit(&parsed))
         }
         Err(e) => {
             let report;
@@ -160,24 +160,24 @@ fn make_span(token: (usize, crate::lex::Tok<'_>, usize)) -> SourceSpan {
 }
 
 #[derive(Debug)]
-struct SolutionBuilder<'a> {
+struct AstVisitor<'a> {
     solution: Sol<'a>,
 }
 
-impl<'a> SolutionBuilder<'a> {
+impl<'a> AstVisitor<'a> {
     pub fn new() -> Self {
         Self {
             solution: Sol::default(),
         }
     }
 
-    fn build(mut self, node: &Node<'a>) -> Sol<'a> {
+    fn visit(mut self, node: &Node<'a>) -> Sol<'a> {
         self.visit_solution(node);
         self.solution
     }
 }
 
-impl<'a> Visitor<'a> for SolutionBuilder<'a> {
+impl<'a> Visitor<'a> for AstVisitor<'a> {
     fn visit_solution(&mut self, node: &Node<'a>) {
         if let Node::Solution(first_line, lines) = node {
             self.visit_first_line(first_line);
