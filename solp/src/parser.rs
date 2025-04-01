@@ -391,24 +391,16 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    #[test]
-    fn parse_str_start_from_utf_8_signature() {
-        // Arrange
-        let sln = REAL_SOLUTION.trim_end();
-
-        // Act
-        let result = parse_str(sln);
-
-        // Assert
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn parser_version8_solution() {
+    #[test_case(VERSION8_SOLUTION ; "version 8 solution")]
+    #[test_case(APR_SOLUTION ; "apr_solution")]
+    #[test_case(&format!("   \t{APR_SOLUTION}") ; "apr_generated_solution_with_leading_whitespaces")]
+    #[test_case(&format!("   \n{APR_SOLUTION}") ; "start solution not from first line")]
+    #[test_case(&REAL_SOLUTION.trim_end() ; "trimmed from end real solution")]
+    fn parse_correct_solutions(i: &str) {
         // Arrange
 
         // Act
-        let sln = parse_str(VERSION8_SOLUTION);
+        let sln = parse_str(i);
 
         // Assert
         assert!(sln.is_ok());
@@ -420,29 +412,6 @@ mod tests {
         for tok in lexer {
             println!("{tok:#?}");
         }
-    }
-
-    #[test]
-    fn parse_str_apr_generated_solution() {
-        // Arrange
-
-        // Act
-        let sln = parse_str(APR_SOLUTION);
-
-        // Assert
-        assert!(sln.is_ok());
-    }
-
-    #[test]
-    fn parse_str_apr_generated_solution_with_leading_whitespaces() {
-        // Arrange
-        let solution = format!("   \t{APR_SOLUTION}");
-
-        // Act
-        let sln = parse_str(&solution);
-
-        // Assert
-        assert!(sln.is_ok());
     }
 
     #[test]

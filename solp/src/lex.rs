@@ -331,17 +331,10 @@ mod tests {
         }
     }
 
-    #[test]
-    fn lex_solution() {
-        let lexer = Lexer::new(REAL_SOLUTION);
-        for tok in lexer {
-            println!("{tok:#?}");
-        }
-    }
-
-    #[test]
-    fn lex_solution_no_last_line_break() {
-        let lexer = Lexer::new(REAL_SOLUTION.trim_end());
+    #[test_case(REAL_SOLUTION ; "real solution")]
+    #[test_case(REAL_SOLUTION.trim_end() ; "real solution trimmed")]
+    fn lex_solution(s: &str) {
+        let lexer = Lexer::new(s);
         for tok in lexer {
             println!("{tok:#?}");
         }
