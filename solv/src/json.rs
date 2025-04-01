@@ -54,13 +54,11 @@ impl Display for Json {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rstest::rstest;
+    use test_case::test_case;
 
-    #[rstest]
-    #[case(true)]
-    #[case(false)]
-    #[trace]
-    fn output_tests(#[case] pretty: bool) {
+    #[test_case(true)]
+    #[test_case(false)]
+    fn output_tests(pretty: bool) {
         // Arrange
         let solution = solp::parse_str(CORRECT_SOLUTION).unwrap();
         let mut validator = Json::new(pretty);

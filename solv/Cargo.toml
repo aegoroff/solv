@@ -33,7 +33,7 @@ miette = { version = "=7.5.0", features = ["fancy"] }
 mimalloc = "=0.1.44"
 
 [dev-dependencies]
-rstest = "=0.25.0"
+test-case = "=3.3.1"
 
 [package.metadata.deb]
 assets = [

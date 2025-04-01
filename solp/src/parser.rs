@@ -343,28 +343,26 @@ mod tests {
     use crate::lex::Lexer;
     use proptest::strategy::ValueTree;
     use proptest::{prelude::*, test_runner::TestRunner};
-    use rstest::rstest;
+    use test_case::test_case;
 
-    #[rstest]
-    #[case("")]
-    #[case("123243")]
-    #[case("\n偅")]
-    #[case("ZZ(1Z\t22\"2")]
-    #[case("Z\u{1}\u{365}\u{b}\n\u{0}\u{0}")]
-    #[case("\rXZZ,\rM2Section(\r    =2     =2")]
-    #[case("ZZ\t)X\t)X,\t0#  溾\n\t\t)E(Z)E#溾")]
-    #[case("A\n\t = \n0")]
-    #[case(
+    #[test_case("")]
+    #[test_case("123243")]
+    #[test_case("\n偅")]
+    #[test_case("ZZ(1Z\t22\"2")]
+    #[test_case("Z\u{1}\u{365}\u{b}\n\u{0}\u{0}")]
+    #[test_case("\rXZZ,\rM2Section(\r    =2     =2")]
+    #[test_case("ZZ\t)X\t)X,\t0#  溾\n\t\t)E(Z)E#溾")]
+    #[test_case("A\n\t = \n0")]
+    #[test_case(
         "\rYXZZ,\rM2)Section()\r\r))ZZ,\u{1}\t)X9Z)Z\u{fa970}Tz\u{1}\u{fa970}`\u{1}\u{fa970}Tz\u{1}\u{ea970}=\u{1}\u{11}\u{0}MZG\u{0}\u{1}\u{11}\u{0}\u{1}\u{fa970}Tz\u{1}\u{fa970}`\u{1}\u{fa970}Tz\u{1}\u{fa970}\non()\r)YA,\rM1\rKg\u{17}Y)\u{6}"
     )]
-    #[case(
+    #[test_case(
         "\nMicrosoft Visual Studio Solution File, Format Version 12.00\n# Visual Studio 2013\nVisualStudioVersion = 12.0.31101.0\nMinimumVisualStudioVersion = 10.0.40219.1\nProject(\"{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}\") = \"Grok\", \"Grok\\Grok.csproj\", \"{EC6D1E9B-2DA0-4225-9109-E9CF1C924116}\"\nEndProject\nGlobal\n\tGlobalSection(SolutionConfigurationPlatforms) = preSolution\n\t\tDebug|Any CPU = Debug|Any CPU\n\t\tRelease|Any CPU = Release|Any CPU\n\tEnnGlobalSectionease|Any CPU = Release|Any CPU\\n\\tEnnGlobalSection\\n\\tGlobalSection(ProjectConfigurationPlatforms) = postSolution\\n\\t\\t{EC6D1E9B-2DA0-4225-9109-E9CF1C924116}.Debug|Any CPU.ActiveCfg = Debug|Ady CPU\\n\\t\\t{EC6D1E9B-2DA0-4225-9109-E9CF1C924116}.Debug|Any CPU."
     )]
-    #[case(
+    #[test_case(
         "\nMicrosoft Visual Studio Solution File, Format Version 12.00\n# Visual Studio 2013\nVisualStudioVersion = 12.0.31101.0\nMinimumVisualStudioVersion = 10.0.40219.1\nProject(\"{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}\") = \"Grok\", \"Grok\\Grok.csproj\", \"{EC6D1E9B-2DA0-4225-9109-E9CF1C924116}\"\nEndProject\nGlobal\n\tGlobalSection(SolutionConfigurationPlatforms) = preSolution\n\t\tDebug|Any CPU = Deb"
     )]
-    #[trace]
-    fn parse_str_crashes_found_by_fuzz(#[case] content: &str) {
+    fn parse_str_crashes_found_by_fuzz(content: &str) {
         // Act
         let result = parse_str(content);
 

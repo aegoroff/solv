@@ -317,7 +317,7 @@ impl<'a> Iterator for Lexer<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rstest::rstest;
+    use test_case::test_case;
 
     #[test]
     fn lexer() {
@@ -347,17 +347,15 @@ mod tests {
         }
     }
 
-    #[rstest]
-    #[case("1 ", 1)]
-    #[case("1", 1)]
-    #[case("  1", 3)]
-    #[case(" ", 0)]
-    #[case("  ", 0)]
-    #[case(" \t", 0)]
-    #[case("", 0)]
-    #[case("          ", 0)]
-    #[trace]
-    fn trim_end_tests(#[case] content: &str, #[case] expected: usize) {
+    #[test_case("1 ", 1 ; "space after")]
+    #[test_case("1", 1 ; "one char")]
+    #[test_case("  1", 3 ; "spaces before")]
+    #[test_case(" ", 0 ; "one space")]
+    #[test_case("  ", 0 ; "several spaces")]
+    #[test_case(" \t", 0 ; "space and tab")]
+    #[test_case("", 0 ; "empty")]
+    #[test_case("          ", 0 ; "many spaces")]
+    fn trim_end_tests(content: &str, expected: usize) {
         // Arrange
         let i: usize = content.len();
 
