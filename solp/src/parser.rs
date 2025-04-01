@@ -1,5 +1,5 @@
-use crate::ast::Node;
 use crate::ast::{Conf, Prj, PrjConfAggregate, Sol, Ver};
+use crate::ast::{Node, Visitor};
 use itertools::Itertools;
 use miette::{LabeledSpan, SourceSpan, miette};
 use std::collections::{HashMap, HashSet};
@@ -7,19 +7,6 @@ use std::option::Option::Some;
 
 const UTF8_BOM: &[u8; 3] = b"\xEF\xBB\xBF";
 const ERROR_HELP: &str = "Incorrect Visual Studio solution file syntax";
-
-trait Visitor<'a> {
-    fn visit_solution(&mut self, node: &Node<'a>);
-    fn visit_first_line(&mut self, node: &Node<'a>);
-    fn visit_project(&mut self, node: &Node<'a>);
-    fn visit_version(&mut self, node: &Node<'a>);
-    fn visit_global(&mut self, node: &Node<'a>);
-    fn visit_comment(&mut self, node: &Node<'a>);
-    fn visit_project_begin(&mut self, node: &Node<'a>) -> Option<Prj<'a>>;
-    fn visit_section(&mut self, node: &Node<'a>) -> Option<(&'a str, Vec<(&'a str, &'a str)>)>;
-    fn visit_section_begin(&mut self, node: &Node<'a>) -> Option<&'a str>;
-    fn visit_section_content(&mut self, node: &Node<'a>) -> Option<(&'a str, &'a str)>;
-}
 
 /// Parses a given string as a solution file.
 ///
@@ -58,7 +45,7 @@ trait Visitor<'a> {
 /// This function does not explicitly panic. However, it may panic if the input
 /// string is malformed in a way that violates the assumptions of the parser
 /// or lexer.
-pub fn parse_str(contents: &str) -> miette::Result<Sol> {
+pub fn parse_str<'a>(contents: &'a str) -> miette::Result<Sol<'a>> {
     if contents.len() < UTF8_BOM.len() {
         return Err(miette!("Content is too short or empty"));
     }
@@ -70,12 +57,13 @@ pub fn parse_str(contents: &str) -> miette::Result<Sol> {
         contents
     };
 
-    let parser = crate::solp::SolutionParser::new();
     let lexer = crate::lex::Lexer::new(input);
+    let parser = crate::solp::SolutionParser::new();
     match parser.parse(input, lexer) {
         Ok(parsed) => {
-            let visitor = AstVisitor::new();
-            Ok(visitor.visit(&parsed))
+            let mut visitor = AstVisitor::new();
+            visitor.visit(&parsed);
+            Ok(visitor.solution)
         }
         Err(e) => {
             let report;
@@ -171,29 +159,21 @@ impl<'a> AstVisitor<'a> {
         }
     }
 
-    fn visit(mut self, node: &Node<'a>) -> Sol<'a> {
-        self.visit_solution(node);
-        self.solution
+    fn visit(&'a mut self, node: &'a Node<'a>) {
+        node.accept(self);
     }
 }
 
 impl<'a> Visitor<'a> for AstVisitor<'a> {
-    fn visit_solution(&mut self, node: &Node<'a>) {
-        if let Node::Solution(first_line, lines) = node {
-            self.visit_first_line(first_line);
-            for line in lines {
-                self.visit_project(line);
-                self.visit_version(line);
-                self.visit_global(line);
-                self.visit_comment(line);
-            }
+    fn visit_solution(&'a mut self, first_line: &'a Node<'a>, lines: &'a Vec<Node<'a>>) {
+        first_line.accept(self);
+        for node in lines {
+            node.accept(self);
         }
     }
 
-    fn visit_first_line(&mut self, node: &Node<'a>) {
-        if let Node::FirstLine(ver) = node {
-            self.solution.format = ver;
-        }
+    fn visit_first_line(&'a mut self, ver: &'a str) {
+        self.solution.format = ver;
     }
 
     fn visit_project(&mut self, node: &Node<'a>) {

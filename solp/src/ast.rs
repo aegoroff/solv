@@ -28,6 +28,39 @@ pub enum Node<'a> {
     Solution(Box<Node<'a>>, Vec<Node<'a>>),
 }
 
+impl<'a> Node<'a> {
+    pub fn accept<V>(&'a self, visitor: &'a mut V)
+    where
+        V: Visitor<'a>,
+    {
+        match self {
+            Node::Comment(_) => todo!(),
+            Node::Version(_, _) => todo!(),
+            Node::FirstLine(ver) => visitor.visit_first_line(*ver),
+            Node::Global(nodes) => todo!(),
+            Node::Project(node, nodes) => todo!(),
+            Node::ProjectBegin(_, _, _, _) => todo!(),
+            Node::Section(node, nodes) => todo!(),
+            Node::SectionBegin(_, _) => todo!(),
+            Node::SectionContent(_, _) => todo!(),
+            Node::Solution(node, nodes) => visitor.visit_solution(node, nodes),
+        }
+    }
+}
+
+pub trait Visitor<'a> {
+    fn visit_solution(&'a mut self, first_line: &'a Node<'a>, lines: &'a Vec<Node<'a>>);
+    fn visit_first_line(&'a mut self, ver: &'a str);
+    fn visit_project(&mut self, node: &Node<'a>);
+    fn visit_version(&mut self, node: &Node<'a>);
+    fn visit_global(&mut self, node: &Node<'a>);
+    fn visit_comment(&mut self, node: &Node<'a>);
+    fn visit_project_begin(&mut self, node: &Node<'a>) -> Option<Prj<'a>>;
+    fn visit_section(&mut self, node: &Node<'a>) -> Option<(&'a str, Vec<(&'a str, &'a str)>)>;
+    fn visit_section_begin(&mut self, node: &Node<'a>) -> Option<&'a str>;
+    fn visit_section_content(&mut self, node: &Node<'a>) -> Option<(&'a str, &'a str)>;
+}
+
 /// Visual Studio solution file (.sln) model
 #[derive(Debug, Clone, Default)]
 pub struct Sol<'a> {
