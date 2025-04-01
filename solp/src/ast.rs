@@ -34,15 +34,23 @@ impl<'a> Node<'a> {
         V: Visitor<'a>,
     {
         match self {
-            Node::Comment(_) => todo!(),
-            Node::Version(_, _) => todo!(),
+            Node::Comment(comment) => visitor.visit_comment(comment),
+            Node::Version(name, val) => visitor.visit_version(name, val),
             Node::FirstLine(ver) => visitor.visit_first_line(*ver),
-            Node::Global(nodes) => todo!(),
-            Node::Project(node, nodes) => todo!(),
-            Node::ProjectBegin(_, _, _, _) => todo!(),
-            Node::Section(node, nodes) => todo!(),
-            Node::SectionBegin(_, _) => todo!(),
-            Node::SectionContent(_, _) => todo!(),
+            Node::Global(sections) => visitor.visit_global(sections),
+            Node::Project(head, sections) => visitor.visit_project(head, sections),
+            Node::ProjectBegin(project_type, name, path_or_uri, id) => {
+                visitor.visit_project_begin(project_type, name, path_or_uri, id);
+            }
+            Node::Section(begin, content) => {
+                visitor.visit_section(begin, content);
+            }
+            Node::SectionBegin(name, _) => {
+                visitor.visit_section_begin(name);
+            }
+            Node::SectionContent(key, value) => {
+                visitor.visit_section_content(*key, *value);
+            }
             Node::Solution(node, nodes) => visitor.visit_solution(node, nodes),
         }
     }
@@ -51,14 +59,24 @@ impl<'a> Node<'a> {
 pub trait Visitor<'a> {
     fn visit_solution(&'a mut self, first_line: &'a Node<'a>, lines: &'a Vec<Node<'a>>);
     fn visit_first_line(&'a mut self, ver: &'a str);
-    fn visit_project(&mut self, node: &Node<'a>);
-    fn visit_version(&mut self, node: &Node<'a>);
-    fn visit_global(&mut self, node: &Node<'a>);
-    fn visit_comment(&mut self, node: &Node<'a>);
-    fn visit_project_begin(&mut self, node: &Node<'a>) -> Option<Prj<'a>>;
-    fn visit_section(&mut self, node: &Node<'a>) -> Option<(&'a str, Vec<(&'a str, &'a str)>)>;
-    fn visit_section_begin(&mut self, node: &Node<'a>) -> Option<&'a str>;
-    fn visit_section_content(&mut self, node: &Node<'a>) -> Option<(&'a str, &'a str)>;
+    fn visit_project(&'a mut self, head: &'a Node<'a>, sections: &'a Vec<Node<'a>>);
+    fn visit_version(&mut self, name: &'a str, val: &'a str);
+    fn visit_global(&mut self, sections: &'a Vec<Node<'a>>);
+    fn visit_comment(&mut self, comment: &'a str);
+    fn visit_project_begin(
+        &mut self,
+        project_type: &'a str,
+        name: &'a str,
+        path_or_uri: &'a str,
+        id: &'a str,
+    ) -> Prj<'a>;
+    fn visit_section(
+        &mut self,
+        begin: &'a Node<'a>,
+        content: &'a Vec<Node<'a>>,
+    ) -> (&'a str, Vec<(&'a str, &'a str)>);
+    fn visit_section_begin(&mut self, name: &'a str) -> &'a str;
+    fn visit_section_content(&mut self, key: &'a str, value: &'a str) -> (&'a str, &'a str);
 }
 
 /// Visual Studio solution file (.sln) model

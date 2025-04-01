@@ -176,144 +176,126 @@ impl<'a> Visitor<'a> for AstVisitor<'a> {
         self.solution.format = ver;
     }
 
-    fn visit_project(&mut self, node: &Node<'a>) {
-        if let Node::Project(head, sections) = node {
-            if let Some(mut p) = self.visit_project_begin(head) {
-                let all_sections: HashMap<&str, Vec<(&str, &str)>> = sections
-                    .iter()
-                    .filter_map(|sect| self.visit_section(sect))
-                    .collect();
+    fn visit_project(&'a mut self, head: &'a Node<'a>, sections: &'a Vec<Node<'a>>) {
+        head.accept(self);
+        let all_sections: HashMap<&str, Vec<(&str, &str)>> = sections
+            .iter()
+            .filter_map(|sect| self.visit_section(sect))
+            .collect();
 
-                if let Some(items) = all_sections.get("ProjectDependencies") {
-                    let dependencies = items.iter().map(|(k, _v)| k);
-                    p.depends_from.extend(dependencies);
-                }
-                if let Some(items) = all_sections.get("SolutionItems") {
-                    let items = items.iter().map(|(k, _v)| k);
-                    p.items.extend(items);
-                }
-
-                self.solution.projects.push(p);
-            }
+        if let Some(items) = all_sections.get("ProjectDependencies") {
+            let dependencies = items.iter().map(|(k, _v)| k);
+            p.depends_from.extend(dependencies);
         }
+        if let Some(items) = all_sections.get("SolutionItems") {
+            let items = items.iter().map(|(k, _v)| k);
+            p.items.extend(items);
+        }
+
+        self.solution.projects.push(p);
     }
 
-    fn visit_version(&mut self, node: &Node<'a>) {
-        if let Node::Version(name, val) = node {
-            let version = Ver::from(name, val);
-            self.solution.versions.push(version);
-        }
+    fn visit_version(&mut self, name: &'a str, val: &'a str) {
+        let version = Ver::from(name, val);
+        self.solution.versions.push(version);
     }
 
-    fn visit_global(&mut self, node: &Node<'a>) {
-        if let Node::Global(sections) = node {
-            let all_sections: HashMap<&str, Vec<(&str, &str)>> = sections
+    fn visit_global(&mut self, sections: &'a Vec<Node<'a>>) {
+        let all_sections: HashMap<&str, Vec<(&str, &str)>> = sections
+            .iter()
+            .filter_map(|sect| self.visit_section(sect))
+            .collect();
+
+        if let Some(items) = all_sections.get("SolutionConfigurationPlatforms") {
+            let new_solution_configs = items
                 .iter()
-                .filter_map(|sect| self.visit_section(sect))
-                .collect();
+                .map(|(k, _v)| <&str as std::convert::Into<Conf>>::into(k));
+            self.solution.solution_configs.extend(new_solution_configs);
+        }
 
-            if let Some(items) = all_sections.get("SolutionConfigurationPlatforms") {
-                let new_solution_configs = items
-                    .iter()
-                    .map(|(k, _v)| <&str as std::convert::Into<Conf>>::into(k));
-                self.solution.solution_configs.extend(new_solution_configs);
-            }
+        if let Some(items) = all_sections.get("ProjectConfigurationPlatforms") {
+            let project_config_platform_grp = items
+                .iter()
+                .filter_map(|(k, v)| PrjConfAggregate::from_project_configuration_platform(k, v))
+                .chunk_by(|x| x.project_id);
 
-            if let Some(items) = all_sections.get("ProjectConfigurationPlatforms") {
-                let project_config_platform_grp = items
-                    .iter()
-                    .filter_map(|(k, v)| {
-                        PrjConfAggregate::from_project_configuration_platform(k, v)
-                    })
-                    .chunk_by(|x| x.project_id);
-
-                let project_configs_platforms =
-                    project_config_platform_grp
-                        .into_iter()
-                        .map(|(pid, project_configs)| {
-                            let c = project_configs.flat_map(|c| c.configs).collect();
-                            PrjConfAggregate::from_id_and_configs(pid, c)
-                        });
-                self.solution
-                    .project_configs
-                    .extend(project_configs_platforms);
-            }
-
-            if let Some(items) = all_sections.get("ProjectConfiguration") {
-                let project_configs = items
-                    .iter()
-                    .filter_map(|(k, v)| PrjConfAggregate::from_project_configuration(k, v))
-                    .chunk_by(|x| x.project_id)
+            let project_configs_platforms =
+                project_config_platform_grp
                     .into_iter()
                     .map(|(pid, project_configs)| {
                         let c = project_configs.flat_map(|c| c.configs).collect();
                         PrjConfAggregate::from_id_and_configs(pid, c)
-                    })
-                    .collect_vec();
-
-                if let Some(items) = all_sections.get("SolutionConfiguration") {
-                    let solution_configurations =
-                        items.iter().map(|(_k, v)| *v).collect::<HashSet<&str>>();
-                    let from_project_configurations = project_configs
-                        .iter()
-                        .flat_map(|pc| pc.configs.iter())
-                        .filter(|c| solution_configurations.contains(c.solution_config))
-                        .map(|c| Conf::new(c.solution_config, c.platform));
-
-                    self.solution
-                        .solution_configs
-                        .extend(from_project_configurations);
-                }
-
-                self.solution.project_configs.extend(project_configs);
-            }
+                    });
+            self.solution
+                .project_configs
+                .extend(project_configs_platforms);
         }
-    }
 
-    fn visit_comment(&mut self, node: &Node<'a>) {
-        if let Node::Comment(s) = node {
-            // Only comment text without sharp sign and spaces
-            let skip: &[_] = &['#', ' ', '\t'];
-            self.solution.product = s.trim_start_matches(skip);
-        }
-    }
-
-    fn visit_project_begin(&mut self, node: &Node<'a>) -> Option<Prj<'a>> {
-        if let Node::ProjectBegin(project_type, name, path_or_uri, id) = node {
-            let prj = Prj::from(project_type, name, path_or_uri, id);
-            Some(prj)
-        } else {
-            None
-        }
-    }
-
-    fn visit_section(&mut self, node: &Node<'a>) -> Option<(&'a str, Vec<(&'a str, &'a str)>)> {
-        if let Node::Section(begin, content) = node {
-            let name = self.visit_section_begin(begin)?;
-            let content: Vec<(&'a str, &'a str)> = content
+        if let Some(items) = all_sections.get("ProjectConfiguration") {
+            let project_configs = items
                 .iter()
-                .filter_map(|item| self.visit_section_content(item))
-                .collect();
-            Some((name, content))
-        } else {
-            None
+                .filter_map(|(k, v)| PrjConfAggregate::from_project_configuration(k, v))
+                .chunk_by(|x| x.project_id)
+                .into_iter()
+                .map(|(pid, project_configs)| {
+                    let c = project_configs.flat_map(|c| c.configs).collect();
+                    PrjConfAggregate::from_id_and_configs(pid, c)
+                })
+                .collect_vec();
+
+            if let Some(items) = all_sections.get("SolutionConfiguration") {
+                let solution_configurations =
+                    items.iter().map(|(_k, v)| *v).collect::<HashSet<&str>>();
+                let from_project_configurations = project_configs
+                    .iter()
+                    .flat_map(|pc| pc.configs.iter())
+                    .filter(|c| solution_configurations.contains(c.solution_config))
+                    .map(|c| Conf::new(c.solution_config, c.platform));
+
+                self.solution
+                    .solution_configs
+                    .extend(from_project_configurations);
+            }
+
+            self.solution.project_configs.extend(project_configs);
         }
     }
 
-    fn visit_section_begin(&mut self, node: &Node<'a>) -> Option<&'a str> {
-        if let Node::SectionBegin(name, _stage) = node {
-            Some(name)
-        } else {
-            None
-        }
+    fn visit_comment(&mut self, comment: &'a str) {
+        // Only comment text without sharp sign and spaces
+        let skip: &[_] = &['#', ' ', '\t'];
+        self.solution.product = comment.trim_start_matches(skip);
     }
 
-    fn visit_section_content(&mut self, node: &Node<'a>) -> Option<(&'a str, &'a str)> {
-        if let Node::SectionContent(key, value) = node {
-            Some((*key, *value))
-        } else {
-            None
-        }
+    fn visit_project_begin(
+        &mut self,
+        project_type: &'a str,
+        name: &'a str,
+        path_or_uri: &'a str,
+        id: &'a str,
+    ) -> Prj<'a> {
+        Prj::from(project_type, name, path_or_uri, id)
+    }
+
+    fn visit_section(
+        &mut self,
+        begin: &'a Node<'a>,
+        content: &'a Vec<Node<'a>>,
+    ) -> (&'a str, Vec<(&'a str, &'a str)>) {
+        let name = self.visit_section_begin(begin)?;
+        let content: Vec<(&'a str, &'a str)> = content
+            .iter()
+            .map(|item| self.visit_section_content(item))
+            .collect();
+        (name, content)
+    }
+
+    fn visit_section_begin(&mut self, name: &'a str) -> &'a str {
+        name
+    }
+
+    fn visit_section_content(&mut self, key: &'a str, value: &'a str) -> (&'a str, &'a str) {
+        (key, value)
     }
 }
 
