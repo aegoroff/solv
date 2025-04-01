@@ -51,14 +51,12 @@ pub fn calculate_percent(value: i32, total: i32) -> f64 {
 #[cfg(not(target_os = "windows"))]
 pub mod tests {
     use super::*;
-    use rstest::rstest;
+    use test_case::test_case;
 
-    #[rstest]
-    #[case("/base", "x", "/base/x")]
-    #[case("/base", r"x\y", "/base/x/y")]
-    #[case("/base", "x/y", "/base/x/y")]
-    #[trace]
-    fn make_path_tests(#[case] base: &str, #[case] path: &str, #[case] expected: &str) {
+    #[test_case("/base", "x", "/base/x")]
+    #[test_case("/base", r"x\y", "/base/x/y")]
+    #[test_case("/base", "x/y", "/base/x/y")]
+    fn make_path_tests(base: &str, path: &str, expected: &str) {
         // Arrange
         let d = Path::new(base);
 
@@ -69,15 +67,9 @@ pub mod tests {
         assert_eq!(actual.to_str().unwrap(), expected);
     }
 
-    #[rstest]
-    #[case("/base", "x", Some(PathBuf::from("/base/x")))]
-    #[case("/base", "http://localhost/a.csproj", None)]
-    #[trace]
-    fn try_make_local_path_tests(
-        #[case] base: &str,
-        #[case] path: &str,
-        #[case] expected: Option<PathBuf>,
-    ) {
+    #[test_case("/base", "x", Some(PathBuf::from("/base/x")))]
+    #[test_case("/base", "http://localhost/a.csproj", None)]
+    fn try_make_local_path_tests(base: &str, path: &str, expected: Option<PathBuf>) {
         // Arrange
         let d = Path::new(base);
 
@@ -88,14 +80,12 @@ pub mod tests {
         assert_eq!(actual, expected);
     }
 
-    #[rstest]
-    #[case(1, 100, 1.0)]
-    #[case(0, 100, 0.0)]
-    #[case(100, 100, 100.0)]
-    #[case(50, 100, 50.0)]
-    #[case(20, 100, 20.0)]
-    #[trace]
-    fn calculate_percent_tests(#[case] value: i32, #[case] total: i32, #[case] expected: f64) {
+    #[test_case(1, 100, 1.0)]
+    #[test_case(0, 100, 0.0)]
+    #[test_case(100, 100, 100.0)]
+    #[test_case(50, 100, 50.0)]
+    #[test_case(20, 100, 20.0)]
+    fn calculate_percent_tests(value: i32, total: i32, expected: f64) {
         // Arrange
 
         // Act

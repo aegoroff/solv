@@ -52,9 +52,6 @@ mod parser;
 #[macro_use]
 extern crate lalrpop_util;
 
-#[cfg(test)] // <-- not needed in integration tests
-extern crate rstest;
-
 lalrpop_mod!(
     #[allow(clippy::all)]
     #[allow(unused)]
@@ -308,16 +305,14 @@ fn decorate_path(path: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rstest::rstest;
+    use test_case::test_case;
 
     #[cfg(not(target_os = "windows"))]
-    #[rstest]
-    #[case("", "")]
-    #[case("/", "/")]
-    #[case("/home", "/home")]
-    #[case("d:", "d:")]
-    #[trace]
-    fn decorate_path_tests(#[case] raw_path: &str, #[case] expected: &str) {
+    #[test_case("", "" ; "empty")]
+    #[test_case("/", "/")]
+    #[test_case("/home", "/home")]
+    #[test_case("d:", "d:")]
+    fn decorate_path_tests(raw_path: &str, expected: &str) {
         // Arrange
 
         // Act
@@ -328,13 +323,11 @@ mod tests {
     }
 
     #[cfg(target_os = "windows")]
-    #[rstest]
-    #[case("", "")]
-    #[case("/", "/")]
-    #[case("d:", "d:\\")]
-    #[case("dd:", "dd:")]
-    #[trace]
-    fn decorate_path_tests(#[case] raw_path: &str, #[case] expected: &str) {
+    #[test_case("", "" ; "empty")]
+    #[test_case("/", "/")]
+    #[test_case("d:", "d:\\")]
+    #[test_case("dd:", "dd:")]
+    fn decorate_path_tests(raw_path: &str, expected: &str) {
         // Arrange
 
         // Act
