@@ -15,12 +15,12 @@ workspace = ".."
 
 [dependencies]
 comfy-table = "=7.1.4"
-crossterm = "=0.28.1"
+crossterm = "=0.29.0"
 humantime = "=2.2.0"
-clap = { version = "=4.5.34", features = ["std", "color", "suggestions", "cargo"] }
+clap = { version = "=4.5.35", features = ["std", "color", "suggestions", "cargo"] }
 clap_complete = "=4.5.47"
 solp = { path = "../solp/", version = "0.18.0" }
-petgraph = "=0.7.1"
+petgraph = "=0.8.1"
 num-format = "=0.4.4"
 itertools = "=0.14.0"
 exitcode = "=1.1.2"
@@ -30,7 +30,7 @@ bugreport = "=0.5.1"
 miette = { version = "=7.5.0", features = ["fancy"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-mimalloc = "=0.1.44"
+mimalloc = "=0.1.46"
 
 [dev-dependencies]
 test-case = "=3.3.1"
