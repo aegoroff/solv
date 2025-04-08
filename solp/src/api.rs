@@ -154,7 +154,7 @@ impl<'a> Solution<'a> {
                                     crate::ast::ProjectConfigTag::Deploy => {
                                         pc.tags.push(Tag::Deploy);
                                     }
-                                };
+                                }
                                 pc
                             },
                         )
