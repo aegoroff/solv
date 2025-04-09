@@ -261,7 +261,7 @@ impl<'a, C: Consume> SolpWalker<'a, C> {
         let ext = self.extension.trim_start_matches('.');
 
         iter.into_iter()
-            .filter_map(std::result::Result::ok)
+            .filter_map(Result::ok)
             .filter(|f| f.file_type().is_file())
             .map(|f| f.path())
             .filter(|p| p.extension().is_some_and(|s| s == ext))
