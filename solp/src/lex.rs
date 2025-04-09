@@ -1,5 +1,19 @@
 use std::{fmt::Display, str::CharIndices};
 
+/// A [`Result`] alias representing a parsed token with source location information.
+///
+/// This is a convenience alias for [`miette::Result`] where:
+/// - On success: Returns a tuple `(start_location, parsed_token, end_location)`.
+/// - On failure: Returns a custom error type.
+///
+/// Commonly used in parsers/lexers to associate tokens with their source locations
+/// while propagating errors.
+///
+/// ### Type Parameters
+/// - `Tok`: The type of the parsed token (e.g., an AST node or terminal token).
+/// - `Loc`: The type representing source locations (e.g., byte offsets, line/column pairs).
+/// - `Error`: The error type returned when parsing fails.
+///
 pub type Spanned<Tok, Loc, Error> = miette::Result<(Loc, Tok, Loc), Error>;
 
 #[derive(Copy, Clone, Debug)]
