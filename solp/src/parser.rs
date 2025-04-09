@@ -235,7 +235,7 @@ impl<'a> Visitor<'a> for AstVisitor<'a> {
             if let Some(items) = all_sections.get("SolutionConfigurationPlatforms") {
                 let new_solution_configs = items
                     .iter()
-                    .map(|(k, _v)| <&str as std::convert::Into<Conf>>::into(k));
+                    .map(|(k, _v)| <&str as Into<Conf>>::into(k));
                 self.solution.solution_configs.extend(new_solution_configs);
             }
 
