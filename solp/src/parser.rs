@@ -151,11 +151,7 @@ pub fn parse_str(contents: &str) -> miette::Result<Sol> {
 }
 
 fn make_span(token: (usize, crate::lex::Tok<'_>, usize)) -> SourceSpan {
-    let len = if token.0 > token.2 {
-        0
-    } else {
-        token.2 - token.0
-    };
+    let len = token.2.saturating_sub(token.0);
     SourceSpan::new(token.0.into(), len)
 }
 
@@ -233,9 +229,8 @@ impl<'a> Visitor<'a> for AstVisitor<'a> {
                 .collect();
 
             if let Some(items) = all_sections.get("SolutionConfigurationPlatforms") {
-                let new_solution_configs = items
-                    .iter()
-                    .map(|(k, _v)| <&str as Into<Conf>>::into(k));
+                let new_solution_configs =
+                    items.iter().map(|(k, _v)| <&str as Into<Conf>>::into(k));
                 self.solution.solution_configs.extend(new_solution_configs);
             }
 

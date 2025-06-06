@@ -29,7 +29,7 @@ pub fn describe_project(id: &str) -> &str {
 #[derive(Debug, Deserialize)]
 pub struct Project {
     /// MSBuild SDK if applicable
-    #[serde(rename = "Sdk", default)]
+    #[serde(rename = "@Sdk", default)]
     pub sdk: Option<String>,
 
     /// MSBuild project item groups
@@ -55,7 +55,7 @@ pub struct ItemGroup {
     pub project_reference: Option<Vec<ProjectReference>>,
     #[serde(rename = "PackageReference", default)]
     pub package_reference: Option<Vec<PackageReference>>,
-    #[serde(rename = "Condition", default)]
+    #[serde(rename = "@Condition", default)]
     pub condition: Option<String>,
 }
 
@@ -74,7 +74,7 @@ pub struct ImportGroup {
 /// This structure contains the `Include` element, which specifies the path to the referenced project.
 #[derive(Debug, Deserialize)]
 pub struct ProjectReference {
-    #[serde(rename = "Include", default)]
+    #[serde(rename = "@Include", default)]
     pub include: String,
 }
 
@@ -83,9 +83,9 @@ pub struct ProjectReference {
 /// This structure contains the name and version of the referenced package.
 #[derive(Debug, Deserialize)]
 pub struct PackageReference {
-    #[serde(rename = "Include", default)]
+    #[serde(rename = "@Include", default)]
     pub name: String,
-    #[serde(rename = "Version", default)]
+    #[serde(rename = "@Version", default)]
     pub version: String,
 }
 
@@ -105,8 +105,9 @@ pub struct PackagesConfig {
 /// It contains information about the package, such as its name and version.
 #[derive(Debug, Deserialize)]
 pub struct Package {
-    #[serde(rename = "id", default)]
+    #[serde(rename = "@id", default)]
     pub name: String,
+    #[serde(rename = "@version", default)]
     pub version: String,
 }
 
@@ -121,13 +122,13 @@ pub struct Package {
 /// * `label`: An optional label for the import.
 #[derive(Debug, Deserialize)]
 pub struct Import {
-    #[serde(rename = "Project", default)]
+    #[serde(rename = "@Project", default)]
     pub project: String,
-    #[serde(rename = "Sdk", default)]
+    #[serde(rename = "@Sdk", default)]
     pub sdk: Option<String>,
-    #[serde(rename = "Condition", default)]
+    #[serde(rename = "@Condition", default)]
     pub condition: Option<String>,
-    #[serde(rename = "Label", default)]
+    #[serde(rename = "@Label", default)]
     pub label: Option<String>,
 }
 
@@ -248,8 +249,8 @@ impl Project {
     }
 
     pub fn from_reader<R: Read>(reader: R) -> miette::Result<Project> {
-        let mut de =
-            serde_xml_rs::Deserializer::new_from_reader(reader).non_contiguous_seq_elements(true);
+        let config = serde_xml_rs::SerdeXml::new().overlapping_sequences(true);
+        let mut de = serde_xml_rs::Deserializer::from_config(config, reader);
         let project: Project = Project::deserialize(&mut de)
             .into_diagnostic()
             .wrap_err("Failed to deserialize project file")?;
@@ -275,8 +276,8 @@ impl PackagesConfig {
     }
 
     pub fn from_reader<R: Read>(reader: R) -> miette::Result<PackagesConfig> {
-        let mut de =
-            serde_xml_rs::Deserializer::new_from_reader(reader).non_contiguous_seq_elements(true);
+        let config = serde_xml_rs::SerdeXml::new().overlapping_sequences(true);
+        let mut de = serde_xml_rs::Deserializer::from_config(config, reader);
         let config: PackagesConfig = PackagesConfig::deserialize(&mut de)
             .into_diagnostic()
             .wrap_err("Failed to deserialize packages.config")?;
@@ -314,6 +315,8 @@ mod tests {
         let p = Project::from_reader(rdr).unwrap();
 
         // Assert
+        assert!(p.sdk.is_some());
+        assert_eq!("Microsoft.NET.Sdk", p.sdk.unwrap());
         assert!(p.item_group.is_some());
         assert_eq!(1, p.item_group.as_ref().unwrap().len());
         assert_eq!(
@@ -323,6 +326,22 @@ mod tests {
                 .as_ref()
                 .unwrap()
                 .len()
+        );
+        assert_eq!(
+            "FluentAssertions",
+            p.item_group.as_ref().unwrap()[0]
+                .package_reference
+                .as_ref()
+                .unwrap()[0]
+                .name
+        );
+        assert_eq!(
+            "6.7.0",
+            p.item_group.as_ref().unwrap()[0]
+                .package_reference
+                .as_ref()
+                .unwrap()[0]
+                .version
         );
     }
 
