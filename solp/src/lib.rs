@@ -64,6 +64,7 @@ lalrpop_mod!(
     #[allow(clippy::uninlined_format_args)]
     #[allow(clippy::unused_self)]
     #[allow(clippy::needless_raw_string_hashes)]
+    #[allow(clippy::elidable_lifetime_names)]
     solp
 );
 
