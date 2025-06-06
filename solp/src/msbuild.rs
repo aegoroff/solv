@@ -287,14 +287,12 @@ impl PackagesConfig {
 
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
-
     use super::*;
 
     #[test]
     fn read_packages_config_from_reader_test() {
         // Arrange
-        let rdr = Cursor::new(PACKAGES_CONFIG);
+        let rdr = PACKAGES_CONFIG.as_bytes();
 
         // Act
         let p = PackagesConfig::from_reader(rdr).unwrap();
@@ -309,7 +307,7 @@ mod tests {
     #[test]
     fn read_project_from_reader_test() {
         // Arrange
-        let rdr = Cursor::new(REAL_SDK_PROJECT);
+        let rdr = REAL_SDK_PROJECT.as_bytes();
 
         // Act
         let p = Project::from_reader(rdr).unwrap();
@@ -348,7 +346,7 @@ mod tests {
     #[test]
     fn read_project_with_nugets_and_project_refs_test() {
         // Arrange
-        let rdr = Cursor::new(PROJECT_WITH_PKG_AND_REF);
+        let rdr = PROJECT_WITH_PKG_AND_REF.as_bytes();
 
         // Act
         let p = Project::from_reader(rdr).unwrap();
@@ -377,7 +375,7 @@ mod tests {
     #[test]
     fn read_project_real_vcxproj_test() {
         // Arrange
-        let rdr = Cursor::new(VCXPROJ);
+        let rdr = VCXPROJ.as_bytes();
 
         // Act
         let p = Project::from_reader(rdr).unwrap();
@@ -387,6 +385,10 @@ mod tests {
         assert!(p.imports.is_some());
         assert_eq!(2, p.item_group.as_ref().unwrap().len());
         assert_eq!(3, p.imports.as_ref().unwrap().len());
+        assert_eq!(
+            r#"$(VCTargetsPath)\Microsoft.Cpp.Default.props"#,
+            p.imports.as_ref().unwrap()[0].project
+        );
     }
 
     #[test]
