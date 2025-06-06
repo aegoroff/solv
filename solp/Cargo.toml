@@ -13,17 +13,17 @@ workspace = ".."
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [build-dependencies] # <-- We added this and everything after!
-lalrpop = "=0.22.1"
+lalrpop = "=0.22.2"
 
 [dependencies]
-lalrpop-util = "=0.22.1"
+lalrpop-util = "=0.22.2"
 jwalk = "=0.8.1"
 phf = { version = "=0.11.3", features = ["macros"] }
 itertools = "=0.14.0"
-num_cpus = "=1.16.0"
+num_cpus = "=1.17.0"
 nom = "=8.0.0"
 serde = { version = "=1.0.219", features = ["derive"] }
-serde-xml-rs = "=0.7.1"
+serde-xml-rs = "=0.8.1"
 miette = { version = "=7.6.0", features = ["fancy"] }
 
 [dev-dependencies]
