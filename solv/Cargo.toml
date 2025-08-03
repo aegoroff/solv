@@ -17,20 +17,20 @@ workspace = ".."
 comfy-table = "=7.1.4"
 crossterm = "=0.29.0"
 humantime = "=2.2.0"
-clap = { version = "=4.5.39", features = ["std", "color", "suggestions", "cargo"] }
-clap_complete = "=4.5.52"
+clap = { version = "=4.5.42", features = ["std", "color", "suggestions", "cargo"] }
+clap_complete = "=4.5.55"
 solp = { path = "../solp/", version = "0.18.0" }
 petgraph = "=0.8.2"
 num-format = "=0.4.4"
 itertools = "=0.14.0"
 exitcode = "=1.1.2"
 url = "=2.5.4"
-serde_json = "=1.0.140"
+serde_json = "=1.0.142"
 bugreport = "=0.5.1"
 miette = { version = "=7.6.0", features = ["fancy"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-mimalloc = "=0.1.46"
+mimalloc = "=0.1.47"
 
 [dev-dependencies]
 test-case = "=3.3.1"
