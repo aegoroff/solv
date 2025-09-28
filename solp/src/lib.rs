@@ -208,7 +208,7 @@ pub fn parse_file(path: &str, consumer: &mut dyn Consume) -> miette::Result<()> 
 ///
 /// This function uses the `parser::parse_str` function to perform the actual parsing and then
 /// constructs a [`Solution`] object from the parsed data.
-pub fn parse_str(contents: &str) -> miette::Result<Solution> {
+pub fn parse_str(contents: &'_ str) -> miette::Result<Solution<'_>> {
     let parsed = parser::parse_str(contents)?;
     Ok(Solution::from(&parsed))
 }

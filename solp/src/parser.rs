@@ -58,7 +58,7 @@ trait Visitor<'a> {
 /// This function does not explicitly panic. However, it may panic if the input
 /// string is malformed in a way that violates the assumptions of the parser
 /// or lexer.
-pub fn parse_str(contents: &str) -> miette::Result<Sol> {
+pub fn parse_str(contents: &'_ str) -> miette::Result<Sol<'_>> {
     if contents.len() < UTF8_BOM.len() {
         return Err(miette!("Content is too short or empty"));
     }
@@ -193,24 +193,24 @@ impl<'a> Visitor<'a> for AstVisitor<'a> {
     }
 
     fn visit_project(&mut self, node: &Node<'a>) {
-        if let Node::Project(head, sections) = node {
-            if let Some(mut p) = self.visit_project_begin(head) {
-                let all_sections: HashMap<&str, Vec<(&str, &str)>> = sections
-                    .iter()
-                    .filter_map(|sect| self.visit_section(sect))
-                    .collect();
+        if let Node::Project(head, sections) = node
+            && let Some(mut p) = self.visit_project_begin(head)
+        {
+            let all_sections: HashMap<&str, Vec<(&str, &str)>> = sections
+                .iter()
+                .filter_map(|sect| self.visit_section(sect))
+                .collect();
 
-                if let Some(items) = all_sections.get("ProjectDependencies") {
-                    let dependencies = items.iter().map(|(k, _v)| k);
-                    p.depends_from.extend(dependencies);
-                }
-                if let Some(items) = all_sections.get("SolutionItems") {
-                    let items = items.iter().map(|(k, _v)| k);
-                    p.items.extend(items);
-                }
-
-                self.solution.projects.push(p);
+            if let Some(items) = all_sections.get("ProjectDependencies") {
+                let dependencies = items.iter().map(|(k, _v)| k);
+                p.depends_from.extend(dependencies);
             }
+            if let Some(items) = all_sections.get("SolutionItems") {
+                let items = items.iter().map(|(k, _v)| k);
+                p.items.extend(items);
+            }
+
+            self.solution.projects.push(p);
         }
     }
 
