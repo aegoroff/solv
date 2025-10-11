@@ -14,23 +14,23 @@ workspace = ".."
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-comfy-table = "=7.1.4"
+comfy-table = "=7.2.1"
 crossterm = "=0.29.0"
-humantime = "=2.2.0"
-clap = { version = "=4.5.42", features = ["std", "color", "suggestions", "cargo"] }
-clap_complete = "=4.5.55"
+humantime = "=2.3.0"
+clap = { version = "=4.5.48", features = ["std", "color", "suggestions", "cargo"] }
+clap_complete = "=4.5.58"
 solp = { path = "../solp/", version = "0.18.0" }
-petgraph = "=0.8.2"
+petgraph = "=0.8.3"
 num-format = "=0.4.4"
 itertools = "=0.14.0"
 exitcode = "=1.1.2"
-url = "=2.5.4"
-serde_json = "=1.0.142"
+url = "=2.5.7"
+serde_json = "=1.0.145"
 bugreport = "=0.5.1"
 miette = { version = "=7.6.0", features = ["fancy"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-mimalloc = "=0.1.47"
+mimalloc = "=0.1.48"
 
 [dev-dependencies]
 test-case = "=3.3.1"

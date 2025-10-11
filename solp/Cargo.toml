@@ -18,17 +18,17 @@ lalrpop = "=0.22.2"
 [dependencies]
 lalrpop-util = "=0.22.2"
 jwalk = "=0.8.1"
-phf = { version = "=0.12.1", features = ["macros"] }
+phf = { version = "=0.13.1", features = ["macros"] }
 itertools = "=0.14.0"
 num_cpus = "=1.17.0"
 nom = "=8.0.0"
-serde = { version = "=1.0.219", features = ["derive"] }
+serde = { version = "=1.0.228", features = ["derive"] }
 serde-xml-rs = "=0.8.1"
 miette = { version = "=7.6.0", features = ["fancy"] }
 
 [dev-dependencies]
 test-case = "=3.3.1"
-proptest = "=1.7.0"
+proptest = "=1.8.0"
 
 [lints]
 workspace = true
