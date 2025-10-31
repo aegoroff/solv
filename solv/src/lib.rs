@@ -11,6 +11,17 @@ use solp::Consume;
 use std::path::{Path, PathBuf};
 use url::Url;
 
+/// Returns the parent directory of the given path.
+///
+/// If the path has no parent (e.g., it's a root or empty path), returns an empty path.
+///
+/// # Arguments
+///
+/// * `path` - A string slice that holds the path to get the parent of
+///
+/// # Returns
+///
+/// A reference to the parent path, or an empty path if there is no parent
 #[must_use]
 pub fn parent_of(path: &str) -> &Path {
     Path::new(path).parent().unwrap_or_else(|| Path::new(""))
