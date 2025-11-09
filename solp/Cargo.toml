@@ -28,7 +28,7 @@ miette = { version = "=7.6.0", features = ["fancy"] }
 
 [dev-dependencies]
 test-case = "=3.3.1"
-proptest = "=1.8.0"
+proptest = "=1.9.0"
 
 [lints]
 workspace = true
