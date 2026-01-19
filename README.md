@@ -3,7 +3,7 @@
 [![CI](https://github.com/aegoroff/solv/actions/workflows/ci.yml/badge.svg)](https://github.com/aegoroff/solv/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/aegoroff/solv/branch/master/graph/badge.svg?token=8BzaWjWe0x)](https://codecov.io/gh/aegoroff/solv)
 [![](https://tokei.rs/b1/github/aegoroff/solv?category=code)](https://github.com/XAMPPRocky/tokei)
-[![Minimum Stable Rust Version](https://img.shields.io/badge/Rust-1.88.0-blue?color=fc8d62&logo=rust)](https://blog.rust-lang.org/2025/02/20/Rust-1.88.0/)
+[![Minimum Stable Rust Version](https://img.shields.io/badge/Rust-1.88.0-blue?color=fc8d62&logo=rust)](https://blog.rust-lang.org/2025/06/26/Rust-1.88.0/)
 
 # solv
 Microsoft Visual Studio **SOL**ution **V**alidation console tool and parsing library written in Rust
