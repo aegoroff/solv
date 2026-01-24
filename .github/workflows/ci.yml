@@ -15,7 +15,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        build: [linux-x64, linux-aarch64, macos-x64, macos-arm64, windows]
         include:
           - build: linux-x64
             os: ubuntu-22.04
@@ -42,7 +41,7 @@ jobs:
       - name: Update rust
         if: matrix.build == 'linux-x64'
         run: rustup update
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
         with:
             components: clippy
