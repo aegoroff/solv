@@ -1,3 +1,5 @@
+#![allow(clippy::doc_markdown)]
+
 use miette::{IntoDiagnostic, WrapErr};
 use std::{fs::File, io::Read, path::Path};
 
