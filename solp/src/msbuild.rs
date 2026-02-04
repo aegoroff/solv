@@ -239,6 +239,7 @@ static PROJECT_TYPES: phf::Map<&'static str, &'static str> = phf::phf_map! {
     "{B69E3092-B931-443C-ABE7-7E7b65f2A37F}" => "Micro Framework",
     "{EC05E597-79D4-47F3-ADA0-324C4F7C7484}" => "SharePoint (VB.NET)",
     "{C7167F0D-BC9F-4E6E-AFE1-012C56B48DB5}" => "Windows Application Packaging Project (MSIX)",
+    "{B7DD6F7E-DEF8-4E67-B5B7-07EF123DB6F0}" => "Windows Installer XML Toolset (WiX)",
     "{D399B71A-8929-442A-A9AC-8BEC78BB2433}" => "XNA (Zune)",
 };
 
