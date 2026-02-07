@@ -346,21 +346,21 @@ impl<'a> Cycles<'a> {
 impl<'a> Validator for Cycles<'a> {
     fn validate(&mut self, statistic: &mut Statistic) {
         let mut graph = DiGraphMap::<&'a str, ()>::new();
-        for p in &self.solution.projects {
-            graph.add_node(p.id);
-            if let Some(depends_from) = &p.depends_from {
-                for d in depends_from {
-                    if !graph.contains_node(d) {
-                        graph.add_node(d);
+        for to in &self.solution.projects {
+            graph.add_node(to.id);
+            if let Some(depends_from) = &to.depends_from {
+                for from in depends_from {
+                    if !graph.contains_node(from) {
+                        graph.add_node(from);
                     }
-                    graph.add_edge(d, p.id, ());
+                    graph.add_edge(from, to.id, ());
                 }
             }
         }
 
         let mut space = DfsSpace::new(&graph);
         self.cycles_detected = petgraph::algo::toposort(&graph, Some(&mut space)).is_err();
-        if !self.validation_result() {
+        if self.cycles_detected {
             statistic.cycles += 1;
         }
     }
