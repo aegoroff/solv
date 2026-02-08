@@ -7,7 +7,8 @@ pub mod nuget;
 pub mod ux;
 pub mod validate;
 
-use solp::Consume;
+use solp::msbuild::{self};
+use solp::{Consume, api::Solution, msbuild::Project};
 use std::path::{Path, PathBuf};
 use url::Url;
 
@@ -56,6 +57,34 @@ pub fn calculate_percent(value: i32, total: i32) -> f64 {
     } else {
         (f64::from(value) / f64::from(total)) * 100_f64
     }
+}
+
+/// Represents a MSBuild project with a full path to the project file.
+pub struct MsbuildProject {
+    pub project: Option<msbuild::Project>,
+    pub path: PathBuf,
+}
+
+pub fn collect_msbuild_projects(solution: &Solution) -> Vec<MsbuildProject> {
+    let dir = parent_of(solution.path);
+
+    solution
+        .iterate_projects_without_web_sites()
+        .filter_map(|p| try_make_local_path(dir, p.path_or_uri))
+        .filter_map(|path| match Project::from_path(&path) {
+            Ok(project) => Some(MsbuildProject {
+                path,
+                project: Some(project),
+            }),
+            Err(e) => {
+                if cfg!(debug_assertions) {
+                    let p = path.to_str().unwrap_or_default();
+                    println!("{p}: {e:?}");
+                }
+                None
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]

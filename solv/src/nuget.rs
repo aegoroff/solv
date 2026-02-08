@@ -2,28 +2,19 @@ use std::{
     cell::RefCell,
     collections::{BTreeSet, HashMap},
     fmt::{self, Display},
-    path::PathBuf,
 };
 
 use comfy_table::{Attribute, Cell, Color};
 use crossterm::style::Stylize;
 use itertools::Itertools;
-use solp::{
-    api::Solution,
-    msbuild::{self, PackagesConfig, Project},
-};
+use solp::msbuild::PackagesConfig;
 
-use crate::{Consume, error::Collector, ux};
+use crate::{Consume, MsbuildProject, error::Collector, ux};
 
 pub struct Nuget {
     show_only_mismatched: bool,
     pub mismatches_found: bool,
     errors: RefCell<Collector>,
-}
-
-struct MsbuildProject {
-    pub project: Option<msbuild::Project>,
-    pub path: PathBuf,
 }
 
 impl Nuget {
@@ -37,28 +28,6 @@ impl Nuget {
     }
 }
 
-fn collect_msbuild_projects(solution: &Solution) -> Vec<MsbuildProject> {
-    let dir = crate::parent_of(solution.path);
-
-    solution
-        .iterate_projects_without_web_sites()
-        .filter_map(|p| crate::try_make_local_path(dir, p.path_or_uri))
-        .filter_map(|path| match Project::from_path(&path) {
-            Ok(project) => Some(MsbuildProject {
-                path,
-                project: Some(project),
-            }),
-            Err(e) => {
-                if cfg!(debug_assertions) {
-                    let p = path.to_str().unwrap_or_default();
-                    println!("{p}: {e:?}");
-                }
-                None
-            }
-        })
-        .collect()
-}
-
 fn has_mismatches(versions: &BTreeSet<(Option<&String>, &String)>) -> bool {
     versions
         .iter()
@@ -69,7 +38,7 @@ fn has_mismatches(versions: &BTreeSet<(Option<&String>, &String)>) -> bool {
 
 impl Consume for Nuget {
     fn ok(&mut self, solution: &solp::api::Solution) {
-        let projects = collect_msbuild_projects(solution);
+        let projects = crate::collect_msbuild_projects(solution);
 
         let mut nugets = nugets(&projects);
         let nugets_from_packages_config = nugets_from_packages_configs(&projects);
