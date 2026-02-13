@@ -13,10 +13,10 @@ workspace = ".."
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [build-dependencies] # <-- We added this and everything after!
-lalrpop = "=0.22.2"
+lalrpop = "=0.23.0"
 
 [dependencies]
-lalrpop-util = "=0.22.2"
+lalrpop-util = "=0.23.0"
 jwalk = "=0.8.1"
 phf = { version = "=0.13.1", features = ["macros"] }
 itertools = "=0.14.0"
@@ -28,7 +28,7 @@ miette = { version = "=7.6.0", features = ["fancy"] }
 
 [dev-dependencies]
 test-case = "=3.3.1"
-proptest = "=1.9.0"
+proptest = "=1.10.0"
 
 [lints]
 workspace = true
