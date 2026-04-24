@@ -504,9 +504,7 @@ impl<'a> Redundants<'a> {
                 let reachable_via_other = direct_preds
                     .iter()
                     .filter(|&&other| other != candidate)
-                    .any(|&other| {
-                        has_path_connecting(graph, candidate, other, Some(&mut space))
-                    });
+                    .any(|&other| has_path_connecting(graph, candidate, other, Some(&mut space)));
 
                 if reachable_via_other {
                     result.push(RedundantRef {
@@ -526,7 +524,7 @@ impl<'a> Redundants<'a> {
     }
 }
 
-impl<'a> Validator for Redundants<'a> {
+impl Validator for Redundants<'_> {
     fn validate(&mut self, statistic: &mut Statistic) {
         let graph = self.build_graph();
         self.redundants = Self::find_redundants(&graph);
@@ -574,7 +572,7 @@ impl<'a> Validator for Redundants<'a> {
 
 #[cfg(not(target_os = "windows"))]
 fn decorate_path(path: &str) -> String {
-    path.replace("\\", "/")
+    path.replace('\\', "/")
 }
 
 #[cfg(test)]

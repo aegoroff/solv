@@ -65,6 +65,7 @@ pub struct MsbuildProject {
     pub path: PathBuf,
 }
 
+#[must_use]
 pub fn collect_msbuild_projects(solution: &Solution) -> Vec<MsbuildProject> {
     let dir = parent_of(solution.path);
 
