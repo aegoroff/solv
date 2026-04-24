@@ -3,14 +3,16 @@ use crate::{Consume, calculate_percent, ux};
 use comfy_table::{Attribute, Cell};
 use crossterm::style::Stylize;
 use num_format::{Locale, ToFormattedString};
-use petgraph::algo::DfsSpace;
+use petgraph::Direction;
+use petgraph::algo::{DfsSpace, has_path_connecting};
+use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::prelude::DiGraphMap;
 use solp::api::{Solution, SolutionConfiguration};
 use std::cell::RefCell;
 use std::collections::{BTreeSet, HashMap};
 use std::fmt;
 use std::fmt::Display;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 trait Validator {
     /// does validation
@@ -35,6 +37,7 @@ struct Statistic {
     missings: u64,
     parsed: u64,
     not_parsed: u64,
+    redundant_refs: u64,
     total: u64,
 }
 
@@ -55,6 +58,8 @@ impl Display for Statistic {
         let missings_percent = calculate_percent(self.missings as i32, self.total as i32);
         let danglings_percent = calculate_percent(self.danglings as i32, self.total as i32);
         let not_found_percent = calculate_percent(self.not_found as i32, self.total as i32);
+        let redundant_refs_percent =
+            calculate_percent(self.redundant_refs as i32, self.total as i32);
         let parsed_percent = calculate_percent(self.parsed as i32, self.total as i32);
         let not_parsed_percent = calculate_percent(self.not_parsed as i32, self.total as i32);
         let total_percent = calculate_percent(self.total as i32, self.total as i32);
@@ -95,6 +100,13 @@ impl Display for Statistic {
         ]);
 
         table.add_row([
+            Cell::new("Contain redundant project references"),
+            Cell::new(self.redundant_refs.to_formatted_string(&Locale::en))
+                .add_attribute(Attribute::Italic),
+            Cell::new(format!("{redundant_refs_percent:.2}%")).add_attribute(Attribute::Italic),
+        ]);
+
+        table.add_row([
             Cell::new("Not parsed"),
             Cell::new(self.not_parsed.to_formatted_string(&Locale::en))
                 .add_attribute(Attribute::Italic),
@@ -125,11 +137,12 @@ impl Validate {
 
 impl Consume for Validate {
     fn ok(&mut self, solution: &Solution) {
-        let mut validators: [Box<dyn Validator>; 4] = [
+        let mut validators: [Box<dyn Validator>; 5] = [
             Box::new(Cycles::new(solution)),
             Box::new(Danglings::new(solution)),
             Box::new(NotFouund::new(solution)),
             Box::new(Missings::new(solution)),
+            Box::new(Redundants::new(solution)),
         ];
 
         let valid_solution = validators.iter_mut().fold(true, |mut res, validator| {
@@ -379,6 +392,191 @@ impl<'a> Validator for Cycles<'a> {
     }
 }
 
+/// A single redundant project reference detected in a project: `project`
+/// directly references `redundant_reference`, but the same reference is also
+/// reachable transitively through some other direct reference of `project`,
+/// so the direct reference can be safely removed.
+struct RedundantRef {
+    project: PathBuf,
+    redundant_reference: PathBuf,
+}
+
+struct Redundants<'a> {
+    solution: &'a Solution<'a>,
+    redundants: Vec<RedundantRef>,
+}
+
+impl<'a> Redundants<'a> {
+    pub fn new(solution: &'a Solution<'a>) -> Self {
+        Self {
+            solution,
+            redundants: Vec::new(),
+        }
+    }
+
+    /// Builds a directed graph where an edge `from -> to` means
+    /// project `to` directly references project `from`
+    /// (i.e., `to` depends on `from`).
+    fn build_graph(&self) -> DiGraph<PathBuf, ()> {
+        let projects = crate::collect_msbuild_projects(self.solution);
+        let mut graph = DiGraph::<PathBuf, ()>::new();
+        let mut nodes: HashMap<PathBuf, NodeIndex> = HashMap::new();
+
+        for prj in projects {
+            let to = Self::ensure_node(&mut graph, &mut nodes, &prj.path);
+
+            let Some(project) = prj.project else { continue };
+            let Some(item_groups) = project.item_group else {
+                continue;
+            };
+            let Some(parent) = prj.path.parent() else {
+                continue;
+            };
+
+            for ig in item_groups {
+                let Some(refs) = ig.project_reference else {
+                    continue;
+                };
+                for reference in refs {
+                    #[cfg(target_os = "windows")]
+                    let include = reference.include;
+                    #[cfg(not(target_os = "windows"))]
+                    let include = decorate_path(&reference.include);
+
+                    let joined = parent.join(include);
+                    let Ok(reference_path) = joined.canonicalize() else {
+                        continue;
+                    };
+
+                    let from = Self::ensure_node(&mut graph, &mut nodes, &reference_path);
+                    // do not create self-loops
+                    if from == to {
+                        continue;
+                    }
+                    if graph.find_edge(from, to).is_none() {
+                        graph.add_edge(from, to, ());
+                    }
+                }
+            }
+        }
+        graph
+    }
+
+    fn ensure_node(
+        graph: &mut DiGraph<PathBuf, ()>,
+        nodes: &mut HashMap<PathBuf, NodeIndex>,
+        path: &Path,
+    ) -> NodeIndex {
+        if let Some(ix) = nodes.get(path) {
+            *ix
+        } else {
+            let ix = graph.add_node(path.to_path_buf());
+            nodes.insert(path.to_path_buf(), ix);
+            ix
+        }
+    }
+
+    /// For each node N, looks at all its direct predecessors P (i.e., projects
+    /// directly referenced by N). An edge `p -> N` is considered redundant if
+    /// there exists another direct predecessor `p'` of N (with `p' != p`) such
+    /// that there is a path `p -> ... -> p'` in the graph. In that case, N
+    /// already receives a transitive dependency on `p` through `p'`, so the
+    /// direct reference `p -> N` is unnecessary.
+    fn find_redundants(graph: &DiGraph<PathBuf, ()>) -> Vec<RedundantRef> {
+        let mut result: Vec<RedundantRef> = Vec::new();
+        let mut space = DfsSpace::new(graph);
+
+        for node in graph.node_indices() {
+            let direct_preds: Vec<NodeIndex> = graph
+                .neighbors_directed(node, Direction::Incoming)
+                .collect();
+            if direct_preds.len() < 2 {
+                continue;
+            }
+
+            for &candidate in &direct_preds {
+                // `candidate -> node` is redundant when another direct
+                // predecessor `other` of `node` already depends (directly or
+                // transitively) on `candidate`, i.e., there is a path
+                // `candidate -> ... -> other`. In that case `node` will reach
+                // `candidate` transitively through `other` and the direct
+                // `candidate -> node` edge is unnecessary.
+                let reachable_via_other = direct_preds
+                    .iter()
+                    .filter(|&&other| other != candidate)
+                    .any(|&other| {
+                        has_path_connecting(graph, candidate, other, Some(&mut space))
+                    });
+
+                if reachable_via_other {
+                    result.push(RedundantRef {
+                        project: graph[node].clone(),
+                        redundant_reference: graph[candidate].clone(),
+                    });
+                }
+            }
+        }
+
+        result.sort_by(|a, b| {
+            a.project
+                .cmp(&b.project)
+                .then_with(|| a.redundant_reference.cmp(&b.redundant_reference))
+        });
+        result
+    }
+}
+
+impl<'a> Validator for Redundants<'a> {
+    fn validate(&mut self, statistic: &mut Statistic) {
+        let graph = self.build_graph();
+        self.redundants = Self::find_redundants(&graph);
+        if !self.validation_result() {
+            statistic.redundant_refs += 1;
+        }
+    }
+
+    fn validation_result(&self) -> bool {
+        self.redundants.is_empty()
+    }
+
+    fn print_results(&self) {
+        if self.redundants.is_empty() {
+            return;
+        }
+        println!(
+            "  {}",
+            "Solution contains redundant project references that can be replaced by transitive dependencies:"
+                .dark_yellow()
+                .bold()
+        );
+
+        // Group redundant references by owning project. The incoming
+        // `self.redundants` vector is already sorted by (project,
+        // redundant_reference), so a simple sequential grouping preserves
+        // that order.
+        let mut current_project: Option<&Path> = None;
+        for r in &self.redundants {
+            if current_project != Some(r.project.as_path()) {
+                if current_project.is_some() {
+                    println!();
+                }
+                println!(
+                    "   project {} has redundant references:",
+                    r.project.to_string_lossy().as_ref().dark_yellow()
+                );
+                current_project = Some(r.project.as_path());
+            }
+            println!("     {}", r.redundant_reference.to_string_lossy());
+        }
+        println!();
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn decorate_path(path: &str) -> String {
+    path.replace("\\", "/")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -529,6 +727,102 @@ mod tests {
         println!("{s}");
 
         // Assert
+    }
+
+    fn add_node(graph: &mut DiGraph<PathBuf, ()>, name: &str) -> NodeIndex {
+        graph.add_node(PathBuf::from(name))
+    }
+
+    #[test]
+    fn redundants_empty_graph_has_no_redundants() {
+        // Arrange
+        let graph = DiGraph::<PathBuf, ()>::new();
+
+        // Act
+        let redundants = Redundants::find_redundants(&graph);
+
+        // Assert
+        assert!(redundants.is_empty());
+    }
+
+    #[test]
+    fn redundants_single_dependency_has_no_redundants() {
+        // Arrange
+        let mut graph = DiGraph::<PathBuf, ()>::new();
+        let a = add_node(&mut graph, "a");
+        let b = add_node(&mut graph, "b");
+        graph.add_edge(a, b, ());
+
+        // Act
+        let redundants = Redundants::find_redundants(&graph);
+
+        // Assert
+        assert!(redundants.is_empty());
+    }
+
+    #[test]
+    fn redundants_simple_triangle_detects_redundant() {
+        // Arrange:
+        //   a -> b, a -> c, b -> c
+        // 'a' is a direct ref of 'c', but already reachable transitively
+        // through 'b' (a -> b -> c). So the direct edge a -> c is redundant.
+        let mut graph = DiGraph::<PathBuf, ()>::new();
+        let a = add_node(&mut graph, "a");
+        let b = add_node(&mut graph, "b");
+        let c = add_node(&mut graph, "c");
+        graph.add_edge(a, b, ());
+        graph.add_edge(a, c, ());
+        graph.add_edge(b, c, ());
+
+        // Act
+        let redundants = Redundants::find_redundants(&graph);
+
+        // Assert
+        assert_eq!(1, redundants.len());
+        assert_eq!(PathBuf::from("c"), redundants[0].project);
+        assert_eq!(PathBuf::from("a"), redundants[0].redundant_reference);
+    }
+
+    #[test]
+    fn redundants_independent_refs_are_not_redundant() {
+        // Arrange:
+        //   a -> c, b -> c (a and b are independent)
+        let mut graph = DiGraph::<PathBuf, ()>::new();
+        let a = add_node(&mut graph, "a");
+        let b = add_node(&mut graph, "b");
+        let c = add_node(&mut graph, "c");
+        graph.add_edge(a, c, ());
+        graph.add_edge(b, c, ());
+
+        // Act
+        let redundants = Redundants::find_redundants(&graph);
+
+        // Assert
+        assert!(redundants.is_empty());
+    }
+
+    #[test]
+    fn redundants_deep_chain() {
+        // Arrange:
+        //   a -> b -> c -> d, and a -> d (direct)
+        // 'a' is a direct ref of 'd', reachable transitively via 'c' (a -> b -> c -> d).
+        let mut graph = DiGraph::<PathBuf, ()>::new();
+        let a = add_node(&mut graph, "a");
+        let b = add_node(&mut graph, "b");
+        let c = add_node(&mut graph, "c");
+        let d = add_node(&mut graph, "d");
+        graph.add_edge(a, b, ());
+        graph.add_edge(b, c, ());
+        graph.add_edge(c, d, ());
+        graph.add_edge(a, d, ());
+
+        // Act
+        let redundants = Redundants::find_redundants(&graph);
+
+        // Assert
+        assert_eq!(1, redundants.len());
+        assert_eq!(PathBuf::from("d"), redundants[0].project);
+        assert_eq!(PathBuf::from("a"), redundants[0].redundant_reference);
     }
 
     const CORRECT_SOLUTION: &str = r#"
