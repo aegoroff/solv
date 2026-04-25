@@ -175,7 +175,7 @@ jobs:
           commit_message: "release: ${{ steps.get_version.outputs.VERSION }}"
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.get_version.outputs.VERSION }}
           body: "${{ needs.generate-changelog.outputs.release_body }}"
