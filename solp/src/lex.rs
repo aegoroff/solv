@@ -149,7 +149,7 @@ impl<'a> Lexer<'a> {
     }
 
     /// UUID parsing only inside string, i.e. chars between double quotes.
-    /// Guids in section keys parsed on Ast visiting stage using nom crate. See ast module for details
+    /// Guids in section keys are parsed on AST visiting stage using winnow-based helpers.
     fn guid(&mut self, i: usize) -> Spanned<Tok<'a>, usize, LexicalError> {
         while let Some((j, c)) = self.chars.peek() {
             match *c {
@@ -210,7 +210,7 @@ impl<'a> Lexer<'a> {
         Err(LexicalError::PrematureEndOfStream(i))
     }
 
-    /// REMARK: Guid inside section key will be parsed by nom crate on Ast visiting stage
+    /// REMARK: Guid inside section key is parsed on AST visiting stage.
     fn section_key(&mut self, i: usize) -> Spanned<Tok<'a>, usize, LexicalError> {
         let mut start = i;
 

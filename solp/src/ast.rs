@@ -1,17 +1,16 @@
 use crate::msbuild;
-use nom::{
-    IResult, Parser,
-    branch::alt,
-    bytes::complete::{is_not, tag, take_until},
-    character::complete::{self, char},
-    combinator::{self, recognize},
-    error::{Error, ParseError},
-    sequence::{self, pair},
+use winnow::{
+    ModalResult, Parser,
+    combinator::{alt, separated_pair, terminated},
+    error::{ContextError, ErrMode},
+    token::{literal, take_till, take_until},
 };
 
 const ACTIVE_CFG_TAG: &str = ".ActiveCfg";
 const BUILD_TAG: &str = ".Build.0";
 const DEPLOY_TAG: &str = ".Deploy.0";
+
+type IResult<'a, T> = Result<(&'a str, T), ErrMode<ContextError>>;
 
 /// Represents AST node type
 #[derive(Debug)]
@@ -112,7 +111,7 @@ impl<'a> Ver<'a> {
 
 impl<'a> From<&'a str> for Conf<'a> {
     fn from(s: &'a str) -> Self {
-        pipe_terminated::<Error<&str>>(s)
+        pipe_terminated.parse_peek(s)
             .map(|(platform, config)| Self { config, platform })
             .unwrap_or_default()
     }
@@ -156,69 +155,61 @@ impl<'a> PrjConfAggregate<'a> {
 
     #[must_use]
     pub fn from_project_configuration_platform(k: &'a str, v: &'a str) -> Option<Self> {
-        let r = PrjConfAggregate::parse_project_configuration_platform::<Error<&str>>(k, v);
+        let r = PrjConfAggregate::parse_project_configuration_platform(k, v);
         Self::new(r)
     }
 
     #[must_use]
     pub fn from_project_configuration(k: &'a str, v: &'a str) -> Option<Self> {
-        let r = PrjConfAggregate::parse_project_configuration::<Error<&str>>(k, v);
+        let r = PrjConfAggregate::parse_project_configuration(k, v);
         Self::new(r)
     }
 
-    fn new(r: IResult<&'a str, PrjConf<'a>, Error<&'a str>>) -> Option<Self> {
+    fn new(r: IResult<'a, PrjConf<'a>>) -> Option<Self> {
         r.ok().map(|(_, pc)| Self {
             project_id: pc.id,
             configs: vec![pc],
         })
     }
 
-    // Configuration, platform parsing made by using nom crate that implement parser combinators
+    // Configuration and platform parsing is implemented using parser primitives.
     // method. See more about idea https://en.wikipedia.org/wiki/Parser_combinator
 
-    fn parse_project_configuration_platform<'b, E>(
+    fn parse_project_configuration_platform<'b>(
         key: &'b str,
         value: &'b str,
-    ) -> IResult<&'b str, PrjConf<'b>, E>
-    where
-        E: ParseError<&'b str> + std::fmt::Debug,
-    {
-        let parser =
-            sequence::separated_pair(guid, char('.'), pair(pipe_terminated, tag_terminated));
-
+    ) -> IResult<'b, PrjConf<'b>> {
+        let mut parser = separated_pair(guid, '.', (pipe_terminated, tag_terminated));
+        let (rest, (project_id, (solution_config, platform))) = parser.parse_peek(key)?;
         let project_conf = Conf::from(value);
 
-        combinator::map(parser, |(project_id, (solution_config, platform))| {
+        Ok((
+            rest,
             PrjConf {
                 id: project_id,
                 solution_config,
                 project_config: project_conf.config,
                 platform,
                 tag: define_tag(key),
-            }
-        })
-        .parse(key)
+            },
+        ))
     }
 
-    fn parse_project_configuration<'b, E>(
-        key: &'b str,
-        value: &'b str,
-    ) -> IResult<&'b str, PrjConf<'b>, E>
-    where
-        E: ParseError<&'b str> + std::fmt::Debug,
-    {
-        let parser = sequence::separated_pair(guid, char('.'), tag_terminated);
-
+    fn parse_project_configuration<'b>(key: &'b str, value: &'b str) -> IResult<'b, PrjConf<'b>> {
+        let mut parser = separated_pair(guid, '.', tag_terminated);
+        let (rest, (project_id, solution_config)) = parser.parse_peek(key)?;
         let project_conf = Conf::from(value);
 
-        combinator::map(parser, |(project_id, solution_config)| PrjConf {
-            id: project_id,
-            solution_config,
-            project_config: project_conf.config,
-            platform: project_conf.platform,
-            tag: define_tag(key),
-        })
-        .parse(key)
+        Ok((
+            rest,
+            PrjConf {
+                id: project_id,
+                solution_config,
+                project_config: project_conf.config,
+                platform: project_conf.platform,
+                tag: define_tag(key),
+            },
+        ))
     }
 }
 
@@ -232,38 +223,33 @@ fn define_tag(key: &str) -> ProjectConfigTag {
     }
 }
 
-fn guid<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
-where
-    E: ParseError<&'a str> + std::fmt::Debug,
-{
-    recognize(sequence::delimited(
-        complete::char('{'),
-        is_not("{}"),
-        complete::char('}'),
-    ))
-    .parse(input)
+fn guid<'i>(input: &mut &'i str) -> ModalResult<&'i str> {
+    let start = *input;
+    literal('{').parse_next(input)?;
+    take_till(1.., ['{', '}']).parse_next(input)?;
+    literal('}').parse_next(input)?;
+    let consumed = start.len() - input.len();
+    Ok(&start[..consumed])
 }
 
-fn tag_terminated<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
-where
-    E: ParseError<&'a str> + std::fmt::Debug,
-{
-    sequence::terminated(
+fn tag_terminated<'i>(input: &mut &'i str) -> ModalResult<&'i str> {
+    terminated(
         alt((
-            take_until(ACTIVE_CFG_TAG),
-            take_until(BUILD_TAG),
-            take_until(DEPLOY_TAG),
+            take_until(0.., ACTIVE_CFG_TAG),
+            take_until(0.., BUILD_TAG),
+            take_until(0.., DEPLOY_TAG),
         )),
-        alt((tag(ACTIVE_CFG_TAG), tag(BUILD_TAG), tag(DEPLOY_TAG))),
+        alt((
+            literal(ACTIVE_CFG_TAG),
+            literal(BUILD_TAG),
+            literal(DEPLOY_TAG),
+        )),
     )
-    .parse(input)
+    .parse_next(input)
 }
 
-fn pipe_terminated<'a, E>(input: &'a str) -> IResult<&'a str, &'a str, E>
-where
-    E: ParseError<&'a str> + std::fmt::Debug,
-{
-    sequence::terminated(is_not("|"), char('|')).parse(input)
+fn pipe_terminated<'i>(input: &mut &'i str) -> ModalResult<&'i str> {
+    terminated(take_till(1.., '|'), literal('|')).parse_next(input)
 }
 
 #[cfg(test)]
@@ -361,7 +347,7 @@ mod tests {
         let s = "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.Build.0";
 
         // Act
-        let result = guid::<Error<&str>>(s);
+        let result = guid.parse_peek(s);
 
         // Assert
         assert_eq!(
@@ -379,7 +365,7 @@ mod tests {
         // Arrange
 
         // Act
-        let result = tag_terminated::<Error<&str>>(i);
+        let result = tag_terminated.parse_peek(i);
 
         // Assert
         assert_eq!(result, Ok(("", expected)));
@@ -397,7 +383,7 @@ mod tests {
         // Arrange
 
         // Act
-        let result = PrjConfAggregate::parse_project_configuration_platform::<Error<&str>>(k, v);
+        let result = PrjConfAggregate::parse_project_configuration_platform(k, v);
 
         // Assert
         assert_eq!(result, Ok(("", expected)));
@@ -408,7 +394,7 @@ mod tests {
         // Arrange
 
         // Act
-        let result = PrjConfAggregate::parse_project_configuration::<Error<&str>>(k, v);
+        let result = PrjConfAggregate::parse_project_configuration(k, v);
 
         // Assert
         assert_eq!(result, Ok(("", expected)));
