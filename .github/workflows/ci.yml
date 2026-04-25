@@ -46,7 +46,7 @@ jobs:
         with:
             components: clippy
       - name: Build
-        uses: houseabsolute/actions-rust-cross@v0
+        uses: houseabsolute/actions-rust-cross@v1
         with:
           command: "build"
           target: ${{ matrix.target }}
