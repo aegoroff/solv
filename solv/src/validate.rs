@@ -4,12 +4,12 @@ use comfy_table::{Attribute, Cell};
 use crossterm::style::Stylize;
 use num_format::{Locale, ToFormattedString};
 use petgraph::Direction;
-use petgraph::algo::{DfsSpace, has_path_connecting};
+use petgraph::algo::DfsSpace;
 use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::prelude::DiGraphMap;
 use solp::api::{Solution, SolutionConfiguration};
 use std::cell::RefCell;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fmt;
 use std::fmt::Display;
 use std::path::{Path, PathBuf};
@@ -423,7 +423,8 @@ impl<'a> Redundants<'a> {
         let mut nodes: HashMap<PathBuf, NodeIndex> = HashMap::new();
 
         for prj in projects {
-            let to = Self::ensure_node(&mut graph, &mut nodes, &prj.path);
+            let to_path = prj.path.canonicalize().unwrap_or_else(|_| prj.path.clone());
+            let to = Self::ensure_node(&mut graph, &mut nodes, &to_path);
 
             let Some(project) = prj.project else { continue };
             let Some(item_groups) = project.item_group else {
@@ -476,6 +477,46 @@ impl<'a> Redundants<'a> {
         }
     }
 
+    /// Returns true if `target` is reachable from `start` without visiting
+    /// `forbidden`. This is used to verify whether a direct reference
+    /// `start -> forbidden` is still implied transitively through another
+    /// predecessor of `forbidden` after effectively removing that edge.
+    fn has_path_avoiding_node(
+        graph: &DiGraph<PathBuf, ()>,
+        start: NodeIndex,
+        target: NodeIndex,
+        forbidden: NodeIndex,
+    ) -> bool {
+        if start == forbidden || target == forbidden {
+            return false;
+        }
+        if start == target {
+            return true;
+        }
+
+        let mut visited: HashSet<NodeIndex> = HashSet::new();
+        let mut stack: Vec<NodeIndex> = vec![start];
+
+        while let Some(current) = stack.pop() {
+            if !visited.insert(current) {
+                continue;
+            }
+            for next in graph.neighbors_directed(current, Direction::Outgoing) {
+                if next == forbidden {
+                    continue;
+                }
+                if next == target {
+                    return true;
+                }
+                if !visited.contains(&next) {
+                    stack.push(next);
+                }
+            }
+        }
+
+        false
+    }
+
     /// For each node N, looks at all its direct predecessors P (i.e., projects
     /// directly referenced by N). An edge `p -> N` is considered redundant if
     /// there exists another direct predecessor `p'` of N (with `p' != p`) such
@@ -484,7 +525,6 @@ impl<'a> Redundants<'a> {
     /// direct reference `p -> N` is unnecessary.
     fn find_redundants(graph: &DiGraph<PathBuf, ()>) -> Vec<RedundantRef> {
         let mut result: Vec<RedundantRef> = Vec::new();
-        let mut space = DfsSpace::new(graph);
 
         for node in graph.node_indices() {
             let direct_preds: Vec<NodeIndex> = graph
@@ -504,7 +544,7 @@ impl<'a> Redundants<'a> {
                 let reachable_via_other = direct_preds
                     .iter()
                     .filter(|&&other| other != candidate)
-                    .any(|&other| has_path_connecting(graph, candidate, other, Some(&mut space)));
+                    .any(|&other| Self::has_path_avoiding_node(graph, candidate, other, node));
 
                 if reachable_via_other {
                     result.push(RedundantRef {
@@ -578,6 +618,8 @@ fn decorate_path(path: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn integration_test_correct_solution() {
@@ -821,6 +863,140 @@ mod tests {
         assert_eq!(1, redundants.len());
         assert_eq!(PathBuf::from("d"), redundants[0].project);
         assert_eq!(PathBuf::from("a"), redundants[0].redundant_reference);
+    }
+
+    #[test]
+    fn redundants_path_via_target_node_is_not_redundant() {
+        // Arrange:
+        //   a -> n, b -> n, n -> b
+        // There is a path a -> b, but only through n. Removing a -> n breaks
+        // that path, so a -> n must not be considered redundant.
+        let mut graph = DiGraph::<PathBuf, ()>::new();
+        let a = add_node(&mut graph, "a");
+        let b = add_node(&mut graph, "b");
+        let n = add_node(&mut graph, "n");
+        graph.add_edge(a, n, ());
+        graph.add_edge(b, n, ());
+        graph.add_edge(n, b, ());
+
+        // Act
+        let redundants = Redundants::find_redundants(&graph);
+
+        // Assert
+        assert!(redundants.is_empty());
+    }
+
+    #[test]
+    fn redundants_normalize_real_paths_and_detect_redundancy() {
+        // Arrange
+        let uniq = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("solv-redundants-{uniq}"));
+        let a_dir = root.join("A");
+        let b_dir = root.join("B");
+        let app_dir = root.join("App");
+        let shared_dir = root.join("Shared");
+
+        fs::create_dir_all(&a_dir).unwrap();
+        fs::create_dir_all(&b_dir).unwrap();
+        fs::create_dir_all(&app_dir).unwrap();
+        fs::create_dir_all(&shared_dir).unwrap();
+
+        fs::write(
+            shared_dir.join("Shared.csproj"),
+            r#"<Project Sdk="Microsoft.NET.Sdk"></Project>"#,
+        )
+        .unwrap();
+
+        fs::write(
+            a_dir.join("A.csproj"),
+            r#"
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\Shared\Shared.csproj" />
+  </ItemGroup>
+</Project>
+"#,
+        )
+        .unwrap();
+
+        fs::write(
+            b_dir.join("B.csproj"),
+            r#"
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\Shared\Shared.csproj" />
+  </ItemGroup>
+</Project>
+"#,
+        )
+        .unwrap();
+
+        fs::write(
+            app_dir.join("App.csproj"),
+            r#"
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\A\A.csproj" />
+    <ProjectReference Include="..\Shared\Shared.csproj" />
+  </ItemGroup>
+</Project>
+"#,
+        )
+        .unwrap();
+
+        let sln = r#"
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+Project("{{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}}") = "App", "App/App.csproj", "{{A1111111-1111-1111-1111-111111111111}}"
+EndProject
+Project("{{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}}") = "A", "A/A.csproj", "{{A2222222-2222-2222-2222-222222222222}}"
+EndProject
+Project("{{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}}") = "B", "B/B.csproj", "{{A3333333-3333-3333-3333-333333333333}}"
+EndProject
+Project("{{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}}") = "Shared", "Shared/../Shared/Shared.csproj", "{{A4444444-4444-4444-4444-444444444444}}"
+EndProject
+Global
+    GlobalSection(SolutionConfigurationPlatforms) = preSolution
+        Debug|Any CPU = Debug|Any CPU
+    EndGlobalSection
+    GlobalSection(ProjectConfigurationPlatforms) = postSolution
+        {{A1111111-1111-1111-1111-111111111111}}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+        {{A2222222-2222-2222-2222-222222222222}}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+        {{A3333333-3333-3333-3333-333333333333}}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+        {{A4444444-4444-4444-4444-444444444444}}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+    EndGlobalSection
+EndGlobal
+"#;
+
+        let mut solution = solp::parse_str(sln).unwrap();
+        let sln_path = root.join("test.sln");
+        let leaked_path: &'static str =
+            Box::leak(sln_path.to_string_lossy().into_owned().into_boxed_str());
+        solution.path = leaked_path;
+
+        let mut validator = Redundants::new(&solution);
+
+        // Act
+        let graph = validator.build_graph();
+        validator.redundants = Redundants::find_redundants(&graph);
+
+        // Assert
+        assert_eq!(4, graph.node_count());
+
+        let app_path = app_dir.join("App.csproj").canonicalize().unwrap();
+        let shared_path = shared_dir.join("Shared.csproj").canonicalize().unwrap();
+        assert!(
+            validator
+                .redundants
+                .iter()
+                .any(|r| r.project == app_path && r.redundant_reference == shared_path)
+        );
+
+        // Cleanup
+        fs::remove_dir_all(&root).unwrap();
     }
 
     const CORRECT_SOLUTION: &str = r#"
