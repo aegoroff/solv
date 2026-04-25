@@ -102,6 +102,6 @@ jobs:
           args: -Dwarnings
       - name: Run audit
         if: matrix.build == 'linux-x64'
-        uses: actions-rs/audit-check@v1
+        uses: rustsec/audit-check@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
