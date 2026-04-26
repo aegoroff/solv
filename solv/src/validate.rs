@@ -439,7 +439,7 @@ impl<'a> Redundants<'a> {
                     continue;
                 };
                 for reference in refs {
-                    let include = reference.include.to_owned();
+                    let include = reference.include.clone();
                     #[cfg(target_os = "windows")]
                     let normalized_include = include.as_str();
                     #[cfg(not(target_os = "windows"))]
@@ -548,8 +548,7 @@ impl<'a> Redundants<'a> {
                     .any(|&other| Self::has_path_avoiding_node(graph, candidate, other, node));
 
                 if reachable_via_other {
-                    let edge = graph.find_edge(candidate, node);
-                    let Some(edge) = edge else {
+                    let Some(edge) = graph.find_edge(candidate, node) else {
                         continue;
                     };
                     result.push(RedundantRef {
