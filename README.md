@@ -108,16 +108,17 @@ solv <SUBCOMMAND> [OPTIONS] [PATH]
 
 Available subcommands:
 
-| Subcommand   | Alias | Description                                                                       |
-| ------------ | ----- | --------------------------------------------------------------------------------- |
-| `validate`   | `va`  | Validates solutions within a directory or a single file                           |
-| `info`       | `i`   | Show information about found solutions (projects, configurations, versions, ...) |
-| `nuget`      | `nu`  | Show NuGet packages used in solutions and detect version mismatches               |
-| `json`       | `j`   | Convert solution(s) into JSON                                                     |
-| `completion` |       | Generate the autocompletion script for the specified shell                        |
-| `bugreport`  |       | Collect information about the system and environment for bug reports              |
+| Subcommand      | Alias | Description                                                                       |
+| --------------- | ----- | --------------------------------------------------------------------------------- |
+| `validate`      | `va`  | Validates solutions within a directory or a single file                           |
+| `validate fix`  |       | Fix redundant project references in project files                                 |
+| `info`          | `i`   | Show information about found solutions (projects, configurations, versions, ...) |
+| `nuget`         | `nu`  | Show NuGet packages used in solutions and detect version mismatches               |
+| `json`          | `j`   | Convert solution(s) into JSON                                                     |
+| `completion`    |       | Generate the autocompletion script for the specified shell                        |
+| `bugreport`     |       | Collect information about the system and environment for bug reports              |
 
-Common options accepted by `validate`, `info`, `nuget` and `json`:
+Common options accepted by `validate`, `validate fix`, `info`, `nuget` and `json`:
 
 | Option                    | Description                                                                |
 | ------------------------- | -------------------------------------------------------------------------- |
@@ -154,6 +155,12 @@ Find NuGet package version mismatches and fail (non-zero exit code) if any are f
 
 ```sh
 solv nuget -r -m -f path/to/sources
+```
+
+Fix redundant project references recursively in a directory:
+
+```sh
+solv validate fix -r path/to/sources
 ```
 
 Convert a solution to pretty-printed JSON:
