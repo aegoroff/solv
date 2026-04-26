@@ -12,6 +12,7 @@ use std::cell::RefCell;
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fmt;
 use std::fmt::Display;
+use std::fs;
 use std::path::{Path, PathBuf};
 
 trait Validator {
@@ -132,6 +133,173 @@ impl Validate {
             errors: RefCell::new(Collector::new()),
             statistic: RefCell::new(Statistic::default()),
         }
+    }
+}
+
+#[derive(Default)]
+struct FixStatistic {
+    parsed: u64,
+    fixed_solutions: u64,
+    fixed_projects: u64,
+    removed_refs: u64,
+    failed_projects: u64,
+    not_parsed: u64,
+    total: u64,
+}
+
+impl Display for FixStatistic {
+    #[allow(clippy::cast_possible_truncation)]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "{}", " Fix statistic:".dark_red().bold())?;
+
+        let mut table = ux::new_table();
+        table.set_header([
+            Cell::new("Category").add_attribute(Attribute::Bold),
+            Cell::new("# Solutions").add_attribute(Attribute::Bold),
+            Cell::new("%").add_attribute(Attribute::Bold),
+        ]);
+
+        let parsed_percent = calculate_percent(self.parsed as i32, self.total as i32);
+        let fixed_solutions_percent =
+            calculate_percent(self.fixed_solutions as i32, self.total as i32);
+        let fixed_percent = calculate_percent(self.fixed_projects as i32, self.total as i32);
+        let failed_percent = calculate_percent(self.failed_projects as i32, self.total as i32);
+        let not_parsed_percent = calculate_percent(self.not_parsed as i32, self.total as i32);
+        let total_percent = calculate_percent(self.total as i32, self.total as i32);
+
+        table.add_row([
+            Cell::new("Successfully parsed"),
+            Cell::new(self.parsed.to_formatted_string(&Locale::en))
+                .add_attribute(Attribute::Italic),
+            Cell::new(format!("{parsed_percent:.2}%")).add_attribute(Attribute::Italic),
+        ]);
+        table.add_row([
+            Cell::new("Solutions with applied fixes"),
+            Cell::new(self.fixed_solutions.to_formatted_string(&Locale::en))
+                .add_attribute(Attribute::Italic),
+            Cell::new(format!("{fixed_solutions_percent:.2}%")).add_attribute(Attribute::Italic),
+        ]);
+        table.add_row([
+            Cell::new("Updated project files"),
+            Cell::new(self.fixed_projects.to_formatted_string(&Locale::en))
+                .add_attribute(Attribute::Italic),
+            Cell::new(format!("{fixed_percent:.2}%")).add_attribute(Attribute::Italic),
+        ]);
+        table.add_row([
+            Cell::new("Failed to update project files"),
+            Cell::new(self.failed_projects.to_formatted_string(&Locale::en))
+                .add_attribute(Attribute::Italic),
+            Cell::new(format!("{failed_percent:.2}%")).add_attribute(Attribute::Italic),
+        ]);
+        table.add_row([
+            Cell::new("Not parsed"),
+            Cell::new(self.not_parsed.to_formatted_string(&Locale::en))
+                .add_attribute(Attribute::Italic),
+            Cell::new(format!("{not_parsed_percent:.2}%")).add_attribute(Attribute::Italic),
+        ]);
+        table.add_row(["", "", ""]);
+        table.add_row([
+            Cell::new("Total"),
+            Cell::new(self.total.to_formatted_string(&Locale::en)).add_attribute(Attribute::Italic),
+            Cell::new(format!("{total_percent:.2}%")).add_attribute(Attribute::Italic),
+        ]);
+
+        writeln!(f, "{table}")
+    }
+}
+
+pub struct ValidateFix {
+    errors: RefCell<Collector>,
+    statistic: RefCell<FixStatistic>,
+    failed: RefCell<Vec<(PathBuf, String)>>,
+}
+
+impl ValidateFix {
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            errors: RefCell::new(Collector::new()),
+            statistic: RefCell::new(FixStatistic::default()),
+            failed: RefCell::new(Vec::new()),
+        }
+    }
+}
+
+impl Default for ValidateFix {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Consume for ValidateFix {
+    fn ok(&mut self, solution: &Solution) {
+        self.statistic.borrow_mut().parsed += 1;
+
+        let mut detector = Redundants::new(solution);
+        let mut unused = Statistic::default();
+        detector.validate(&mut unused);
+
+        let mut refs_by_project: HashMap<PathBuf, HashSet<String>> = HashMap::new();
+        for redundant in detector.redundants {
+            refs_by_project
+                .entry(redundant.project)
+                .or_default()
+                .insert(normalize_include(&redundant.redundant_reference));
+        }
+
+        let mut solution_was_fixed = false;
+        for (project_path, refs) in refs_by_project {
+            match remove_redundant_reference_lines(&project_path, &refs) {
+                Ok(removed) => {
+                    if removed > 0 {
+                        let mut stat = self.statistic.borrow_mut();
+                        stat.fixed_projects += 1;
+                        stat.removed_refs += removed as u64;
+                        solution_was_fixed = true;
+                    }
+                }
+                Err(err) => {
+                    self.statistic.borrow_mut().failed_projects += 1;
+                    self.failed
+                        .borrow_mut()
+                        .push((project_path, err.to_string()));
+                }
+            }
+        }
+        if solution_was_fixed {
+            self.statistic.borrow_mut().fixed_solutions += 1;
+        }
+    }
+
+    fn err(&self, path: &str) {
+        self.errors.borrow_mut().add_path(path);
+    }
+}
+
+impl Display for ValidateFix {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut statistic = self.statistic.borrow_mut();
+        statistic.not_parsed = self.errors.borrow().count();
+        statistic.total = statistic.parsed + statistic.not_parsed;
+        write!(f, "{statistic}")?;
+
+        let failed = self.failed.borrow();
+        if !failed.is_empty() {
+            writeln!(f)?;
+            writeln!(
+                f,
+                " {}",
+                "Failed to update project files:".dark_red().bold()
+            )?;
+            for (path, error) in failed.iter() {
+                writeln!(f, "   {}: {}", path.to_string_lossy(), error)?;
+            }
+        }
+
+        if self.errors.borrow().count() > 0 {
+            write!(f, "{}", self.errors.borrow())?;
+        }
+        Ok(())
     }
 }
 
@@ -621,6 +789,110 @@ impl Validator for Redundants<'_> {
     }
 }
 
+fn remove_redundant_reference_lines(
+    path: &Path,
+    redundant_refs: &HashSet<String>,
+) -> std::io::Result<usize> {
+    if redundant_refs.is_empty() {
+        return Ok(0);
+    }
+
+    let input = fs::read(path)?;
+    let mut output = Vec::with_capacity(input.len());
+    let mut removed = 0usize;
+    let mut start = 0usize;
+
+    while start < input.len() {
+        let mut end = start;
+        while end < input.len() && input[end] != b'\n' {
+            end += 1;
+        }
+        if end < input.len() {
+            end += 1;
+        }
+
+        let line = &input[start..end];
+        if should_remove_reference_line(line, redundant_refs) {
+            removed += 1;
+        } else {
+            output.extend_from_slice(line);
+        }
+        start = end;
+    }
+
+    if removed > 0 {
+        fs::write(path, output)?;
+    }
+    Ok(removed)
+}
+
+fn should_remove_reference_line(line: &[u8], redundant_refs: &HashSet<String>) -> bool {
+    if !line
+        .windows("<ProjectReference".len())
+        .any(|w| w == b"<ProjectReference")
+    {
+        return false;
+    }
+
+    let Some(include) = extract_include_value(line) else {
+        return false;
+    };
+    redundant_refs.contains(&normalize_include(include))
+}
+
+fn extract_include_value(line: &[u8]) -> Option<&str> {
+    let mut index = 0usize;
+    while index + "Include".len() <= line.len() {
+        let rest = &line[index..];
+        if !rest.starts_with(b"Include") {
+            index += 1;
+            continue;
+        }
+        index += "Include".len();
+
+        while index < line.len() && line[index].is_ascii_whitespace() {
+            index += 1;
+        }
+        if index >= line.len() || line[index] != b'=' {
+            continue;
+        }
+        index += 1;
+
+        while index < line.len() && line[index].is_ascii_whitespace() {
+            index += 1;
+        }
+        if index >= line.len() {
+            return None;
+        }
+
+        let quote = line[index];
+        if quote != b'"' && quote != b'\'' {
+            continue;
+        }
+        index += 1;
+        let value_start = index;
+        while index < line.len() && line[index] != quote {
+            index += 1;
+        }
+        if index >= line.len() {
+            return None;
+        }
+        return std::str::from_utf8(&line[value_start..index]).ok();
+    }
+    None
+}
+
+fn normalize_include(include: &str) -> String {
+    #[cfg(target_os = "windows")]
+    {
+        include.to_owned()
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        decorate_path(include)
+    }
+}
+
 #[cfg(not(target_os = "windows"))]
 fn decorate_path(path: &str) -> String {
     path.replace('\\', "/")
@@ -1007,6 +1279,80 @@ EndGlobal
         );
 
         // Cleanup
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn remove_redundant_reference_lines_removes_only_target_line() {
+        // Arrange
+        let uniq = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("solv-fix-lines-{uniq}"));
+        fs::create_dir_all(&root).unwrap();
+        let project_path = root.join("App.csproj");
+        let original = concat!(
+            "<Project>\r\n",
+            "  <ItemGroup>\r\n",
+            "    <ProjectReference Include=\"..\\A\\A.csproj\" />\r\n",
+            "    <ProjectReference Include=\"..\\B\\B.csproj\" />\r\n",
+            "  </ItemGroup>\r\n",
+            "</Project>\r\n",
+        );
+        fs::write(&project_path, original).unwrap();
+        let mut refs = HashSet::new();
+        refs.insert(normalize_include("..\\A\\A.csproj"));
+
+        // Act
+        let removed = remove_redundant_reference_lines(&project_path, &refs).unwrap();
+        let updated = fs::read(&project_path).unwrap();
+
+        // Assert
+        assert_eq!(1, removed);
+        assert_eq!(
+            updated,
+            concat!(
+                "<Project>\r\n",
+                "  <ItemGroup>\r\n",
+                "    <ProjectReference Include=\"..\\B\\B.csproj\" />\r\n",
+                "  </ItemGroup>\r\n",
+                "</Project>\r\n",
+            )
+            .as_bytes()
+        );
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn remove_redundant_reference_lines_keeps_file_unchanged_without_match() {
+        // Arrange
+        let uniq = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("solv-fix-lines-noop-{uniq}"));
+        fs::create_dir_all(&root).unwrap();
+        let project_path = root.join("App.csproj");
+        let original = concat!(
+            "<Project>\n",
+            "  <ItemGroup>\n",
+            "    <ProjectReference Include=\"..\\B\\B.csproj\" />\n",
+            "  </ItemGroup>\n",
+            "</Project>\n",
+        );
+        fs::write(&project_path, original).unwrap();
+        let before = fs::read(&project_path).unwrap();
+        let mut refs = HashSet::new();
+        refs.insert(normalize_include("..\\A\\A.csproj"));
+
+        // Act
+        let removed = remove_redundant_reference_lines(&project_path, &refs).unwrap();
+        let after = fs::read(&project_path).unwrap();
+
+        // Assert
+        assert_eq!(0, removed);
+        assert_eq!(before, after);
         fs::remove_dir_all(&root).unwrap();
     }
 

@@ -10,7 +10,7 @@ use solp::{Consume, SolpWalker};
 use solv::info::Info;
 use solv::json::Json;
 use solv::nuget::Nuget;
-use solv::validate::Validate;
+use solv::validate::{Validate, ValidateFix};
 use std::fmt::Display;
 use std::fs;
 use std::io::{BufReader, Read};
@@ -32,6 +32,7 @@ static GLOBAL: MiMalloc = MiMalloc;
 const PATH: &str = "PATH";
 
 const VALIDATE_CMD: &str = "validate";
+const FIX_CMD: &str = "fix";
 const INFO_CMD: &str = "info";
 const NUGET_CMD: &str = "nuget";
 const JSON_CMD: &str = "json";
@@ -76,6 +77,12 @@ fn main() -> miette::Result<()> {
 }
 
 fn validate(cmd: &ArgMatches) -> miette::Result<()> {
+    if let Some((FIX_CMD, fix_cmd)) = cmd.subcommand() {
+        let consumer = ValidateFix::new();
+        scan_path(fix_cmd, consumer)?;
+        return Ok(());
+    }
+
     let only_problems = cmd.get_flag(PROBLEMS_FLAG);
 
     let consumer = Validate::new(only_problems);
@@ -222,6 +229,8 @@ fn validate_cmd() -> Command {
     Command::new(VALIDATE_CMD)
         .aliases(["va"])
         .about("Validates solutions within directory or file specified")
+        .subcommand_negates_reqs(true)
+        .subcommand(validate_fix_cmd())
         .arg(extension_arg())
         .arg(
             Arg::new(PROBLEMS_FLAG)
@@ -231,6 +240,16 @@ fn validate_cmd() -> Command {
                 .action(ArgAction::SetTrue)
                 .help("Show only solutions with problems. Correct solutions will not be shown."),
         )
+        .arg(recursively_arg())
+        .arg(show_errors_on_dir_scan_arg())
+        .arg(time_arg())
+        .arg(path_arg().required(true))
+}
+
+fn validate_fix_cmd() -> Command {
+    Command::new(FIX_CMD)
+        .about("Fix redundant project references in project files")
+        .arg(extension_arg())
         .arg(recursively_arg())
         .arg(show_errors_on_dir_scan_arg())
         .arg(time_arg())
