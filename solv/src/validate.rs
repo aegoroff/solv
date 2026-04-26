@@ -588,23 +588,30 @@ impl Validator for Redundants<'_> {
                 .bold()
         );
 
-        // Group redundant references by owning project. The incoming
-        // `self.redundants` vector is already sorted by (project,
-        // redundant_reference), so a simple sequential grouping preserves
-        // that order.
+        // `self.redundants` is sorted by (project, redundant_reference), so a
+        // linear pass is enough to build stable project groups.
         let mut current_project: Option<&Path> = None;
+        let mut current_rows: Vec<String> = Vec::new();
         for r in &self.redundants {
             if current_project != Some(r.project.as_path()) {
-                if current_project.is_some() {
-                    println!();
+                if let Some(project) = current_project {
+                    ux::print_one_column_table(
+                        &project.to_string_lossy(),
+                        Some(comfy_table::Color::DarkBlue),
+                        current_rows.drain(..),
+                    );
                 }
-                println!(
-                    "   project {} has redundant references:",
-                    r.project.to_string_lossy().as_ref().dark_yellow()
-                );
                 current_project = Some(r.project.as_path());
             }
-            println!("     {}", r.redundant_reference.to_string_lossy());
+            current_rows.push(r.redundant_reference.to_string_lossy().into_owned());
+        }
+
+        if let Some(project) = current_project {
+            ux::print_one_column_table(
+                &project.to_string_lossy(),
+                Some(comfy_table::Color::DarkBlue),
+                current_rows.into_iter(),
+            );
         }
         println!();
     }
