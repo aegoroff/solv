@@ -244,7 +244,7 @@ impl Consume for ValidateFix {
             refs_by_project
                 .entry(redundant.project)
                 .or_default()
-                .insert(normalize_include(&redundant.redundant_reference));
+                .insert(redundant.redundant_reference.clone());
         }
 
         let mut solution_was_fixed = false;
@@ -837,7 +837,7 @@ fn should_remove_reference_line(line: &[u8], redundant_refs: &HashSet<String>) -
     let Some(include) = extract_include_value(line) else {
         return false;
     };
-    redundant_refs.contains(&normalize_include(include))
+    redundant_refs.contains(include)
 }
 
 fn extract_include_value(line: &[u8]) -> Option<&str> {
@@ -880,17 +880,6 @@ fn extract_include_value(line: &[u8]) -> Option<&str> {
         return std::str::from_utf8(&line[value_start..index]).ok();
     }
     None
-}
-
-fn normalize_include(include: &str) -> String {
-    #[cfg(target_os = "windows")]
-    {
-        include.to_owned()
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        decorate_path(include)
-    }
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -1302,7 +1291,7 @@ EndGlobal
         );
         fs::write(&project_path, original).unwrap();
         let mut refs = HashSet::new();
-        refs.insert(normalize_include("..\\A\\A.csproj"));
+        refs.insert("..\\A\\A.csproj".to_string());
 
         // Act
         let removed = remove_redundant_reference_lines(&project_path, &refs).unwrap();
@@ -1344,7 +1333,7 @@ EndGlobal
         fs::write(&project_path, original).unwrap();
         let before = fs::read(&project_path).unwrap();
         let mut refs = HashSet::new();
-        refs.insert(normalize_include("..\\A\\A.csproj"));
+        refs.insert("..\\A\\A.csproj".to_string());
 
         // Act
         let removed = remove_redundant_reference_lines(&project_path, &refs).unwrap();
