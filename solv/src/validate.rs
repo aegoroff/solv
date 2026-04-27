@@ -1370,6 +1370,118 @@ EndGlobal
         fs::remove_dir_all(&root).unwrap();
     }
 
+    #[test]
+    fn integration_test_validate_fix_removes_redundant_reference() {
+        // Arrange: create a realistic project structure with a redundant reference
+        // Graph: Shared -> A -> App
+        // App directly references both A and Shared, but Shared is reachable transitively
+        // through A, so App's direct reference to Shared is redundant.
+        let uniq = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("solv-validatefix-{uniq}"));
+        let shared_dir = root.join("Shared");
+        let a_dir = root.join("A");
+        let app_dir = root.join("App");
+
+        fs::create_dir_all(&shared_dir).unwrap();
+        fs::create_dir_all(&a_dir).unwrap();
+        fs::create_dir_all(&app_dir).unwrap();
+
+        // Shared project - no dependencies
+        fs::write(
+            shared_dir.join("Shared.csproj"),
+            r#"<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net6.0</TargetFramework></PropertyGroup></Project>"#,
+        )
+        .unwrap();
+
+        // A project - references Shared
+        fs::write(
+            a_dir.join("A.csproj"),
+            concat!(
+                "<Project Sdk=\"Microsoft.NET.Sdk\">\n",
+                "  <PropertyGroup><TargetFramework>net6.0</TargetFramework></PropertyGroup>\n",
+                "  <ItemGroup>\n",
+                "    <ProjectReference Include=\"..\\Shared\\Shared.csproj\" />\n",
+                "  </ItemGroup>\n",
+                "</Project>\n",
+            ),
+        )
+        .unwrap();
+
+        // App project - references both A and Shared (Shared is redundant)
+        let app_original = concat!(
+            "<Project Sdk=\"Microsoft.NET.Sdk\">\n",
+            "  <PropertyGroup><TargetFramework>net6.0</TargetFramework></PropertyGroup>\n",
+            "  <ItemGroup>\n",
+            "    <ProjectReference Include=\"..\\A\\A.csproj\" />\n",
+            "    <ProjectReference Include=\"..\\Shared\\Shared.csproj\" />\n",
+            "  </ItemGroup>\n",
+            "</Project>\n",
+        );
+        fs::write(app_dir.join("App.csproj"), app_original).unwrap();
+
+        // Solution file
+        let sln = r#"
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "App", "App/App.csproj", "{A1111111-1111-1111-1111-111111111111}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "A", "A/A.csproj", "{A2222222-2222-2222-2222-222222222222}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Shared", "Shared/Shared.csproj", "{A4444444-4444-4444-4444-444444444444}"
+EndProject
+Global
+    GlobalSection(SolutionConfigurationPlatforms) = preSolution
+        Debug|Any CPU = Debug|Any CPU
+    EndGlobalSection
+    GlobalSection(ProjectConfigurationPlatforms) = postSolution
+        {A1111111-1111-1111-1111-111111111111}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+        {A2222222-2222-2222-2222-222222222222}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+        {A4444444-4444-4444-4444-444444444444}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+    EndGlobalSection
+EndGlobal
+"#;
+
+        let mut solution = solp::parse_str(sln).unwrap();
+        let sln_path = root.join("test.sln");
+        let leaked_path: &'static str =
+            Box::leak(sln_path.to_string_lossy().into_owned().into_boxed_str());
+        solution.path = leaked_path;
+
+        // Act
+        let mut validator = ValidateFix::new();
+        validator.ok(&solution);
+
+        // Assert
+        // the redundant reference was removed from App.csproj
+        let app_updated = fs::read_to_string(app_dir.join("App.csproj")).unwrap();
+        assert!(
+            !app_updated.contains("Shared.csproj"),
+            "App.csproj should not contain reference to Shared.csproj after fix"
+        );
+        assert!(
+            app_updated.contains("A.csproj"),
+            "App.csproj should still contain reference to A.csproj"
+        );
+
+        // statistics
+        assert_eq!(
+            validator.statistic.borrow().fixed_projects,
+            1,
+            "Should be one fixed project"
+        );
+        assert_eq!(
+            validator.statistic.borrow().removed_refs,
+            1,
+            "Should be one removed ref"
+        );
+
+        // Cleanup
+        fs::remove_dir_all(&root).unwrap();
+    }
+
     const CORRECT_SOLUTION: &str = r#"
 Microsoft Visual Studio Solution File, Format Version 8.00
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "gtest", "gtest.vcproj", "{C8F6C172-56F2-4E76-B5FA-C3B423B31BE7}"
