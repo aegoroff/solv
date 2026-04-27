@@ -802,8 +802,10 @@ fn remove_redundant_reference_lines(
     }
 
     let input = fs::read(path)?;
-    let mut output = Vec::with_capacity(input.len());
+
+    // First pass: count lines to remove and compute exact output size
     let mut removed = 0usize;
+    let mut output_size = 0usize;
     let mut start = 0usize;
 
     while start < input.len() {
@@ -811,30 +813,45 @@ fn remove_redundant_reference_lines(
         while end < input.len() && input[end] != b'\n' {
             end += 1;
         }
-        if end < input.len() {
-            end += 1;
-        }
+        let line_end = if end < input.len() { end + 1 } else { end };
 
-        let line = &input[start..end];
-        if should_remove_reference_line(line, redundant_refs) {
+        if should_remove_reference_line(&input[start..line_end], redundant_refs) {
             removed += 1;
         } else {
-            output.extend_from_slice(line);
+            output_size += line_end - start;
         }
-        start = end;
+        start = line_end;
     }
 
+    // Only write if we actually removed something
     if removed > 0 {
+        // Second pass: build output with exact capacity
+        let mut output = Vec::with_capacity(output_size);
+        start = 0;
+
+        while start < input.len() {
+            let mut end = start;
+            while end < input.len() && input[end] != b'\n' {
+                end += 1;
+            }
+            let line_end = if end < input.len() { end + 1 } else { end };
+
+            if !should_remove_reference_line(&input[start..line_end], redundant_refs) {
+                output.extend_from_slice(&input[start..line_end]);
+            }
+            start = line_end;
+        }
+
         fs::write(path, output)?;
     }
+
     Ok(removed)
 }
 
 fn should_remove_reference_line(line: &[u8], redundant_refs: &HashSet<String>) -> bool {
-    if !line
-        .windows("<ProjectReference".len())
-        .any(|w| w == b"<ProjectReference")
-    {
+    // Quick check: skip lines that don't contain the tag at all
+    const TAG: &[u8] = b"<ProjectReference";
+    if !line.windows(TAG.len()).any(|w| w == TAG) {
         return false;
     }
 
@@ -845,43 +862,47 @@ fn should_remove_reference_line(line: &[u8], redundant_refs: &HashSet<String>) -
 }
 
 fn extract_include_value(line: &[u8]) -> Option<&str> {
-    let mut index = 0usize;
-    while index + "Include".len() <= line.len() {
-        let rest = &line[index..];
-        if !rest.starts_with(b"Include") {
-            index += 1;
-            continue;
-        }
-        index += "Include".len();
+    let len = line.len();
+    let include_bytes: &[u8] = b"Include";
+    let mut i = 0;
 
-        while index < line.len() && line[index].is_ascii_whitespace() {
-            index += 1;
-        }
-        if index >= line.len() || line[index] != b'=' {
-            continue;
-        }
-        index += 1;
+    // Find "Include" without creating intermediate slices
+    while i + include_bytes.len() <= len {
+        // Fast path: check first byte 'I' before full comparison
+        if line[i] == b'I' && &line[i..i + include_bytes.len()] == include_bytes {
+            i += include_bytes.len();
 
-        while index < line.len() && line[index].is_ascii_whitespace() {
-            index += 1;
-        }
-        if index >= line.len() {
-            return None;
-        }
+            // Skip whitespace after "Include"
+            while i < len && line[i].is_ascii_whitespace() {
+                i += 1;
+            }
+            // Must be followed by '='
+            if i < len && line[i] == b'=' {
+                i += 1;
 
-        let quote = line[index];
-        if quote != b'"' && quote != b'\'' {
-            continue;
+                // Skip whitespace after "="
+                while i < len && line[i].is_ascii_whitespace() {
+                    i += 1;
+                }
+                // Must be followed by a quote
+                if i < len {
+                    let quote = line[i];
+                    if quote == b'"' || quote == b'\'' {
+                        i += 1;
+                        let value_start = i;
+                        // Find closing quote
+                        while i < len && line[i] != quote {
+                            i += 1;
+                        }
+                        if i < len {
+                            return std::str::from_utf8(&line[value_start..i]).ok();
+                        }
+                    }
+                }
+            }
+            // Not a valid Include="..." pattern, continue searching
         }
-        index += 1;
-        let value_start = index;
-        while index < line.len() && line[index] != quote {
-            index += 1;
-        }
-        if index >= line.len() {
-            return None;
-        }
-        return std::str::from_utf8(&line[value_start..index]).ok();
+        i += 1;
     }
     None
 }
