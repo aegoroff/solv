@@ -81,3 +81,8 @@ Rust **1.88.0** or newer. Both crates use `edition = "2024"` and the workspace u
 - Public API of `solp::api` is re-exported and consumed by `solv`; breaking changes require coordinated updates in both crates.
 - `solv/src/main.rs` reads stdin only for subcommands that route through `scan_path_or_stdin` (`info`, `json`). `validate` and `nuget` require a path.
 - CI runs on Linux (x64/aarch64 musl), macOS (x64/arm64), and Windows (MSVC). Avoid platform-specific code outside of the existing `cfg(target_os = "linux")` mimalloc block.
+
+## Things to do
+- Create tests for a new functionality
+- Write tests in AAA pattern
+- If tests can be parameterized use `test-case` crate
