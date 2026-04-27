@@ -155,23 +155,27 @@ impl Display for FixStatistic {
         let mut table = ux::new_table();
         table.set_header([
             Cell::new("Category").add_attribute(Attribute::Bold),
-            Cell::new("# Solutions").add_attribute(Attribute::Bold),
+            Cell::new("#").add_attribute(Attribute::Bold),
             Cell::new("%").add_attribute(Attribute::Bold),
         ]);
 
         let parsed_percent = calculate_percent(self.parsed as i32, self.total as i32);
         let fixed_solutions_percent =
             calculate_percent(self.fixed_solutions as i32, self.total as i32);
-        let fixed_percent = calculate_percent(self.fixed_projects as i32, self.total as i32);
-        let failed_percent = calculate_percent(self.failed_projects as i32, self.total as i32);
         let not_parsed_percent = calculate_percent(self.not_parsed as i32, self.total as i32);
         let total_percent = calculate_percent(self.total as i32, self.total as i32);
 
         table.add_row([
-            Cell::new("Successfully parsed"),
+            Cell::new("Successfully parsed solutions"),
             Cell::new(self.parsed.to_formatted_string(&Locale::en))
                 .add_attribute(Attribute::Italic),
             Cell::new(format!("{parsed_percent:.2}%")).add_attribute(Attribute::Italic),
+        ]);
+        table.add_row([
+            Cell::new("Not parsed solutions"),
+            Cell::new(self.not_parsed.to_formatted_string(&Locale::en))
+                .add_attribute(Attribute::Italic),
+            Cell::new(format!("{not_parsed_percent:.2}%")).add_attribute(Attribute::Italic),
         ]);
         table.add_row([
             Cell::new("Solutions with applied fixes"),
@@ -183,23 +187,23 @@ impl Display for FixStatistic {
             Cell::new("Updated project files"),
             Cell::new(self.fixed_projects.to_formatted_string(&Locale::en))
                 .add_attribute(Attribute::Italic),
-            Cell::new(format!("{fixed_percent:.2}%")).add_attribute(Attribute::Italic),
+            Cell::new(String::new()).add_attribute(Attribute::Italic),
         ]);
         table.add_row([
             Cell::new("Failed to update project files"),
             Cell::new(self.failed_projects.to_formatted_string(&Locale::en))
                 .add_attribute(Attribute::Italic),
-            Cell::new(format!("{failed_percent:.2}%")).add_attribute(Attribute::Italic),
+            Cell::new(String::new()).add_attribute(Attribute::Italic),
         ]);
         table.add_row([
-            Cell::new("Not parsed"),
-            Cell::new(self.not_parsed.to_formatted_string(&Locale::en))
+            Cell::new("Redundant references removed"),
+            Cell::new(self.removed_refs.to_formatted_string(&Locale::en))
                 .add_attribute(Attribute::Italic),
-            Cell::new(format!("{not_parsed_percent:.2}%")).add_attribute(Attribute::Italic),
+            Cell::new(String::new()).add_attribute(Attribute::Italic),
         ]);
         table.add_row(["", "", ""]);
         table.add_row([
-            Cell::new("Total"),
+            Cell::new("Total solutions"),
             Cell::new(self.total.to_formatted_string(&Locale::en)).add_attribute(Attribute::Italic),
             Cell::new(format!("{total_percent:.2}%")).add_attribute(Attribute::Italic),
         ]);
