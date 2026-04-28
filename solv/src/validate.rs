@@ -966,13 +966,12 @@ fn find_redundant_reference_spans(
                 }
                 k += 1;
             }
-            match close_pos {
-                Some(p) => p,
-                None => {
-                    // Malformed: skip past this opening tag and continue.
-                    i = opening_tag_end;
-                    continue;
-                }
+            if let Some(p) = close_pos {
+                p
+            } else {
+                // Malformed: skip past this opening tag and continue.
+                i = opening_tag_end;
+                continue;
             }
         };
 
