@@ -802,63 +802,189 @@ fn remove_redundant_reference_lines(
     }
 
     let input = fs::read(path)?;
-
-    // First pass: count lines to remove and compute exact output size
-    let mut removed = 0usize;
-    let mut output_size = 0usize;
-    let mut start = 0usize;
-
-    while start < input.len() {
-        let mut end = start;
-        while end < input.len() && input[end] != b'\n' {
-            end += 1;
-        }
-        let line_end = if end < input.len() { end + 1 } else { end };
-
-        if should_remove_reference_line(&input[start..line_end], redundant_refs) {
-            removed += 1;
-        } else {
-            output_size += line_end - start;
-        }
-        start = line_end;
+    let spans = find_redundant_reference_spans(&input, redundant_refs);
+    if spans.is_empty() {
+        return Ok(0);
     }
 
-    // Only write if we actually removed something
-    if removed > 0 {
-        // Second pass: build output with exact capacity
-        let mut output = Vec::with_capacity(output_size);
-        start = 0;
-
-        while start < input.len() {
-            let mut end = start;
-            while end < input.len() && input[end] != b'\n' {
-                end += 1;
-            }
-            let line_end = if end < input.len() { end + 1 } else { end };
-
-            if !should_remove_reference_line(&input[start..line_end], redundant_refs) {
-                output.extend_from_slice(&input[start..line_end]);
-            }
-            start = line_end;
-        }
-
-        fs::write(path, output)?;
+    // Build output by removing each span. Also consume the leading whitespace
+    // before the tag start and the trailing newline after the tag end, when
+    // doing so would only drop whitespace-only content (so that whole lines
+    // occupied solely by a removed `<ProjectReference ... />` element vanish
+    // cleanly, including in the multi-line attribute case).
+    let mut effective_spans: Vec<(usize, usize)> = Vec::with_capacity(spans.len());
+    let mut output_size = input.len();
+    let mut prev_end = 0usize;
+    for (start, end) in &spans {
+        let extended_start = expand_start_over_line_whitespace(&input, *start, prev_end);
+        let extended_end = expand_end_over_line_whitespace(&input, *end);
+        output_size -= extended_end - extended_start;
+        effective_spans.push((extended_start, extended_end));
+        prev_end = extended_end;
     }
 
-    Ok(removed)
+    let mut output = Vec::with_capacity(output_size);
+    let mut cursor = 0usize;
+    for (start, end) in &effective_spans {
+        output.extend_from_slice(&input[cursor..*start]);
+        cursor = *end;
+    }
+    output.extend_from_slice(&input[cursor..]);
+
+    fs::write(path, &output)?;
+    Ok(spans.len())
 }
 
-fn should_remove_reference_line(line: &[u8], redundant_refs: &HashSet<String>) -> bool {
-    // Quick check: skip lines that don't contain the tag at all
-    const TAG: &[u8] = b"<ProjectReference";
-    if !line.windows(TAG.len()).any(|w| w == TAG) {
-        return false;
+/// Walks back from `start` while the preceding bytes on the same line are
+/// horizontal whitespace, so that a leading indentation in front of the
+/// `<ProjectReference ...>` element gets removed together with the element
+/// itself. The walk-back is bounded by `lower_bound` (typically the previous
+/// span's end) to avoid clobbering previously kept content.
+fn expand_start_over_line_whitespace(input: &[u8], mut start: usize, lower_bound: usize) -> usize {
+    while start > lower_bound {
+        let c = input[start - 1];
+        if c == b'\n' {
+            break;
+        }
+        if c == b' ' || c == b'\t' || c == b'\r' {
+            start -= 1;
+            continue;
+        }
+        // Non-whitespace content sits on the same line before the tag; we
+        // must keep that content, so do not extend the removed range.
+        return start;
     }
+    start
+}
 
-    let Some(include) = extract_include_value(line) else {
-        return false;
-    };
-    redundant_refs.contains(include)
+/// Walks forward from `end` while the trailing bytes on the same line are
+/// horizontal whitespace, and consumes a single line terminator if found, so
+/// that an empty line left behind by the removed element disappears too.
+fn expand_end_over_line_whitespace(input: &[u8], mut end: usize) -> usize {
+    let len = input.len();
+    let saved = end;
+    while end < len {
+        let c = input[end];
+        if c == b' ' || c == b'\t' || c == b'\r' {
+            end += 1;
+            continue;
+        }
+        if c == b'\n' {
+            return end + 1;
+        }
+        // Non-whitespace content sits on the same line after the tag; keep it.
+        return saved;
+    }
+    end
+}
+
+/// Scans the raw bytes of an MSBuild project file for `<ProjectReference ...>`
+/// elements (both self-closing and with an explicit `</ProjectReference>`
+/// closing tag, possibly spanning multiple lines as XML allows) whose
+/// `Include` attribute value is contained in `redundant_refs`. Returns the
+/// byte ranges `[start, end)` of every such element occurrence, in input
+/// order, where `start` is the position of `<` and `end` is one past the
+/// final `>` of the element.
+fn find_redundant_reference_spans(
+    input: &[u8],
+    redundant_refs: &HashSet<String>,
+) -> Vec<(usize, usize)> {
+    const TAG: &[u8] = b"<ProjectReference";
+    const CLOSE_TAG: &[u8] = b"</ProjectReference>";
+    let len = input.len();
+    let mut spans: Vec<(usize, usize)> = Vec::new();
+    let mut i = 0usize;
+
+    while i + TAG.len() <= len {
+        if &input[i..i + TAG.len()] != TAG {
+            i += 1;
+            continue;
+        }
+        // The tag name must be terminated by whitespace, '/', or '>' to avoid
+        // matching things like `<ProjectReferenceXxx`.
+        let after = input.get(i + TAG.len()).copied().unwrap_or(0);
+        if !(after.is_ascii_whitespace() || after == b'/' || after == b'>') {
+            i += 1;
+            continue;
+        }
+
+        // Find end of opening tag, accounting for quoted attribute values that
+        // may contain '>' characters.
+        let mut j = i + TAG.len();
+        let mut in_quote: Option<u8> = None;
+        let mut self_closing = false;
+        let mut found_close = false;
+        while j < len {
+            let c = input[j];
+            if let Some(q) = in_quote {
+                if c == q {
+                    in_quote = None;
+                }
+                j += 1;
+            } else if c == b'"' || c == b'\'' {
+                in_quote = Some(c);
+                j += 1;
+            } else if c == b'>' {
+                if j > 0 && input[j - 1] == b'/' {
+                    self_closing = true;
+                }
+                j += 1;
+                found_close = true;
+                break;
+            } else {
+                j += 1;
+            }
+        }
+        if !found_close {
+            // Malformed input — give up.
+            break;
+        }
+        let opening_tag_end = j; // one past '>'
+
+        // Slice of the attribute list (between `<ProjectReference` and the
+        // terminating `>` or `/>`).
+        let attrs_start = i + TAG.len();
+        let attrs_end = if self_closing {
+            opening_tag_end - 2
+        } else {
+            opening_tag_end - 1
+        };
+        let include = extract_include_value(&input[attrs_start..attrs_end]);
+
+        let span_end = if self_closing {
+            opening_tag_end
+        } else {
+            // Find matching `</ProjectReference>`. MSBuild project files do
+            // not nest `<ProjectReference>` inside another `<ProjectReference>`,
+            // so a plain forward scan is sufficient.
+            let mut k = opening_tag_end;
+            let mut close_pos = None;
+            while k + CLOSE_TAG.len() <= len {
+                if &input[k..k + CLOSE_TAG.len()] == CLOSE_TAG {
+                    close_pos = Some(k + CLOSE_TAG.len());
+                    break;
+                }
+                k += 1;
+            }
+            match close_pos {
+                Some(p) => p,
+                None => {
+                    // Malformed: skip past this opening tag and continue.
+                    i = opening_tag_end;
+                    continue;
+                }
+            }
+        };
+
+        if let Some(inc) = include
+            && redundant_refs.contains(inc)
+        {
+            spans.push((i, span_end));
+        }
+
+        i = span_end;
+    }
+    spans
 }
 
 fn extract_include_value(line: &[u8]) -> Option<&str> {
@@ -1310,6 +1436,95 @@ EndGlobal
             "<Project>\r\n",
             "  <ItemGroup>\r\n",
             "    <ProjectReference Include=\"..\\A\\A.csproj\" />\r\n",
+            "    <ProjectReference Include=\"..\\B\\B.csproj\" />\r\n",
+            "  </ItemGroup>\r\n",
+            "</Project>\r\n",
+        );
+        fs::write(&project_path, original).unwrap();
+        let mut refs = HashSet::new();
+        refs.insert("..\\A\\A.csproj".to_string());
+
+        // Act
+        let removed = remove_redundant_reference_lines(&project_path, &refs).unwrap();
+        let updated = fs::read(&project_path).unwrap();
+
+        // Assert
+        assert_eq!(1, removed);
+        assert_eq!(
+            updated,
+            concat!(
+                "<Project>\r\n",
+                "  <ItemGroup>\r\n",
+                "    <ProjectReference Include=\"..\\B\\B.csproj\" />\r\n",
+                "  </ItemGroup>\r\n",
+                "</Project>\r\n",
+            )
+            .as_bytes()
+        );
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn remove_redundant_reference_lines_removes_multiline_self_closing_tag() {
+        // Arrange: <ProjectReference> spans three physical lines.
+        let uniq = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("solv-fix-multiline-{uniq}"));
+        fs::create_dir_all(&root).unwrap();
+        let project_path = root.join("App.csproj");
+        let original = concat!(
+            "<Project>\n",
+            "  <ItemGroup>\n",
+            "    <ProjectReference\n",
+            "        Include=\"..\\A\\A.csproj\"\n",
+            "    />\n",
+            "    <ProjectReference Include=\"..\\B\\B.csproj\" />\n",
+            "  </ItemGroup>\n",
+            "</Project>\n",
+        );
+        fs::write(&project_path, original).unwrap();
+        let mut refs = HashSet::new();
+        refs.insert("..\\A\\A.csproj".to_string());
+
+        // Act
+        let removed = remove_redundant_reference_lines(&project_path, &refs).unwrap();
+        let updated = fs::read(&project_path).unwrap();
+
+        // Assert
+        assert_eq!(1, removed);
+        assert_eq!(
+            updated,
+            concat!(
+                "<Project>\n",
+                "  <ItemGroup>\n",
+                "    <ProjectReference Include=\"..\\B\\B.csproj\" />\n",
+                "  </ItemGroup>\n",
+                "</Project>\n",
+            )
+            .as_bytes()
+        );
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn remove_redundant_reference_lines_removes_multiline_with_explicit_close_tag() {
+        // Arrange: <ProjectReference ...> ... </ProjectReference> spans 4 lines.
+        let uniq = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("solv-fix-multiline-close-{uniq}"));
+        fs::create_dir_all(&root).unwrap();
+        let project_path = root.join("App.csproj");
+        let original = concat!(
+            "<Project>\r\n",
+            "  <ItemGroup>\r\n",
+            "    <ProjectReference\r\n",
+            "        Include=\"..\\A\\A.csproj\">\r\n",
+            "      <Private>true</Private>\r\n",
+            "    </ProjectReference>\r\n",
             "    <ProjectReference Include=\"..\\B\\B.csproj\" />\r\n",
             "  </ItemGroup>\r\n",
             "</Project>\r\n",
