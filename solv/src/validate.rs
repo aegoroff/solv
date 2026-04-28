@@ -807,29 +807,32 @@ fn remove_redundant_reference_lines(
         return Ok(0);
     }
 
-    // Build output by removing each span. Also consume the leading whitespace
-    // before the tag start and the trailing newline after the tag end, when
-    // doing so would only drop whitespace-only content (so that whole lines
-    // occupied solely by a removed `<ProjectReference ... />` element vanish
-    // cleanly, including in the multi-line attribute case).
+    // Build effective spans and compute output size in a single pass.
+    // Each effective span extends the original span to also remove surrounding
+    // whitespace/newlines that would otherwise leave blank lines.
     let mut effective_spans: Vec<(usize, usize)> = Vec::with_capacity(spans.len());
     let mut output_size = input.len();
     let mut prev_end = 0usize;
     for (start, end) in &spans {
         let extended_start = expand_start_over_line_whitespace(&input, *start, prev_end);
         let extended_end = expand_end_over_line_whitespace(&input, *end);
-        output_size -= extended_end - extended_start;
+        output_size -= extended_end.saturating_sub(extended_start);
         effective_spans.push((extended_start, extended_end));
         prev_end = extended_end;
     }
 
+    // Build output by copying kept regions.
     let mut output = Vec::with_capacity(output_size);
     let mut cursor = 0usize;
     for (start, end) in &effective_spans {
-        output.extend_from_slice(&input[cursor..*start]);
+        if cursor < *start {
+            output.extend_from_slice(&input[cursor..*start]);
+        }
         cursor = *end;
     }
-    output.extend_from_slice(&input[cursor..]);
+    if cursor < input.len() {
+        output.extend_from_slice(&input[cursor..]);
+    }
 
     fs::write(path, &output)?;
     Ok(spans.len())
@@ -890,27 +893,48 @@ fn find_redundant_reference_spans(
     redundant_refs: &HashSet<String>,
 ) -> Vec<(usize, usize)> {
     const TAG: &[u8] = b"<ProjectReference";
+    const TAG_FIRST: u8 = TAG[0]; // '<'
+    const TAG_NEXT: u8 = TAG[1]; // 'P'
+    const TAG_LEN: usize = TAG.len();
     const CLOSE_TAG: &[u8] = b"</ProjectReference>";
+    const CLOSE_TAG_LEN: usize = CLOSE_TAG.len();
     let len = input.len();
-    let mut spans: Vec<(usize, usize)> = Vec::new();
+    let mut spans: Vec<(usize, usize)> = Vec::with_capacity(4);
     let mut i = 0usize;
 
-    while i + TAG.len() <= len {
-        if &input[i..i + TAG.len()] != TAG {
+    while i + TAG_LEN <= len {
+        // Fast path: check first two bytes before doing a full slice comparison.
+        // This eliminates ~99% of positions without allocating any slice.
+        if input[i] != TAG_FIRST || input.get(i + 1) != Some(&TAG_NEXT) {
             i += 1;
             continue;
         }
+        // Quick check: the character after `<ProjectReference` must NOT be
+        // alphanumeric or underscore (to reject `<ProjectReferenceCore>`, etc.).
+        let after = input.get(i + TAG_LEN).copied().unwrap_or(0);
+        if after.is_ascii_alphanumeric() || after == b'_' {
+            i += 1;
+            continue;
+        }
+        // Full slice comparison for the remaining candidates.
+        if &input[i..i + TAG_LEN] != TAG {
+            i += 1;
+            continue;
+        }
+
         // The tag name must be terminated by whitespace, '/', or '>' to avoid
         // matching things like `<ProjectReferenceXxx`.
-        let after = input.get(i + TAG.len()).copied().unwrap_or(0);
-        if !(after.is_ascii_whitespace() || after == b'/' || after == b'>') {
+        let after = input.get(i + TAG_LEN).copied().unwrap_or(0);
+        if !(after == b' ' || after == b'\t' || after == b'\n' || after == b'\r'
+            || after == b'/' || after == b'>')
+        {
             i += 1;
             continue;
         }
 
         // Find end of opening tag, accounting for quoted attribute values that
         // may contain '>' characters.
-        let mut j = i + TAG.len();
+        let mut j = i + TAG_LEN;
         let mut in_quote: Option<u8> = None;
         let mut self_closing = false;
         let mut found_close = false;
@@ -943,7 +967,7 @@ fn find_redundant_reference_spans(
 
         // Slice of the attribute list (between `<ProjectReference` and the
         // terminating `>` or `/>`).
-        let attrs_start = i + TAG.len();
+        let attrs_start = i + TAG_LEN;
         let attrs_end = if self_closing {
             opening_tag_end - 2
         } else {
@@ -959,9 +983,12 @@ fn find_redundant_reference_spans(
             // so a plain forward scan is sufficient.
             let mut k = opening_tag_end;
             let mut close_pos = None;
-            while k + CLOSE_TAG.len() <= len {
-                if &input[k..k + CLOSE_TAG.len()] == CLOSE_TAG {
-                    close_pos = Some(k + CLOSE_TAG.len());
+            while k + CLOSE_TAG_LEN <= len {
+                // Fast path: check first byte '<' and last byte '>' before full comparison.
+                if input[k] == b'<' && input[k + CLOSE_TAG_LEN - 1] == b'>'
+                    && &input[k..k + CLOSE_TAG_LEN] == CLOSE_TAG
+                {
+                    close_pos = Some(k + CLOSE_TAG_LEN);
                     break;
                 }
                 k += 1;
