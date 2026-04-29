@@ -1517,7 +1517,7 @@ EndGlobal
             "  <ItemGroup>\n",
             "    <ProjectReference\n",
             "        Include=\"..\\A\\A.csproj\"\n",
-            "    />\n",
+            "    / >\n",
             "    <ProjectReference Include=\"..\\B\\B.csproj\" />\n",
             "  </ItemGroup>\n",
             "</Project>\n",
