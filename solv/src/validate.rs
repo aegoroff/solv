@@ -953,7 +953,12 @@ fn find_redundant_reference_spans(
                 in_quote = Some(c);
                 j += 1;
             } else if c == b'>' {
-                if j > 0 && input[j - 1] == b'/' {
+                // Look backwards over whitespace to see if a '/' precedes the '>'
+                let mut k = j.saturating_sub(1);
+                while k > i && (input[k] == b' ' || input[k] == b'\t' || input[k] == b'\r') {
+                    k -= 1;
+                }
+                if input.get(k) == Some(&b'/') {
                     self_closing = true;
                 }
                 j += 1;
@@ -964,21 +969,23 @@ fn find_redundant_reference_spans(
             }
         }
         if !found_close {
-            // Malformed input — give up.
+            // malformed input – stop scanning
             break;
         }
         let opening_tag_end = j; // one past '>'
 
-        // Slice of the attribute list (between `<ProjectReference` and the
-        // terminating `>` or `/>`).
+        // Extract the Include attribute value from the opening tag
         let attrs_start = i + TAG_LEN;
         let attrs_end = if self_closing {
+            // `.../>` – drop the trailing "/"
             opening_tag_end - 2
         } else {
+            // `...>`
             opening_tag_end - 1
         };
         let include = extract_include_value(&input[attrs_start..attrs_end]);
 
+        // Find the overall span of the element
         let span_end = if self_closing {
             opening_tag_end
         } else {
@@ -1001,7 +1008,7 @@ fn find_redundant_reference_spans(
             if let Some(p) = close_pos {
                 p
             } else {
-                // Malformed: skip past this opening tag and continue.
+                // malformed – skip this opening tag
                 i = opening_tag_end;
                 continue;
             }
