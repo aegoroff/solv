@@ -925,8 +925,12 @@ fn find_redundant_reference_spans(
         // The tag name must be terminated by whitespace, '/', or '>' to avoid
         // matching things like `<ProjectReferenceXxx`.
         let after = input.get(i + TAG_LEN).copied().unwrap_or(0);
-        if !(after == b' ' || after == b'\t' || after == b'\n' || after == b'\r'
-            || after == b'/' || after == b'>')
+        if !(after == b' '
+            || after == b'\t'
+            || after == b'\n'
+            || after == b'\r'
+            || after == b'/'
+            || after == b'>')
         {
             i += 1;
             continue;
@@ -985,7 +989,8 @@ fn find_redundant_reference_spans(
             let mut close_pos = None;
             while k + CLOSE_TAG_LEN <= len {
                 // Fast path: check first byte '<' and last byte '>' before full comparison.
-                if input[k] == b'<' && input[k + CLOSE_TAG_LEN - 1] == b'>'
+                if input[k] == b'<'
+                    && input[k + CLOSE_TAG_LEN - 1] == b'>'
                     && &input[k..k + CLOSE_TAG_LEN] == CLOSE_TAG
                 {
                     close_pos = Some(k + CLOSE_TAG_LEN);
@@ -1721,6 +1726,170 @@ EndGlobal
 
         // Cleanup
         fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn test_validate_fix_statistics_accuracy() {
+        // Arrange: Create a solution with multiple redundant references
+        let uniq = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("solv-stats-{uniq}"));
+        let lib_dir = root.join("Lib");
+        let a_dir = root.join("A");
+        let b_dir = root.join("B");
+        let app_dir = root.join("App");
+
+        fs::create_dir_all(&lib_dir).unwrap();
+        fs::create_dir_all(&a_dir).unwrap();
+        fs::create_dir_all(&b_dir).unwrap();
+        fs::create_dir_all(&app_dir).unwrap();
+
+        // Lib project - no dependencies
+        fs::write(
+            lib_dir.join("Lib.csproj"),
+            r#"<Project Sdk="Microsoft.NET.Sdk"></Project>"#,
+        )
+        .unwrap();
+
+        // A project - references Lib
+        fs::write(
+            a_dir.join("A.csproj"),
+            concat!(
+                "<Project Sdk=\"Microsoft.NET.Sdk\">\n",
+                "  <ItemGroup>\n",
+                "    <ProjectReference Include=\"..\\Lib\\Lib.csproj\" />\n",
+                "  </ItemGroup>\n",
+                "</Project>\n",
+            ),
+        )
+        .unwrap();
+
+        // B project - references Lib
+        fs::write(
+            b_dir.join("B.csproj"),
+            concat!(
+                "<Project Sdk=\"Microsoft.NET.Sdk\">\n",
+                "  <ItemGroup>\n",
+                "    <ProjectReference Include=\"..\\Lib\\Lib.csproj\" />\n",
+                "  </ItemGroup>\n",
+                "</Project>\n",
+            ),
+        )
+        .unwrap();
+
+        // App project - references A, B, and Lib (Lib is redundant through both A and B)
+        let app_original = concat!(
+            "<Project Sdk=\"Microsoft.NET.Sdk\">\n",
+            "  <ItemGroup>\n",
+            "    <ProjectReference Include=\"..\\A\\A.csproj\" />\n",
+            "    <ProjectReference Include=\"..\\B\\B.csproj\" />\n",
+            "    <ProjectReference Include=\"..\\Lib\\Lib.csproj\" />\n",
+            "  </ItemGroup>\n",
+            "</Project>\n",
+        );
+        fs::write(app_dir.join("App.csproj"), app_original).unwrap();
+
+        // Solution file
+        let sln = r#"
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "App", "App/App.csproj", "{A1111111-1111-1111-1111-111111111111}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "A", "A/A.csproj", "{A2222222-2222-2222-2222-222222222222}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "B", "B/B.csproj", "{A3333333-3333-3333-3333-333333333333}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lib", "Lib/Lib.csproj", "{A4444444-4444-4444-4444-444444444444}"
+EndProject
+Global
+    GlobalSection(SolutionConfigurationPlatforms) = preSolution
+        Debug|Any CPU = Debug|Any CPU
+    EndGlobalSection
+    GlobalSection(ProjectConfigurationPlatforms) = postSolution
+        {A1111111-1111-1111-1111-111111111111}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+        {A2222222-2222-2222-2222-222222222222}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+        {A3333333-3333-3333-3333-333333333333}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+        {A4444444-4444-4444-4444-444444444444}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+    EndGlobalSection
+EndGlobal
+"#;
+
+        let mut solution = solp::parse_str(sln).unwrap();
+        let sln_path = root.join("test.sln");
+        let leaked_path: &'static str =
+            Box::leak(sln_path.to_string_lossy().into_owned().into_boxed_str());
+        solution.path = leaked_path;
+
+        // Act
+        let mut validator = ValidateFix::new();
+        validator.ok(&solution);
+
+        // Assert: Should have 1 fixed project (App.csproj) and 1 removed ref (Lib.csproj)
+        // Note: Even though Lib is redundant through both A and B, it's only one reference
+        let stat = validator.statistic.borrow();
+        assert_eq!(stat.fixed_projects, 1, "Should be one fixed project");
+        assert_eq!(stat.removed_refs, 1, "Should be one removed ref");
+        assert_eq!(stat.fixed_solutions, 1, "Should be one fixed solution");
+        assert_eq!(stat.parsed, 1, "Should have parsed one solution");
+
+        // Verify the reference was actually removed
+        let app_updated = fs::read_to_string(app_dir.join("App.csproj")).unwrap();
+        assert!(
+            !app_updated.contains("Lib.csproj"),
+            "Lib reference should be removed"
+        );
+        assert!(
+            app_updated.contains("A.csproj"),
+            "A reference should remain"
+        );
+        assert!(
+            app_updated.contains("B.csproj"),
+            "B reference should remain"
+        );
+
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn test_redundants_algorithm_with_self_reference() {
+        // Arrange: Graph with self-reference (a -> a)
+        let mut graph = DiGraph::<PathBuf, String>::new();
+        let a = add_node(&mut graph, "a");
+        let b = add_node(&mut graph, "b");
+        graph.add_edge(a, a, "a->a".to_owned()); // self-reference
+        graph.add_edge(a, b, "a->b".to_owned());
+
+        // Act
+        let redundants = Redundants::find_redundants(&graph);
+
+        // Assert: Self-reference should not cause issues
+        // The algorithm should handle it gracefully
+        assert!(
+            redundants.is_empty(),
+            "Self-reference shouldn't create redundant edge"
+        );
+    }
+
+    #[test]
+    fn test_redundants_algorithm_with_duplicate_edges() {
+        // Arrange: Graph with duplicate edges (a -> b twice)
+        let mut graph = DiGraph::<PathBuf, String>::new();
+        let a = add_node(&mut graph, "a");
+        let b = add_node(&mut graph, "b");
+        let c = add_node(&mut graph, "c");
+        graph.add_edge(a, b, "a->b1".to_owned());
+        graph.add_edge(a, b, "a->b2".to_owned()); // duplicate with different label
+        graph.add_edge(b, c, "b->c".to_owned());
+        graph.add_edge(a, c, "a->c".to_owned()); // redundant because a->b->c
+
+        // Act
+        let redundants = Redundants::find_redundants(&graph);
+
+        // Assert: a->c should be redundant
+        assert_eq!(redundants.len(), 1);
+        assert_eq!(PathBuf::from("c"), redundants[0].project);
+        // Note: which a->c edge is marked redundant depends on implementation
     }
 
     const CORRECT_SOLUTION: &str = r#"
