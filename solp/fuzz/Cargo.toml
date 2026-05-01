@@ -25,9 +25,6 @@ path = ".."
 [dependencies.serde_json]
 version = "1"
 
-[dependencies.serde]
-version = "1"
-
 [[bin]]
 name = "parse"
 path = "fuzz_targets/parse.rs"

@@ -22,23 +22,22 @@ fuzz_target!(|data: &[u8]| {
         let lossy = String::from_utf8_lossy(data);
         let _ = solp::parse_str(&lossy);
 
-        // Also test with only the valid prefix if any
-        if let Some(valid_prefix) = find_valid_utf8_prefix(data) {
-            if valid_prefix.len() >= 3 {
-                let _ = solp::parse_str(std::str::from_utf8(valid_prefix).unwrap_or(""));
-            }
+        // Also test with only the valid prefix (O(n) via valid_up_to())
+        let valid_prefix = find_valid_utf8_prefix(data);
+        if valid_prefix.len() >= 3 {
+            let _ = solp::parse_str(std::str::from_utf8(valid_prefix).unwrap_or(""));
         }
     }
 });
 
 // Find the longest valid UTF-8 prefix of a byte slice.
-fn find_valid_utf8_prefix(data: &[u8]) -> Option<&[u8]> {
-    let end = data.len();
-    // Try progressively shorter prefixes until we find a valid UTF-8 boundary
-    for len in (0..=end).rev() {
-        if std::str::from_utf8(&data[..len]).is_ok() {
-            return Some(&data[..len]);
-        }
+//
+// Uses `Utf8Error::valid_up_to()` so the search is O(n) — a single pass
+// through `from_utf8` already tells us exactly where the first invalid byte
+// is, with no need to retry progressively shorter slices.
+fn find_valid_utf8_prefix(data: &[u8]) -> &[u8] {
+    match std::str::from_utf8(data) {
+        Ok(_) => data,
+        Err(e) => &data[..e.valid_up_to()],
     }
-    None
 }
