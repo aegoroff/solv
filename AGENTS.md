@@ -90,3 +90,5 @@ Rust **1.88.0** or newer. Both crates use `edition = "2024"` and the workspace u
 ## Things NOT to do
 - Dont add new crates
 - Dont use unsafe code
+- Dont use multithreading and dont validate problems with it
+- Dont search performmance, copy/paste, architecture problems in tests
