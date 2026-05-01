@@ -1,5 +1,4 @@
 [workspace]
-# uncomment this line anc comment next to enable fuzzing
 # cargo +nightly fuzz run --release --fuzz-dir solp/fuzz parse
 members = ["solv", "solp"]
 default-members = ["solv"]
