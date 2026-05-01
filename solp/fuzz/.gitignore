@@ -1,3 +1,5 @@
 target
-corpus
+corpus/**
+!corpus/**/
+!corpus/**/*.sln
 artifacts

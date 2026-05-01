@@ -1,0 +1,81 @@
+# Fuzzing dictionary for Visual Studio Solution (.sln) file parsing
+# These tokens help the fuzzer mutate input toward syntactically valid constructs,
+# reaching deeper parser paths faster.
+#
+# Format: one quoted string per line.  C-style escapes are NOT supported.
+# Use \\xNN for hex bytes (e.g. \\x0A for newline, \\x09 for tab).
+
+# === Solution file header ===
+"Microsoft Visual Studio Solution File, Format Version "
+"Microsoft Visual Studio Solution File, Format Version 12.00"
+
+# === Common GUIDs ===
+"{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}"
+"{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}"
+"{2150E333-8FDC-42A3-9474-1A3956D46DE8}"
+"{930C7802-8A8C-48F9-8165-68863BCCD9DD}"
+"{1845BFC1-1C8F-40CE-8EA0-33A1AC2DF149}"
+
+# === Structural keywords ===
+"Project("
+"EndProject"
+"ProjectSection("
+"EndProjectSection"
+"Global"
+"EndGlobal"
+"GlobalSection("
+"EndGlobalSection"
+
+# === Section types ===
+"ProjectSection(ProjectDependencies) = postProject"
+"ProjectSection(SolutionItems) = preProject"
+"GlobalSection(SolutionConfigurationPlatforms) = preSolution"
+"GlobalSection(ProjectConfigurationPlatforms) = postSolution"
+"GlobalSection(SolutionConfiguration) = preSolution"
+"GlobalSection(ProjectConfiguration) = postSolution"
+"GlobalSection(SolutionProperties) = preSolution"
+"GlobalSection(ExtensibilityGlobals) = postSolution"
+"GlobalSection(ExtensibilityAddIns) = postSolution"
+
+# === Configuration/platform combinations ===
+" = "
+"Debug|Any CPU"
+"Release|Any CPU"
+"Debug|x86"
+"Release|x86"
+"Debug|x64"
+"Release|x64"
+"Debug|Win32"
+"Release|Win32"
+"Debug|Any CPU = Debug|Any CPU"
+"Release|Any CPU = Release|Any CPU"
+
+# === Project configuration tags ===
+"ActiveCfg"
+"Build.0"
+"Deploy.0"
+
+# === Version lines ===
+"VisualStudioVersion = "
+"MinimumVisualStudioVersion = "
+
+# === Comments ===
+"# Visual Studio "
+"# Visual Studio 2013"
+"# Visual Studio 15"
+
+# === Section entries ===
+"HideSolutionNode = FALSE"
+"HideSolutionNode = TRUE"
+"SolutionGuid = "
+
+# === Delimiters and special chars ===
+", "
+" = \""
+"\", \""
+
+# === Edge case bytes (use \\xNN hex escapes — C-style \n \t NOT supported) ===
+"\x0A"
+"\x09"
+"\\"
+"\"\""

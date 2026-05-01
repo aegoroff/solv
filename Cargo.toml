@@ -1,5 +1,6 @@
 [workspace]
-# cargo +nightly fuzz run --release --fuzz-dir solp/fuzz parse
+# fuzz example
+# cargo +nightly fuzz run parse --release --fuzz-dir solp/fuzz -- -max_total_time=10 -dict=solp/fuzz/dictionary/parse.dict solp/fuzz/corpus/parse
 members = ["solv", "solp"]
 default-members = ["solv"]
 resolver = "3"
