@@ -86,3 +86,7 @@ Rust **1.88.0** or newer. Both crates use `edition = "2024"` and the workspace u
 - Create tests for a new functionality
 - Write tests in AAA pattern
 - If tests can be parameterized use `test-case` crate
+
+## Things NOT to do
+- Dont add new crates
+- Dont use unsafe code
