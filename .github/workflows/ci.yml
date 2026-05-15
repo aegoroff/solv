@@ -49,7 +49,6 @@ jobs:
       - name: Build
         uses: houseabsolute/actions-rust-cross@v1
         with:
-          command: "build"
           target: ${{ matrix.target }}
           toolchain: ${{ matrix.rust }}
           args: "--workspace --release"
