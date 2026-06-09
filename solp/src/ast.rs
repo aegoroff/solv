@@ -111,7 +111,8 @@ impl<'a> Ver<'a> {
 
 impl<'a> From<&'a str> for Conf<'a> {
     fn from(s: &'a str) -> Self {
-        pipe_terminated.parse_peek(s)
+        pipe_terminated
+            .parse_peek(s)
             .map(|(platform, config)| Self { config, platform })
             .unwrap_or_default()
     }
