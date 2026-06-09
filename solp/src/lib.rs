@@ -48,6 +48,7 @@ mod ast;
 mod lex;
 pub mod msbuild;
 mod parser;
+mod slnx;
 
 #[macro_use]
 extern crate lalrpop_util;
