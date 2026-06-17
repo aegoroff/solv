@@ -30,7 +30,7 @@ pub enum Tok<'a> {
     SectionValue(&'a str),
     Guid(&'a str),
     Id(&'a str),
-    DigitsAndDots(&'a str),
+    Version(&'a str),
     OpenElement(&'a str),
     CloseElement(&'a str),
     Comma,
@@ -47,7 +47,7 @@ impl Display for Tok<'_> {
             Tok::SectionValue(v) => write!(f, "SectionValue({v})")?,
             Tok::Guid(g) => write!(f, "Guild({g})")?,
             Tok::Id(id) => write!(f, "Identifier({id})")?,
-            Tok::DigitsAndDots(d) => write!(f, "DigitsAndDots({d})")?,
+            Tok::Version(d) => write!(f, "Version({d})")?,
             Tok::OpenElement(elt) => write!(f, "OpenElement({elt})")?,
             Tok::CloseElement(elt) => write!(f, "CloseElement({elt})")?,
             Tok::Comma => write!(f, "Comma")?,
@@ -167,13 +167,13 @@ impl<'a> Lexer<'a> {
         Err(LexicalError::PrematureEndOfStream(i))
     }
 
-    fn digits_with_dots(&mut self, i: usize) -> Spanned<Tok<'a>, usize, LexicalError> {
+    fn version(&mut self, i: usize) -> Spanned<Tok<'a>, usize, LexicalError> {
         while let Some((j, c)) = self.chars.peek() {
             match *c {
-                '0'..='9' | '.' => {
+                '0'..='9' | '.' | 'a'..='z' | 'A'..='Z' | '_' | ' ' => {
                     self.chars.next();
                 }
-                _ => return Ok((i, Tok::DigitsAndDots(&self.input[i..*j]), *j)),
+                _ => return Ok((i, Tok::Version(&self.input[i..*j]), *j)),
             }
         }
         Err(LexicalError::PrematureEndOfStream(i))
@@ -312,7 +312,7 @@ impl<'a> Iterator for Lexer<'a> {
                 '\r' | '\n' => self.section_key(i),
                 '=' => self.section_value(i),
                 ',' => Ok((i, Tok::Comma, i + 1)),
-                '0'..='9' => self.digits_with_dots(i),
+                '0'..='9' => self.version(i),
                 '"' => self.string(i),
                 '#' => Ok(self.comment(i)),
                 'a'..='z' | 'A'..='Z' => Ok(self.identifier(i)),

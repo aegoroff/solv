@@ -17,9 +17,9 @@ HeaderLine = {
     <Version>,
 };
 
-FirstLine : Node<'a> = <ids1:"id"+> "comma" <ids2:"id"*> <v:"digit_and_dot"> => Node::FirstLine(v);
+FirstLine : Node<'a> = <ids1:"id"+> "comma" <ids2:"id"*> <v:"version"> => Node::FirstLine(v.trim());
 
-Version : Node<'a> = <id:"id"> "eq" <r:"digit_and_dot"> => Node::Version(id, r);
+Version : Node<'a> = <id:"id"> "eq" <r:"version"> => Node::Version(id, r.trim());
 
 Project : Node<'a> = "open_element" <b:ProjectBegin> <s:Section*> "close_element" => Node::Project(Box::new(b), s);
 
@@ -58,7 +58,7 @@ extern {
         "section_value" => Tok::SectionValue(<&'a str>),
         "guid" => Tok::Guid(<&'a str>),
         "id" => Tok::Id(<&'a str>),
-        "digit_and_dot" => Tok::DigitsAndDots(<&'a str>),
+        "version" => Tok::Version(<&'a str>),
         "comma" => Tok::Comma,
         "eq" => Tok::Eq,
         "open_element" => Tok::OpenElement(<&'a str>),

@@ -435,7 +435,9 @@ mod tests {
                 .count()
         ); // solution folders excluded
         assert_eq!(solution.format, "12.00");
-        assert_eq!(solution.product, "Visual Studio 15");
+        assert_eq!(solution.product, "Visual Studio Version 18");
+        assert_eq!(solution.versions[0].ver, "18.4.11620.152 stable");
+        assert_eq!(solution.versions[1].ver, "10.0.40219.1");
     }
 
     #[test]
