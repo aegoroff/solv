@@ -2,7 +2,7 @@
 name = "solp"
 description = "Microsoft Visual Studio solution parsing library"
 repository = "https://github.com/aegoroff/solv"
-version = "0.21.1"
+version = "0.21.2"
 authors = ["egoroff <egoroff@gmail.com>"]
 edition = "2024"
 license = "MIT"
@@ -19,7 +19,7 @@ lalrpop = { version = "=0.23.1", default-features = false }
 lalrpop-util = { version = "=0.23.1", default-features = false }
 jwalk = "=0.8.1"
 phf = { version = "=0.13.1", features = ["macros"] }
-itertools = "=0.14.0"
+itertools = "=0.15.0"
 num_cpus = "=1.17.0"
 winnow = "=1.0.3"
 serde = { version = "=1.0.228", features = ["derive"] }
