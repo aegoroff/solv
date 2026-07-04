@@ -39,6 +39,8 @@ pub struct Sol<'a> {
     pub versions: Vec<Ver<'a>>,
     pub solution_configs: Vec<Conf<'a>>,
     pub project_configs: Vec<PrjConfAggregate<'a>>,
+    pub solution_configuration_platform_entries: Vec<Conf<'a>>,
+    pub project_configuration_entries: Vec<PrjConf<'a>>,
 }
 
 /// Solution version descriptor

@@ -37,6 +37,7 @@ struct Statistic {
     not_found: u64,
     missings: u64,
     duplicate_guids: u64,
+    duplicate_configurations: u64,
     parsed: u64,
     not_parsed: u64,
     redundant_refs: u64,
@@ -62,6 +63,8 @@ impl Display for Statistic {
         let not_found_percent = calculate_percent(self.not_found as i32, self.total as i32);
         let duplicate_guids_percent =
             calculate_percent(self.duplicate_guids as i32, self.total as i32);
+        let duplicate_configurations_percent =
+            calculate_percent(self.duplicate_configurations as i32, self.total as i32);
         let redundant_refs_percent =
             calculate_percent(self.redundant_refs as i32, self.total as i32);
         let parsed_percent = calculate_percent(self.parsed as i32, self.total as i32);
@@ -108,6 +111,14 @@ impl Display for Statistic {
             Cell::new(self.duplicate_guids.to_formatted_string(&Locale::en))
                 .add_attribute(Attribute::Italic),
             Cell::new(format!("{duplicate_guids_percent:.2}%")).add_attribute(Attribute::Italic),
+        ]);
+
+        table.add_row([
+            Cell::new("Contain duplicate configurations"),
+            Cell::new(self.duplicate_configurations.to_formatted_string(&Locale::en))
+                .add_attribute(Attribute::Italic),
+            Cell::new(format!("{duplicate_configurations_percent:.2}%"))
+                .add_attribute(Attribute::Italic),
         ]);
 
         table.add_row([
@@ -319,10 +330,11 @@ impl Display for ValidateFix {
 
 impl Consume for Validate {
     fn ok(&mut self, solution: &Solution) {
-        let mut validators: [Box<dyn Validator>; 6] = [
+        let mut validators: [Box<dyn Validator>; 7] = [
             Box::new(Cycles::new(solution)),
             Box::new(Danglings::new(solution)),
             Box::new(DuplicateGuids::new(solution)),
+            Box::new(DuplicateConfigurations::new(solution)),
             Box::new(NotFound::new(solution)),
             Box::new(Missings::new(solution)),
             Box::new(Redundants::new(solution)),
@@ -436,6 +448,83 @@ impl Validator for DuplicateGuids<'_> {
         }
 
         println!("{table}");
+    }
+}
+
+struct DuplicateConfigurations<'a> {
+    solution: &'a Solution<'a>,
+}
+
+impl<'a> DuplicateConfigurations<'a> {
+    pub fn new(solution: &'a Solution<'a>) -> Self {
+        Self { solution }
+    }
+}
+
+impl Validator for DuplicateConfigurations<'_> {
+    fn validate(&mut self, statistic: &mut Statistic) {
+        if !self.validation_result() {
+            statistic.duplicate_configurations += 1;
+        }
+    }
+
+    fn validation_result(&self) -> bool {
+        self.solution.duplicate_solution_configurations.is_none()
+            && self.solution.duplicate_project_configurations.is_none()
+    }
+
+    fn print_results(&self) {
+        if let Some(configurations) = &self.solution.duplicate_solution_configurations {
+            println!(
+                "  {}",
+                "Solution contains duplicate configuration|platform pairs:"
+                    .dark_yellow()
+                    .bold()
+            );
+
+            let mut table = ux::new_table();
+            table.set_header([Cell::new("Configuration|Platform").add_attribute(Attribute::Bold)]);
+
+            for config in configurations {
+                table.add_row([Cell::new(format!(
+                    "{}|{}",
+                    config.configuration, config.platform
+                ))]);
+            }
+
+            println!("{table}");
+        }
+
+        if let Some(configurations) = &self.solution.duplicate_project_configurations {
+            println!(
+                "  {}",
+                "Solution contains duplicate project configuration mappings:"
+                    .dark_yellow()
+                    .bold()
+            );
+
+            let mut table = ux::new_table();
+            table.set_header([
+                Cell::new("Project ID").add_attribute(Attribute::Bold),
+                Cell::new("Configuration|Platform").add_attribute(Attribute::Bold),
+                Cell::new("Project configuration").add_attribute(Attribute::Bold),
+                Cell::new("Tag").add_attribute(Attribute::Bold),
+            ]);
+
+            for config in configurations {
+                table.add_row([
+                    Cell::new(config.project_id),
+                    Cell::new(format!(
+                        "{}|{}",
+                        config.solution_configuration, config.platform
+                    )),
+                    Cell::new(config.project_configuration),
+                    Cell::new(config.tag.to_string()),
+                ]);
+            }
+
+            println!("{table}");
+        }
     }
 }
 
@@ -1324,6 +1413,55 @@ mod tests {
     }
 
     #[test]
+    fn duplicate_configurations_validation_correct() {
+        // Arrange
+        let solution = solp::parse_str(CORRECT_SOLUTION).unwrap();
+        let mut validator = DuplicateConfigurations::new(&solution);
+        let mut statistic = Statistic::default();
+
+        // Act
+        validator.validate(&mut statistic);
+
+        // Assert
+        assert!(validator.validation_result());
+        assert_eq!(0, statistic.duplicate_configurations);
+    }
+
+    #[test]
+    fn duplicate_solution_configurations_validation_incorrect() {
+        // Arrange
+        let solution = solp::parse_str(SOLUTION_WITH_DUPLICATE_SOLUTION_CONFIGURATIONS).unwrap();
+        let mut validator = DuplicateConfigurations::new(&solution);
+        let mut statistic = Statistic::default();
+
+        // Act
+        validator.validate(&mut statistic);
+
+        // Assert
+        assert!(!validator.validation_result());
+        assert_eq!(1, statistic.duplicate_configurations);
+        assert!(solution.duplicate_solution_configurations.is_some());
+        assert!(solution.duplicate_project_configurations.is_none());
+    }
+
+    #[test]
+    fn duplicate_project_configurations_validation_incorrect() {
+        // Arrange
+        let solution = solp::parse_str(SOLUTION_WITH_DUPLICATE_PROJECT_CONFIGURATIONS).unwrap();
+        let mut validator = DuplicateConfigurations::new(&solution);
+        let mut statistic = Statistic::default();
+
+        // Act
+        validator.validate(&mut statistic);
+
+        // Assert
+        assert!(!validator.validation_result());
+        assert_eq!(1, statistic.duplicate_configurations);
+        assert!(solution.duplicate_solution_configurations.is_none());
+        assert!(solution.duplicate_project_configurations.is_some());
+    }
+
+    #[test]
     fn print_statistic_test() {
         // Arrange
         let s = Statistic::default();
@@ -2079,6 +2217,46 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
+"#;
+
+    const SOLUTION_WITH_DUPLICATE_SOLUTION_CONFIGURATIONS: &str = r#"
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio 2010
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "a", "a\a.csproj", "{78965571-A6C2-4161-95B1-813B46610EA7}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{78965571-A6C2-4161-95B1-813B46610EA7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{78965571-A6C2-4161-95B1-813B46610EA7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{78965571-A6C2-4161-95B1-813B46610EA7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{78965571-A6C2-4161-95B1-813B46610EA7}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
+"#;
+
+    const SOLUTION_WITH_DUPLICATE_PROJECT_CONFIGURATIONS: &str = r#"
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio 2010
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "a", "a\a.csproj", "{78965571-A6C2-4161-95B1-813B46610EA7}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{78965571-A6C2-4161-95B1-813B46610EA7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{78965571-A6C2-4161-95B1-813B46610EA7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{78965571-A6C2-4161-95B1-813B46610EA7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{78965571-A6C2-4161-95B1-813B46610EA7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{78965571-A6C2-4161-95B1-813B46610EA7}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
 "#;

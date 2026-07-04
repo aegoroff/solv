@@ -1,4 +1,5 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
+use std::fmt;
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -23,6 +24,12 @@ pub struct Solution<'a> {
     /// Dangling (projects with such ids not exist in the solution file) projects configurations inside solution
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dangling_project_configurations: Option<Vec<String>>,
+    /// Duplicate solution configuration/platform pairs
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duplicate_solution_configurations: Option<Vec<SolutionConfiguration<'a>>>,
+    /// Duplicate project configuration mappings
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duplicate_project_configurations: Option<Vec<DuplicateProjectConfiguration<'a>>>,
 }
 
 /// Represents [`Solution`] version. NOTE: [`Solution`] may have several versions.
@@ -80,6 +87,34 @@ pub enum Tag {
     Deploy,
 }
 
+/// Duplicate project configuration mapping inside a solution file
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+pub struct DuplicateProjectConfiguration<'a> {
+    pub project_id: &'a str,
+    pub solution_configuration: &'a str,
+    pub platform: &'a str,
+    pub project_configuration: &'a str,
+    pub tag: ConfigurationMappingTag,
+}
+
+/// Tag of a duplicate project configuration mapping
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ConfigurationMappingTag {
+    ActiveCfg,
+    Build,
+    Deploy,
+}
+
+impl fmt::Display for ConfigurationMappingTag {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ActiveCfg => write!(f, "ActiveCfg"),
+            Self::Build => write!(f, "Build"),
+            Self::Deploy => write!(f, "Deploy"),
+        }
+    }
+}
+
 impl<'a> Solution<'a> {
     /// Creates new [`Solution`] instance from [`ast::Sol`] instance
     #[must_use]
@@ -92,6 +127,8 @@ impl<'a> Solution<'a> {
             projects: Self::projects(solution),
             configurations: Self::configurations(solution),
             dangling_project_configurations: Self::danglings(solution),
+            duplicate_solution_configurations: Self::duplicate_solution_configurations(solution),
+            duplicate_project_configurations: Self::duplicate_project_configurations(solution),
         }
     }
 
@@ -212,5 +249,64 @@ impl<'a> Solution<'a> {
         } else {
             Some(danglings)
         }
+    }
+
+    fn duplicate_solution_configurations(solution: &Sol<'a>) -> Option<Vec<SolutionConfiguration<'a>>> {
+        let mut seen = HashSet::new();
+        let mut duplicates = BTreeSet::new();
+        for config in &solution.solution_configuration_platform_entries {
+            let item = SolutionConfiguration {
+                configuration: config.config,
+                platform: config.platform,
+            };
+            if !seen.insert((config.config, config.platform)) {
+                duplicates.insert(item);
+            }
+        }
+
+        if duplicates.is_empty() {
+            None
+        } else {
+            Some(duplicates.into_iter().collect())
+        }
+    }
+
+    fn duplicate_project_configurations(
+        solution: &Sol<'a>,
+    ) -> Option<Vec<DuplicateProjectConfiguration<'a>>> {
+        let mut seen = HashSet::new();
+        let mut duplicates = BTreeSet::new();
+        for config in &solution.project_configuration_entries {
+            let key = (
+                config.id.to_ascii_uppercase(),
+                config.solution_config,
+                config.platform,
+                config.project_config,
+                config.tag.clone(),
+            );
+            if !seen.insert(key) {
+                duplicates.insert(DuplicateProjectConfiguration {
+                    project_id: config.id,
+                    solution_configuration: config.solution_config,
+                    platform: config.platform,
+                    project_configuration: config.project_config,
+                    tag: project_config_tag_name(&config.tag),
+                });
+            }
+        }
+
+        if duplicates.is_empty() {
+            None
+        } else {
+            Some(duplicates.into_iter().collect())
+        }
+    }
+}
+
+fn project_config_tag_name(tag: &crate::ast::ProjectConfigTag) -> ConfigurationMappingTag {
+    match tag {
+        crate::ast::ProjectConfigTag::ActiveCfg => ConfigurationMappingTag::ActiveCfg,
+        crate::ast::ProjectConfigTag::Build => ConfigurationMappingTag::Build,
+        crate::ast::ProjectConfigTag::Deploy => ConfigurationMappingTag::Deploy,
     }
 }

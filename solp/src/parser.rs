@@ -237,11 +237,24 @@ impl<'a> Visitor<'a> for AstVisitor<'a> {
 
             if let Some(items) = all_sections.get("SolutionConfigurationPlatforms") {
                 let new_solution_configs =
-                    items.iter().map(|(k, _v)| <&str as Into<Conf>>::into(k));
+                    items.iter().map(|(k, _v)| <&str as Into<Conf>>::into(*k));
+                self.solution
+                    .solution_configuration_platform_entries
+                    .extend(new_solution_configs.clone());
                 self.solution.solution_configs.extend(new_solution_configs);
             }
 
             if let Some(items) = all_sections.get("ProjectConfigurationPlatforms") {
+                for (key, value) in items {
+                    if let Some(aggregate) =
+                        PrjConfAggregate::from_project_configuration_platform(key, value)
+                    {
+                        self.solution
+                            .project_configuration_entries
+                            .extend(aggregate.configs);
+                    }
+                }
+
                 let project_config_platform_grp = items
                     .iter()
                     .filter_map(|(k, v)| {
@@ -262,6 +275,16 @@ impl<'a> Visitor<'a> for AstVisitor<'a> {
             }
 
             if let Some(items) = all_sections.get("ProjectConfiguration") {
+                for (key, value) in items {
+                    if let Some(aggregate) =
+                        PrjConfAggregate::from_project_configuration(key, value)
+                    {
+                        self.solution
+                            .project_configuration_entries
+                            .extend(aggregate.configs);
+                    }
+                }
+
                 let project_configs = items
                     .iter()
                     .filter_map(|(k, v)| PrjConfAggregate::from_project_configuration(k, v))
