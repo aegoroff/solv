@@ -1,6 +1,7 @@
 solp
 ====
-A library for parsing Microsoft Visual Studio solution file
+A library for parsing Microsoft Visual Studio solution file. UTF-8 BOM-prefixed
+files are supported.
 
 Licensed under MIT
 
@@ -121,7 +122,7 @@ Will parse solution into structure that may be represented by this json
 
 ### Minimum Rust version policy
 
-This crate's minimum supported `rustc` version is `1.70.0`.
+This crate's minimum supported `rustc` version is `1.88.0`.
 
 The current policy is that the minimum Rust version required to use this crate
 can be increased in minor version updates. For example, if `crate 1.0` requires
