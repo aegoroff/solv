@@ -410,7 +410,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_str_real_solution_with_string_in_verion() {
+    fn parse_str_real_solution_with_string_in_version() {
         // Act
         let result = parse_str(REAL_SOLUTION_WITH_STRING_IN_VERSION);
 

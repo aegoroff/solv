@@ -312,7 +312,7 @@ impl Consume for Validate {
         let mut validators: [Box<dyn Validator>; 5] = [
             Box::new(Cycles::new(solution)),
             Box::new(Danglings::new(solution)),
-            Box::new(NotFouund::new(solution)),
+            Box::new(NotFound::new(solution)),
             Box::new(Missings::new(solution)),
             Box::new(Redundants::new(solution)),
         ];
@@ -365,12 +365,12 @@ impl Display for Validate {
     }
 }
 
-struct NotFouund<'a> {
+struct NotFound<'a> {
     solution: &'a Solution<'a>,
     bad_paths: BTreeSet<PathBuf>,
 }
 
-impl<'a> NotFouund<'a> {
+impl<'a> NotFound<'a> {
     pub fn new(solution: &'a Solution<'a>) -> Self {
         Self {
             solution,
@@ -379,7 +379,7 @@ impl<'a> NotFouund<'a> {
     }
 }
 
-impl Validator for NotFouund<'_> {
+impl Validator for NotFound<'_> {
     fn validate(&mut self, statistic: &mut Statistic) {
         let dir = crate::parent_of(self.solution.path);
         self.bad_paths = self

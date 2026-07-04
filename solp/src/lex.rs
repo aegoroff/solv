@@ -45,7 +45,7 @@ impl Display for Tok<'_> {
             Tok::Str(s) => write!(f, "String({s})")?,
             Tok::SectionKey(k) => write!(f, "SectionKey({k})")?,
             Tok::SectionValue(v) => write!(f, "SectionValue({v})")?,
-            Tok::Guid(g) => write!(f, "Guild({g})")?,
+            Tok::Guid(g) => write!(f, "Guid({g})")?,
             Tok::Id(id) => write!(f, "Identifier({id})")?,
             Tok::Version(d) => write!(f, "Version({d})")?,
             Tok::OpenElement(elt) => write!(f, "OpenElement({elt})")?,
