@@ -17,9 +17,11 @@ The repository contains two crates:
 
 ## Features
 
-- Validate Visual Studio solutions and detect common problems
-  (dependency cycles, dangling configurations, missing project files or
-  configuration mappings, redundant project references, and more).
+- Validate Visual Studio solutions and detect common problems:
+  dependency cycles, dangling configurations, duplicate project GUIDs,
+  duplicate configuration mappings, missing project files, configuration
+  mappings outside the solution list, orphan projects (not built in any
+  configuration), and redundant project references.
 - Show detailed information about solutions and their projects.
 - Inspect NuGet packages referenced by a solution and find version mismatches.
 - Convert a solution to JSON for further processing.
