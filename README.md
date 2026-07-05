@@ -17,8 +17,11 @@ The repository contains two crates:
 
 ## Features
 
-- Validate Visual Studio solutions and detect common problems
-  (missing projects, duplicates, invalid configurations, dangling project references, etc.).
+- Validate Visual Studio solutions and detect common problems:
+  dependency cycles, dangling configurations, duplicate project GUIDs,
+  duplicate configuration mappings, missing project files, configuration
+  mappings outside the solution list, orphan projects (not built in any
+  configuration), and redundant project references.
 - Show detailed information about solutions and their projects.
 - Inspect NuGet packages referenced by a solution and find version mismatches.
 - Convert a solution to JSON for further processing.
@@ -58,7 +61,7 @@ or if yay reports that package not found force updating repo info
 ```sh
 yay -Syyu solv-bin
 ```
-install using cargo so builiding on target machine:
+install using cargo so building on target machine:
 ```sh
  yay -S solv
 ```
@@ -127,9 +130,19 @@ Common options accepted by `validate`, `validate fix`, `info`, `nuget` and `json
 | `--showerrors`            | Output solution parsing errors while scanning directories (default: `false`) |
 | `-t, --time`              | Show scanning time when scanning a directory (default: `false`)            |
 
+Subcommand-specific options:
+
+| Subcommand | Option | Description |
+| ---------- | ------ | ----------- |
+| `validate` | `-p, --problems` | Show only solutions with problems |
+| `nuget` | `-m, --mismatch` | Show only packages with version mismatches |
+| `nuget` | `-f, --fail` | Exit with a non-zero code if mismatches are found |
+| `json` | `-p, --pretty` | Pretty-print JSON output |
+
 The `PATH` argument can be either a path to a single `.sln` file or to a
 directory. For the `info` and `json` subcommands, if `PATH` is omitted the
-solution is read from standard input.
+solution is read from standard input. `validate`, `validate fix`, and `nuget`
+require `PATH`.
 
 ### Examples
 

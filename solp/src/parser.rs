@@ -62,13 +62,7 @@ pub fn parse_str(contents: &'_ str) -> miette::Result<Sol<'_>> {
     if contents.len() < UTF8_BOM.len() {
         return Err(miette!("Content is too short or empty"));
     }
-    let cb = contents.as_bytes();
-    // Skip UTF-8 signature if necessary
-    let input = if &cb[0..UTF8_BOM.len()] == UTF8_BOM {
-        &contents[UTF8_BOM.len()..]
-    } else {
-        contents
-    };
+    let (input, bom_offset) = strip_utf8_bom(contents);
 
     let parser = crate::solp::SolutionParser::new();
     let lexer = crate::lex::Lexer::new(input);
@@ -81,7 +75,7 @@ pub fn parse_str(contents: &'_ str) -> miette::Result<Sol<'_>> {
             let report;
             match e.clone() {
                 lalrpop_util::ParseError::InvalidToken { location } => {
-                    let span = SourceSpan::new(location.into(), 0);
+                    let span = source_span(location, 0, bom_offset);
                     report = miette!(
                         labels = vec![LabeledSpan::at(span, "The problem is here"),],
                         help = ERROR_HELP,
@@ -89,12 +83,12 @@ pub fn parse_str(contents: &'_ str) -> miette::Result<Sol<'_>> {
                     );
                 }
                 lalrpop_util::ParseError::UnrecognizedEof { location, expected } => {
-                    let offset = if location >= contents.len() {
-                        contents.len() - 1
+                    let offset = if location >= input.len() {
+                        input.len().saturating_sub(1)
                     } else {
                         location
                     };
-                    let span = SourceSpan::new(offset.into(), 0);
+                    let span = source_span(offset, 0, bom_offset);
                     report = miette!(
                         labels = vec![LabeledSpan::at(
                             span,
@@ -110,7 +104,7 @@ pub fn parse_str(contents: &'_ str) -> miette::Result<Sol<'_>> {
                 lalrpop_util::ParseError::UnrecognizedToken { token, expected } => {
                     report = miette!(
                         labels = vec![LabeledSpan::at(
-                            make_span(token),
+                            make_span(token, bom_offset),
                             format!(
                                 "The problem is here. Unrecognized token '{}' expected one of the following: {}",
                                 token.1,
@@ -124,7 +118,7 @@ pub fn parse_str(contents: &'_ str) -> miette::Result<Sol<'_>> {
                 lalrpop_util::ParseError::ExtraToken { token } => {
                     report = miette!(
                         labels = vec![LabeledSpan::at(
-                            make_span(token),
+                            make_span(token, bom_offset),
                             format!("The problem is here. Extra token {}", token.1)
                         ),],
                         help = ERROR_HELP,
@@ -133,7 +127,7 @@ pub fn parse_str(contents: &'_ str) -> miette::Result<Sol<'_>> {
                 }
                 lalrpop_util::ParseError::User { error } => match error {
                     crate::lex::LexicalError::PrematureEndOfStream(location) => {
-                        let span = SourceSpan::new(location.into(), 0);
+                        let span = source_span(location, 0, bom_offset);
                         report = miette!(
                             labels =
                                 vec![LabeledSpan::at(span, "Premature end of stream occurred"),],
@@ -150,9 +144,22 @@ pub fn parse_str(contents: &'_ str) -> miette::Result<Sol<'_>> {
     }
 }
 
-fn make_span(token: (usize, crate::lex::Tok<'_>, usize)) -> SourceSpan {
+fn strip_utf8_bom(contents: &str) -> (&str, usize) {
+    let cb = contents.as_bytes();
+    if &cb[0..UTF8_BOM.len()] == UTF8_BOM {
+        (&contents[UTF8_BOM.len()..], UTF8_BOM.len())
+    } else {
+        (contents, 0)
+    }
+}
+
+fn source_span(input_offset: usize, len: usize, bom_offset: usize) -> SourceSpan {
+    SourceSpan::new((input_offset + bom_offset).into(), len)
+}
+
+fn make_span(token: (usize, crate::lex::Tok<'_>, usize), bom_offset: usize) -> SourceSpan {
     let len = token.2.saturating_sub(token.0);
-    SourceSpan::new(token.0.into(), len)
+    source_span(token.0, len, bom_offset)
 }
 
 #[derive(Debug)]
@@ -230,11 +237,24 @@ impl<'a> Visitor<'a> for AstVisitor<'a> {
 
             if let Some(items) = all_sections.get("SolutionConfigurationPlatforms") {
                 let new_solution_configs =
-                    items.iter().map(|(k, _v)| <&str as Into<Conf>>::into(k));
+                    items.iter().map(|(k, _v)| <&str as Into<Conf>>::into(*k));
+                self.solution
+                    .solution_configuration_platform_entries
+                    .extend(new_solution_configs.clone());
                 self.solution.solution_configs.extend(new_solution_configs);
             }
 
             if let Some(items) = all_sections.get("ProjectConfigurationPlatforms") {
+                for (key, value) in items {
+                    if let Some(aggregate) =
+                        PrjConfAggregate::from_project_configuration_platform(key, value)
+                    {
+                        self.solution
+                            .project_configuration_entries
+                            .extend(aggregate.configs);
+                    }
+                }
+
                 let project_config_platform_grp = items
                     .iter()
                     .filter_map(|(k, v)| {
@@ -255,6 +275,16 @@ impl<'a> Visitor<'a> for AstVisitor<'a> {
             }
 
             if let Some(items) = all_sections.get("ProjectConfiguration") {
+                for (key, value) in items {
+                    if let Some(aggregate) =
+                        PrjConfAggregate::from_project_configuration(key, value)
+                    {
+                        self.solution
+                            .project_configuration_entries
+                            .extend(aggregate.configs);
+                    }
+                }
+
                 let project_configs = items
                     .iter()
                     .filter_map(|(k, v)| PrjConfAggregate::from_project_configuration(k, v))
@@ -410,7 +440,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_str_real_solution_with_string_in_verion() {
+    fn parse_str_real_solution_with_string_in_version() {
         // Act
         let result = parse_str(REAL_SOLUTION_WITH_STRING_IN_VERSION);
 
@@ -453,6 +483,32 @@ mod tests {
 
         // Assert
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn parse_error_span_accounts_for_utf8_bom() {
+        // Arrange
+        let invalid_without_bom = "\n偅";
+        let err_without = parse_str(invalid_without_bom).unwrap_err();
+        let offset_without = first_label_offset(&err_without);
+
+        let mut invalid_with_bom = String::from_utf8(UTF8_BOM.to_vec()).unwrap();
+        invalid_with_bom.push_str(invalid_without_bom);
+
+        // Act
+        let err_with = parse_str(&invalid_with_bom).unwrap_err();
+
+        // Assert
+        assert_eq!(
+            first_label_offset(&err_with),
+            offset_without + UTF8_BOM.len()
+        );
+    }
+
+    fn first_label_offset(err: &miette::Report) -> usize {
+        err.labels()
+            .and_then(|mut labels| labels.next())
+            .map_or(0, |label| label.offset())
     }
 
     #[test_case(VERSION8_SOLUTION ; "version 8 solution")]
