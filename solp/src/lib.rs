@@ -72,6 +72,8 @@ lalrpop_mod!(
 /// Default Visual Studio solution file extension
 pub const DEFAULT_SOLUTION_EXT: &str = "sln";
 
+pub use slnx::SLNX_SOLUTION_EXT;
+
 /// Consume provides parsed [`Solution`] consumer
 pub trait Consume {
     /// Called in case of success parsing
@@ -210,8 +212,12 @@ pub fn parse_file(path: &str, consumer: &mut dyn Consume) -> miette::Result<()> 
 /// This function uses the `parser::parse_str` function to perform the actual parsing and then
 /// constructs a [`Solution`] object from the parsed data.
 pub fn parse_str(contents: &'_ str) -> miette::Result<Solution<'_>> {
-    let parsed = parser::parse_str(contents)?;
-    Ok(Solution::from(&parsed))
+    if slnx::is_slnx(contents) {
+        slnx::parse_str(contents)
+    } else {
+        let parsed = parser::parse_str(contents)?;
+        Ok(Solution::from(&parsed))
+    }
 }
 
 impl<'a, C: Consume> SolpWalker<'a, C> {
