@@ -2,41 +2,68 @@ use std::collections::BTreeSet;
 
 use miette::Result;
 
-use crate::api::{
-    Project, ProjectConfiguration, Solution, SolutionConfiguration, Tag, Version,
-};
+use crate::api::{Project, Solution, SolutionConfiguration, Version};
 use crate::msbuild;
 
-use super::{Configurations, Folder, Project as RawProject, RawSolution};
+use super::config::{
+    SolutionConfigNames, effective_rules, project_configurations, solution_build_types,
+    solution_platforms,
+};
+use super::{Configurations, Folder, Project as RawProject, SlnxSolution, borrow_in};
 
 const ID_SOLUTION_FOLDER: &str = "{2150E333-8FDC-42A3-9474-1A3956D46DE8}";
 
-const DEFAULT_BUILD_TYPES: &[&str] = &["Debug", "Release"];
-const DEFAULT_PLATFORMS: &[&str] = &["Any CPU"];
-
 /// Converts a deserialized `.slnx` document into the shared public [`Solution`] model.
-pub fn to_api<'a>(raw: RawSolution, contents: &'a str, path: &'a str) -> Result<Solution<'a>> {
-    let format = match raw.version.as_deref() {
+pub fn to_api<'a>(slnx: SlnxSolution, contents: &'a str, path: &'a str) -> Result<Solution<'a>> {
+    let format = match slnx.version.as_deref() {
         Some(version) => borrow_in(contents, version)?,
         None => "slnx",
     };
-    let product = match raw.description.as_deref() {
+    let product = match slnx.description.as_deref() {
         Some(description) => borrow_in(contents, description)?,
         None => "",
     };
 
-    let configurations = solution_configurations(contents, raw.configurations.as_ref())?;
+    let build_types = solution_build_types(contents, slnx.configurations.as_ref())?;
+    let platforms = solution_platforms(contents, slnx.configurations.as_ref())?;
+    let config_names = SolutionConfigNames {
+        build_types: build_types.clone(),
+        platforms: platforms.clone(),
+    };
+    let configurations: BTreeSet<SolutionConfiguration<'a>> = build_types
+        .iter()
+        .copied()
+        .flat_map(|configuration| {
+            platforms
+                .iter()
+                .copied()
+                .map(move |platform| SolutionConfiguration {
+                    configuration,
+                    platform,
+                })
+        })
+        .collect();
     let mut projects = Vec::new();
 
-    for folder in raw.folders {
+    for folder in slnx.folders {
         projects.push(folder_to_project(contents, &folder)?);
         for project in folder.projects {
-            projects.push(raw_project_to_api(contents, &project)?);
+            projects.push(raw_project_to_api(
+                contents,
+                slnx.configurations.as_ref(),
+                &config_names,
+                &project,
+            )?);
         }
     }
 
-    for project in raw.projects {
-        projects.push(raw_project_to_api(contents, &project)?);
+    for project in slnx.projects {
+        projects.push(raw_project_to_api(
+            contents,
+            slnx.configurations.as_ref(),
+            &config_names,
+            &project,
+        )?);
     }
 
     Ok(Solution {
@@ -50,42 +77,6 @@ pub fn to_api<'a>(raw: RawSolution, contents: &'a str, path: &'a str) -> Result<
         duplicate_solution_configurations: None,
         duplicate_project_configurations: None,
     })
-}
-
-fn solution_configurations<'a>(
-    contents: &'a str,
-    configs: Option<&Configurations>,
-) -> Result<BTreeSet<SolutionConfiguration<'a>>> {
-    let build_types: Vec<&str> = match configs {
-        Some(configs) if !configs.build_types.is_empty() => configs
-            .build_types
-            .iter()
-            .map(|build_type| borrow_in(contents, &build_type.name))
-            .collect::<Result<Vec<_>>>()?,
-        _ => DEFAULT_BUILD_TYPES.to_vec(),
-    };
-
-    let platforms: Vec<&str> = match configs {
-        Some(configs) if !configs.platforms.is_empty() => configs
-            .platforms
-            .iter()
-            .map(|platform| borrow_in(contents, &platform.name))
-            .collect::<Result<Vec<_>>>()?,
-        _ => DEFAULT_PLATFORMS.to_vec(),
-    };
-
-    Ok(build_types
-        .into_iter()
-        .flat_map(|configuration| {
-            platforms
-                .iter()
-                .copied()
-                .map(move |platform| SolutionConfiguration {
-                    configuration,
-                    platform,
-                })
-        })
-        .collect())
 }
 
 fn folder_to_project<'a>(contents: &'a str, folder: &Folder) -> Result<Project<'a>> {
@@ -118,7 +109,12 @@ fn folder_display_name(name: &str) -> &str {
     name.trim_matches('/')
 }
 
-fn raw_project_to_api<'a>(contents: &'a str, project: &RawProject) -> Result<Project<'a>> {
+fn raw_project_to_api<'a>(
+    contents: &'a str,
+    configurations: Option<&Configurations>,
+    config_names: &SolutionConfigNames<'a>,
+    project: &RawProject,
+) -> Result<Project<'a>> {
     let path = borrow_in(contents, &project.path)?;
     let type_id = type_id_for_project(path, project.project_type.as_deref());
     let depends_from = if project.build_dependencies.is_empty() {
@@ -132,6 +128,8 @@ fn raw_project_to_api<'a>(contents: &'a str, project: &RawProject) -> Result<Pro
                 .collect::<Result<Vec<_>>>()?,
         )
     };
+    let rules = effective_rules(contents, configurations, project)?;
+    let project_configurations = project_configurations(config_names, &rules);
 
     Ok(Project {
         type_id,
@@ -142,7 +140,11 @@ fn raw_project_to_api<'a>(contents: &'a str, project: &RawProject) -> Result<Pro
             None => project_name(path),
         },
         path_or_uri: path,
-        configurations: Some(default_project_configurations()),
+        configurations: if project_configurations.is_empty() {
+            None
+        } else {
+            Some(project_configurations)
+        },
         items: None,
         depends_from,
     })
@@ -153,20 +155,6 @@ fn project_name(path: &str) -> &str {
         .next()
         .filter(|name| !name.is_empty())
         .unwrap_or(path)
-}
-
-fn default_project_configurations<'a>() -> BTreeSet<ProjectConfiguration<'a>> {
-    DEFAULT_BUILD_TYPES
-        .iter()
-        .flat_map(|configuration| {
-            DEFAULT_PLATFORMS.iter().map(move |platform| ProjectConfiguration {
-                configuration,
-                solution_configuration: configuration,
-                platform,
-                tags: vec![Tag::Build],
-            })
-        })
-        .collect()
 }
 
 fn type_id_for_project(path: &str, explicit_type: Option<&str>) -> &'static str {
@@ -201,21 +189,17 @@ fn type_id_from_type_name(type_name: &str) -> &'static str {
     }
 }
 
-fn borrow_in<'a>(contents: &'a str, value: &str) -> Result<&'a str> {
-    if value.is_empty() {
-        return Ok(&contents[0..0]);
-    }
-
-    contents
-        .find(value)
-        .map(|start| &contents[start..start + value.len()])
-        .ok_or_else(|| miette::miette!("XML value not found in source: {value}"))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use test_case::test_case;
+
+    const SLNX_WITH_DEPENDENCIES: &str = r#"<Solution>
+  <Project Path="src/App/App.csproj">
+    <BuildDependency Project="src/Lib/Lib.csproj" />
+  </Project>
+  <Project Path="src/Lib/Lib.csproj" />
+</Solution>"#;
 
     #[test_case("src/App/App.csproj", None, "{9A19103F-16F7-4668-BE54-9A1E7A4F7556}" ; "csproj extension")]
     #[test_case("native/app.vcxproj", None, "{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}" ; "vcxproj extension")]
@@ -232,15 +216,19 @@ mod tests {
     }
 
     #[test]
-    fn default_configurations_include_debug_and_release() {
+    fn dependencies_are_preserved() {
         // Arrange
 
         // Act
-        let configs = default_project_configurations();
+        let solution = super::super::parse_str(SLNX_WITH_DEPENDENCIES).unwrap();
 
         // Assert
-        assert_eq!(configs.len(), 2);
-        assert!(configs.iter().all(|cfg| cfg.tags == vec![Tag::Build]));
+        let app = solution
+            .projects
+            .iter()
+            .find(|project| project.path_or_uri == "src/App/App.csproj")
+            .expect("app project");
+        assert_eq!(app.depends_from.as_ref().unwrap(), &["src/Lib/Lib.csproj"]);
     }
 
     #[test]
@@ -249,7 +237,7 @@ mod tests {
         let source = r#"<Project Path="src/App/App.csproj" />"#;
 
         // Act
-        let actual = borrow_in(source, "src/App/App.csproj").unwrap();
+        let actual = super::borrow_in(source, "src/App/App.csproj").unwrap();
 
         // Assert
         assert_eq!(actual, "src/App/App.csproj");

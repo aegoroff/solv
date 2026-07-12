@@ -259,20 +259,26 @@ impl<'a, C: Consume> SolpWalker<'a, C> {
     /// ## Remarks
     /// Any errors occurred during parsing of found files will be ignored (so parsing won't stopped)
     /// but error paths will be added into error files list (using err function of [`Consume`] trait)
+    ///
+    /// Extension may be a comma-separated list, for example `sln,slnx`.
     pub fn walk_and_parse(&mut self, path: &str) -> usize {
+        let extensions = parse_extensions(self.extension);
         let iter = if self.recursively {
             let parallelism = Parallelism::RayonNewPool(num_cpus::get_physical());
             create_dir_iterator(path).parallelism(parallelism)
         } else {
             create_dir_iterator(path).max_depth(1)
         };
-        let ext = self.extension.trim_start_matches('.');
 
         iter.into_iter()
             .filter_map(Result::ok)
             .filter(|f| f.file_type().is_file())
             .map(|f| f.path())
-            .filter(|p| p.extension().is_some_and(|s| s == ext))
+            .filter(|p| {
+                p.extension().is_some_and(|extension| {
+                    extensions.iter().any(|expected| extension == *expected)
+                })
+            })
             .filter_map(|fp| {
                 let p = fp.to_str()?;
                 if let Err(e) = parse_file(p, &mut self.consumer) {
@@ -286,6 +292,14 @@ impl<'a, C: Consume> SolpWalker<'a, C> {
             })
             .count()
     }
+}
+
+fn parse_extensions(extension: &str) -> Vec<&str> {
+    extension
+        .split(',')
+        .map(|part| part.trim().trim_start_matches('.'))
+        .filter(|part| !part.is_empty())
+        .collect()
 }
 
 fn create_dir_iterator(path: &str) -> WalkDir {
@@ -314,6 +328,20 @@ fn decorate_path(path: &str) -> String {
 mod tests {
     use super::*;
     use test_case::test_case;
+
+    #[test_case("sln", vec!["sln"] ; "single extension")]
+    #[test_case("slnx", vec!["slnx"] ; "slnx extension")]
+    #[test_case("sln,slnx", vec!["sln", "slnx"] ; "multiple extensions")]
+    #[test_case(".sln,.slnx", vec!["sln", "slnx"] ; "dotted extensions")]
+    fn parse_extensions_tests(extension: &str, expected: Vec<&str>) {
+        // Arrange
+
+        // Act
+        let actual = parse_extensions(extension);
+
+        // Assert
+        assert_eq!(actual, expected);
+    }
 
     #[cfg(not(target_os = "windows"))]
     #[test_case("", "" ; "empty")]

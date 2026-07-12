@@ -1,9 +1,10 @@
 //! SLNX XML solution format support.
 #![expect(
     dead_code,
-    reason = "SLNX schema types include fields reserved for configuration rule support in later phases"
+    reason = "SLNX schema types include fields reserved for properties support in later phases"
 )]
 
+mod config;
 mod convert;
 
 use miette::{IntoDiagnostic, WrapErr};
@@ -17,7 +18,7 @@ pub const SLNX_SOLUTION_EXT: &str = "slnx";
 /// Root element of Solution
 #[derive(Debug, Deserialize)]
 #[serde(rename = "Solution")]
-pub struct RawSolution {
+pub struct SlnxSolution {
     #[serde(rename = "@Description", default)]
     pub description: Option<String>,
     #[serde(rename = "@Version", default)]
@@ -180,6 +181,17 @@ pub struct Property {
     pub value: Option<String>,
 }
 
+pub(crate) fn borrow_in<'a>(contents: &'a str, value: &str) -> miette::Result<&'a str> {
+    if value.is_empty() {
+        return Ok(&contents[0..0]);
+    }
+
+    contents
+        .find(value)
+        .map(|start| &contents[start..start + value.len()])
+        .ok_or_else(|| miette::miette!("XML value not found in source: {value}"))
+}
+
 /// Returns `true` when the content looks like an XML `.slnx` solution file.
 #[must_use]
 pub fn is_slnx(contents: &str) -> bool {
@@ -189,14 +201,14 @@ pub fn is_slnx(contents: &str) -> bool {
 
 /// Parses `.slnx` XML content and converts it into the public [`Solution`] API type.
 pub fn parse_str(contents: &str) -> miette::Result<Solution<'_>> {
-    let raw = deserialize(contents)?;
+    let raw = deserialize_xml(contents)?;
     convert::to_api(raw, contents, "")
 }
 
-fn deserialize(contents: &str) -> miette::Result<RawSolution> {
+fn deserialize_xml(contents: &str) -> miette::Result<SlnxSolution> {
     let config = serde_xml_rs::SerdeXml::new().overlapping_sequences(true);
     let mut de = serde_xml_rs::Deserializer::from_config(config, contents.as_bytes());
-    RawSolution::deserialize(&mut de)
+    SlnxSolution::deserialize(&mut de)
         .into_diagnostic()
         .wrap_err("Failed to deserialize .slnx solution file")
 }
@@ -217,12 +229,21 @@ mod tests {
   <Project Path="src/App/App.csproj" DisplayName="My Application" />
 </Solution>"#;
 
+    const SLNX_WITH_EXPLICIT_CONFIGURATIONS: &str = r#"<Solution>
+  <Configurations>
+    <BuildType Name="Debug" />
+    <BuildType Name="Release" />
+    <Platform Name="x64" />
+  </Configurations>
+  <Project Path="src/App/App.csproj" />
+</Solution>"#;
+
     #[test]
     fn deserialize_minimal_slnx() {
         // Arrange
 
         // Act
-        let raw = deserialize(MINIMAL_SLNX).unwrap();
+        let raw = deserialize_xml(MINIMAL_SLNX).unwrap();
 
         // Assert
         assert_eq!(raw.projects.len(), 1);
@@ -235,7 +256,7 @@ mod tests {
         // Arrange
 
         // Act
-        let raw = deserialize(SLNX_WITH_FOLDER).unwrap();
+        let raw = deserialize_xml(SLNX_WITH_FOLDER).unwrap();
 
         // Assert
         assert_eq!(raw.description.as_deref(), Some("Test solution"));
@@ -243,7 +264,10 @@ mod tests {
         assert_eq!(raw.folders.len(), 1);
         assert_eq!(raw.folders[0].name, "/Solution Items/");
         assert_eq!(raw.folders[0].files[0].path, "Directory.Build.props");
-        assert_eq!(raw.projects[0].display_name.as_deref(), Some("My Application"));
+        assert_eq!(
+            raw.projects[0].display_name.as_deref(),
+            Some("My Application")
+        );
     }
 
     #[test]
@@ -316,5 +340,22 @@ mod tests {
         // Assert
         assert_eq!(solution.projects.len(), 1);
         assert_eq!(solution.format, "slnx");
+    }
+
+    #[test]
+    fn parse_str_explicit_configurations_use_declared_platform() {
+        // Arrange
+
+        // Act
+        let solution = parse_str(SLNX_WITH_EXPLICIT_CONFIGURATIONS).unwrap();
+
+        // Assert
+        assert_eq!(solution.configurations.len(), 2);
+        assert!(
+            solution
+                .configurations
+                .iter()
+                .all(|configuration| configuration.platform == "x64")
+        );
     }
 }

@@ -48,7 +48,7 @@ const PROBLEMS_FLAG: &str = "problems";
 const FAIL_FLAG: &str = "fail";
 const MISMATCH_FLAG: &str = "mismatch";
 
-const EXT_DESCR: &str = "Visual Studio solution extension";
+const EXT_DESCR: &str = "Visual Studio solution extension, comma-separated for multiple values";
 const RECURSIVELY_DESCR: &str = "Scan directory recursively. False by default";
 const SHOW_ERROR_ON_DIR_SCAN_DESCR: &str =
     "Output solution parsing errors while scanning directories. False by default";

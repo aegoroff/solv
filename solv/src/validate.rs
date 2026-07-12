@@ -1406,6 +1406,36 @@ mod tests {
     }
 
     #[test]
+    fn slnx_cycles_validation_incorrect() {
+        // Arrange
+        let solution = solp::parse_str(SLNX_WITH_CYCLES).unwrap();
+        let mut validator = Cycles::new(&solution);
+        let mut statistic = Statistic::default();
+
+        // Act
+        validator.validate(&mut statistic);
+
+        // Assert
+        assert!(!validator.validation_result());
+        assert_eq!(1, statistic.cycles);
+    }
+
+    #[test]
+    fn slnx_orphans_validation_incorrect() {
+        // Arrange
+        let solution = solp::parse_str(SLNX_WITH_ORPHAN).unwrap();
+        let mut validator = Orphans::new(&solution);
+        let mut statistic = Statistic::default();
+
+        // Act
+        validator.validate(&mut statistic);
+
+        // Assert
+        assert!(!validator.validation_result());
+        assert_eq!(1, statistic.orphans);
+    }
+
+    #[test]
     fn missing_validation_correct() {
         // Arrange
         let solution = solp::parse_str(CORRECT_SOLUTION).unwrap();
@@ -2592,4 +2622,19 @@ Global
 	EndGlobalSection
 EndGlobal
 "#;
+
+    const SLNX_WITH_CYCLES: &str = r#"<Solution>
+  <Project Path="src/App/App.csproj">
+    <BuildDependency Project="src/Lib/Lib.csproj" />
+  </Project>
+  <Project Path="src/Lib/Lib.csproj">
+    <BuildDependency Project="src/App/App.csproj" />
+  </Project>
+</Solution>"#;
+
+    const SLNX_WITH_ORPHAN: &str = r#"<Solution>
+  <Project Path="src/Lib/Lib.csproj">
+    <Build Solution="Staging" />
+  </Project>
+</Solution>"#;
 }
