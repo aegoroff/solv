@@ -1,26 +1,19 @@
-use comfy_table::{Attribute, Cell, ContentArrangement, Row, Table, TableComponent, presets};
+use comfy_table::{
+    Attribute, Cell, ContentArrangement, ContentLineStyle, LineStyle, Row, Table, TableStyle,
+};
 use crossterm::style::{Color, Stylize, style};
+
+const TABLE_STYLE: TableStyle = TableStyle::new()
+    .header_lines(ContentLineStyle::new(' ', ' ', ' '))
+    .header_separator(LineStyle::new(' ', '-', ' ', ' '))
+    .content_lines(ContentLineStyle::new(' ', ' ', ' '))
+    .bottom_border(LineStyle::new(' ', ' ', ' ', ' '));
 
 #[must_use]
 pub fn new_table() -> Table {
     let mut table = Table::new();
     table
-        .load_preset(presets::UTF8_FULL_CONDENSED)
-        .set_style(TableComponent::BottomBorder, ' ')
-        .set_style(TableComponent::BottomBorderIntersections, ' ')
-        .set_style(TableComponent::TopBorder, ' ')
-        .set_style(TableComponent::TopBorderIntersections, ' ')
-        .set_style(TableComponent::HeaderLines, '-')
-        .set_style(TableComponent::RightHeaderIntersection, ' ')
-        .set_style(TableComponent::LeftHeaderIntersection, ' ')
-        .set_style(TableComponent::MiddleHeaderIntersections, ' ')
-        .set_style(TableComponent::LeftBorder, ' ')
-        .set_style(TableComponent::RightBorder, ' ')
-        .set_style(TableComponent::TopRightCorner, ' ')
-        .set_style(TableComponent::TopLeftCorner, ' ')
-        .set_style(TableComponent::BottomLeftCorner, ' ')
-        .set_style(TableComponent::BottomRightCorner, ' ')
-        .set_style(TableComponent::VerticalLines, ' ')
+        .load_style(TABLE_STYLE)
         .set_content_arrangement(ContentArrangement::Dynamic);
     table
 }
@@ -61,7 +54,7 @@ pub fn create_solution_table(path: &str) -> Table {
             b: 0xAA,
         },
     )]);
-    table.set_style(TableComponent::HeaderLines, ' ');
+    table.style_mut().header_separator = LineStyle::new(' ', ' ', ' ', ' ');
     table
 }
 
