@@ -38,9 +38,10 @@ assert_eq!(solution.format, "12.00");
 #![warn(unused_extern_crates)]
 #![allow(clippy::missing_errors_doc)]
 use std::fs;
+use std::path::Path;
 
 use api::Solution;
-use jwalk::{Parallelism, WalkDir};
+use dua_core::{Order, walk};
 use miette::{Context, IntoDiagnostic};
 
 pub mod api;
@@ -263,34 +264,36 @@ impl<'a, C: Consume> SolpWalker<'a, C> {
     /// Extension may be a comma-separated list, for example `sln,slnx`.
     pub fn walk_and_parse(&mut self, path: &str) -> usize {
         let extensions = parse_extensions(self.extension);
-        let iter = if self.recursively {
-            let parallelism = Parallelism::RayonNewPool(num_cpus::get_physical());
-            create_dir_iterator(path).parallelism(parallelism)
-        } else {
-            create_dir_iterator(path).max_depth(1)
-        };
+        let root = decorate_path(path);
+        let recursively = self.recursively;
+        let threads = num_cpus::get_physical().max(1);
 
-        iter.into_iter()
-            .filter_map(Result::ok)
-            .filter(|f| f.file_type().is_file())
-            .map(|f| f.path())
-            .filter(|p| {
+        walk(
+            Path::new(&root),
+            threads,
+            Order::Completion,
+            move |entry| recursively || entry.depth == 0,
+        )
+        .filter_map(Result::ok)
+        .filter(|f| f.file_type.is_file())
+        .map(|f| f.path())
+        .filter(|p| {
                 p.extension().is_some_and(|extension| {
                     extensions.iter().any(|expected| extension == *expected)
                 })
             })
-            .filter_map(|fp| {
-                let p = fp.to_str()?;
-                if let Err(e) = parse_file(p, &mut self.consumer) {
-                    if self.show_errors {
-                        println!("{e:?}");
-                    }
-                    None
-                } else {
-                    Some(())
+        .filter_map(|fp| {
+            let p = fp.to_str()?;
+            if let Err(e) = parse_file(p, &mut self.consumer) {
+                if self.show_errors {
+                    println!("{e:?}");
                 }
-            })
-            .count()
+                None
+            } else {
+                Some(())
+            }
+        })
+        .count()
     }
 }
 
@@ -300,11 +303,6 @@ fn parse_extensions(extension: &str) -> Vec<&str> {
         .map(|part| part.trim().trim_start_matches('.'))
         .filter(|part| !part.is_empty())
         .collect()
-}
-
-fn create_dir_iterator(path: &str) -> WalkDir {
-    let root = decorate_path(path);
-    WalkDir::new(root).skip_hidden(false).follow_links(false)
 }
 
 /// On Windows trailing backslash (\) to be added if volume and colon passed (like c:).
