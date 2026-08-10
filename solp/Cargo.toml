@@ -17,7 +17,7 @@ lalrpop = { version = "=0.23.1", default-features = false }
 
 [dependencies]
 lalrpop-util = { version = "=0.23.1", default-features = false }
-jwalk = "=0.8.1"
+dua-core = "=2.41.1"
 phf = { version = "=0.14.0", features = ["macros"] }
 itertools = "=0.15.0"
 num_cpus = "=1.17.0"

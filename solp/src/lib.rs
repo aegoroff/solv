@@ -38,9 +38,10 @@ assert_eq!(solution.format, "12.00");
 #![warn(unused_extern_crates)]
 #![allow(clippy::missing_errors_doc)]
 use std::fs;
+use std::path::Path;
 
 use api::Solution;
-use jwalk::{Parallelism, WalkDir};
+use dua_core::{Order, walk};
 use miette::{Context, IntoDiagnostic};
 
 pub mod api;
@@ -253,37 +254,34 @@ impl<'a, C: Consume> SolpWalker<'a, C> {
     /// Any errors occurred during parsing of found files will be ignored (so parsing won't stopped)
     /// but error paths will be added into error files list (using err function of [`Consume`] trait)
     pub fn walk_and_parse(&mut self, path: &str) -> usize {
-        let iter = if self.recursively {
-            let parallelism = Parallelism::RayonNewPool(num_cpus::get_physical());
-            create_dir_iterator(path).parallelism(parallelism)
-        } else {
-            create_dir_iterator(path).max_depth(1)
-        };
+        let root = decorate_path(path);
+        let recursively = self.recursively;
+        let threads = num_cpus::get_physical().max(1);
         let ext = self.extension.trim_start_matches('.');
 
-        iter.into_iter()
-            .filter_map(Result::ok)
-            .filter(|f| f.file_type().is_file())
-            .map(|f| f.path())
-            .filter(|p| p.extension().is_some_and(|s| s == ext))
-            .filter_map(|fp| {
-                let p = fp.to_str()?;
-                if let Err(e) = parse_file(p, &mut self.consumer) {
-                    if self.show_errors {
-                        println!("{e:?}");
-                    }
-                    None
-                } else {
-                    Some(())
+        walk(
+            Path::new(&root),
+            threads,
+            Order::Completion,
+            move |entry| recursively || entry.depth == 0,
+        )
+        .filter_map(Result::ok)
+        .filter(|f| f.file_type.is_file())
+        .map(|f| f.path())
+        .filter(|p| p.extension().is_some_and(|s| s == ext))
+        .filter_map(|fp| {
+            let p = fp.to_str()?;
+            if let Err(e) = parse_file(p, &mut self.consumer) {
+                if self.show_errors {
+                    println!("{e:?}");
                 }
-            })
-            .count()
+                None
+            } else {
+                Some(())
+            }
+        })
+        .count()
     }
-}
-
-fn create_dir_iterator(path: &str) -> WalkDir {
-    let root = decorate_path(path);
-    WalkDir::new(root).skip_hidden(false).follow_links(false)
 }
 
 /// On Windows trailing backslash (\) to be added if volume and colon passed (like c:).
@@ -307,6 +305,78 @@ fn decorate_path(path: &str) -> String {
 mod tests {
     use super::*;
     use test_case::test_case;
+
+    const MINIMAL_SOLUTION: &str = r#"
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "test", "test.csproj", "{A61CD222-0F3B-47B6-9F7F-25D658368EEC}"
+EndProject
+Global
+    GlobalSection(SolutionConfigurationPlatforms) = preSolution
+        Debug|Any CPU = Debug|Any CPU
+    EndGlobalSection
+    GlobalSection(ProjectConfigurationPlatforms) = postSolution
+        {A61CD222-0F3B-47B6-9F7F-25D658368EEC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+    EndGlobalSection
+EndGlobal
+"#;
+
+    struct CountingConsumer {
+        ok_count: usize,
+    }
+
+    impl CountingConsumer {
+        fn new() -> Self {
+            Self { ok_count: 0 }
+        }
+    }
+
+    impl Consume for CountingConsumer {
+        fn ok(&mut self, _solution: &Solution) {
+            self.ok_count += 1;
+        }
+
+        fn err(&self, _path: &str) {}
+    }
+
+    fn create_walk_fixture(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("solp_walk_{name}_{}", std::process::id()));
+        let nested = dir.join("nested");
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&nested).unwrap();
+        fs::write(dir.join("root.sln"), MINIMAL_SOLUTION).unwrap();
+        fs::write(nested.join("nested.sln"), MINIMAL_SOLUTION).unwrap();
+        dir
+    }
+
+    #[test]
+    fn walk_and_parse_non_recursive_finds_only_root_solutions() {
+        // Arrange
+        let dir = create_walk_fixture("non_recursive");
+        let mut walker = SolpWalker::new(CountingConsumer::new());
+
+        // Act
+        let scanned = walker.walk_and_parse(dir.to_str().unwrap());
+
+        // Assert
+        assert_eq!(scanned, 1);
+        assert_eq!(walker.consumer.ok_count, 1);
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn walk_and_parse_recursive_finds_nested_solutions() {
+        // Arrange
+        let dir = create_walk_fixture("recursive");
+        let mut walker = SolpWalker::new(CountingConsumer::new()).recursively(true);
+
+        // Act
+        let scanned = walker.walk_and_parse(dir.to_str().unwrap());
+
+        // Assert
+        assert_eq!(scanned, 2);
+        assert_eq!(walker.consumer.ok_count, 2);
+        let _ = fs::remove_dir_all(dir);
+    }
 
     #[cfg(not(target_os = "windows"))]
     #[test_case("", "" ; "empty")]
