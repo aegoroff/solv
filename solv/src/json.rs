@@ -29,7 +29,7 @@ impl Consume for Json {
         }
     }
 
-    fn err(&self, _path: &str) {}
+    fn err(&mut self, _path: &str) {}
 }
 
 impl Display for Json {

@@ -42,7 +42,7 @@ use std::path::Path;
 
 use api::Solution;
 use dua_core::{Order, walk};
-use miette::{Context, IntoDiagnostic};
+use miette::{IntoDiagnostic, WrapErr};
 
 pub mod api;
 mod ast;
@@ -80,7 +80,7 @@ pub trait Consume {
     /// Called in case of success parsing
     fn ok(&mut self, solution: &Solution);
     /// Called on error
-    fn err(&self, path: &str);
+    fn err(&mut self, path: &str);
 }
 
 /// Builder for walking a directory structure.
@@ -131,7 +131,7 @@ pub struct SolpWalker<'a, C: Consume> {
 ///      // ...
 ///   }
 ///
-///   fn err(&self, path: &str) {
+///   fn err(&mut self, path: &str) {
 ///      // ...
 ///   }
 /// }
@@ -144,16 +144,22 @@ pub struct SolpWalker<'a, C: Consume> {
 /// }
 /// ```
 pub fn parse_file(path: &str, consumer: &mut dyn Consume) -> miette::Result<()> {
-    let contents = fs::read_to_string(path)
-        .into_diagnostic()
-        .wrap_err_with(|| {
+    let contents = match fs::read_to_string(path) {
+        Ok(contents) => contents,
+        Err(e) => {
             consumer.err(path);
-            format!("Failed to read content from path: {path}")
-        })?;
-    let mut solution = parse_str(&contents).wrap_err_with(|| {
-        consumer.err(path);
-        format!("Failed to parse solution from path: {path}")
-    })?;
+            return Err(e)
+                .into_diagnostic()
+                .wrap_err(format!("Failed to read content from path: {path}"));
+        }
+    };
+    let mut solution = match parse_str(&contents) {
+        Ok(solution) => solution,
+        Err(e) => {
+            consumer.err(path);
+            return Err(e).wrap_err(format!("Failed to parse solution from path: {path}"));
+        }
+    };
 
     solution.path = path;
     consumer.ok(&solution);

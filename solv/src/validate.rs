@@ -8,7 +8,6 @@ use petgraph::algo::DfsSpace;
 use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::prelude::DiGraphMap;
 use solp::api::{Solution, SolutionConfiguration, Tag};
-use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fmt;
 use std::fmt::Display;
@@ -26,11 +25,11 @@ trait Validator {
 
 pub struct Validate {
     show_only_problems: bool,
-    errors: RefCell<Collector>,
-    statistic: RefCell<Statistic>,
+    errors: Collector,
+    statistic: Statistic,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 struct Statistic {
     cycles: u64,
     danglings: u64,
@@ -160,13 +159,13 @@ impl Validate {
     pub fn new(show_only_problems: bool) -> Self {
         Self {
             show_only_problems,
-            errors: RefCell::new(Collector::new()),
-            statistic: RefCell::new(Statistic::default()),
+            errors: Collector::new(),
+            statistic: Statistic::default(),
         }
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 struct FixStatistic {
     parsed: u64,
     fixed_solutions: u64,
@@ -243,18 +242,18 @@ impl Display for FixStatistic {
 }
 
 pub struct ValidateFix {
-    errors: RefCell<Collector>,
-    statistic: RefCell<FixStatistic>,
-    failed: RefCell<Vec<(PathBuf, String)>>,
+    errors: Collector,
+    statistic: FixStatistic,
+    failed: Vec<(PathBuf, String)>,
 }
 
 impl ValidateFix {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            errors: RefCell::new(Collector::new()),
-            statistic: RefCell::new(FixStatistic::default()),
-            failed: RefCell::new(Vec::new()),
+            errors: Collector::new(),
+            statistic: FixStatistic::default(),
+            failed: Vec::new(),
         }
     }
 }
@@ -267,7 +266,7 @@ impl Default for ValidateFix {
 
 impl Consume for ValidateFix {
     fn ok(&mut self, solution: &Solution) {
-        self.statistic.borrow_mut().parsed += 1;
+        self.statistic.parsed += 1;
 
         let mut detector = Redundants::new(solution);
         let mut unused = Statistic::default();
@@ -286,52 +285,48 @@ impl Consume for ValidateFix {
             match remove_redundant_reference_lines(&project_path, &refs) {
                 Ok(removed) => {
                     if removed > 0 {
-                        let mut stat = self.statistic.borrow_mut();
-                        stat.fixed_projects += 1;
-                        stat.removed_refs += removed as u64;
+                        self.statistic.fixed_projects += 1;
+                        self.statistic.removed_refs += removed as u64;
                         solution_was_fixed = true;
                     }
                 }
                 Err(err) => {
-                    self.statistic.borrow_mut().failed_projects += 1;
-                    self.failed
-                        .borrow_mut()
-                        .push((project_path, err.to_string()));
+                    self.statistic.failed_projects += 1;
+                    self.failed.push((project_path, err.to_string()));
                 }
             }
         }
         if solution_was_fixed {
-            self.statistic.borrow_mut().fixed_solutions += 1;
+            self.statistic.fixed_solutions += 1;
         }
     }
 
-    fn err(&self, path: &str) {
-        self.errors.borrow_mut().add_path(path);
+    fn err(&mut self, path: &str) {
+        self.errors.add_path(path);
     }
 }
 
 impl Display for ValidateFix {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut statistic = self.statistic.borrow_mut();
-        statistic.not_parsed = self.errors.borrow().count();
+        let mut statistic = self.statistic;
+        statistic.not_parsed = self.errors.count();
         statistic.total = statistic.parsed + statistic.not_parsed;
         write!(f, "{statistic}")?;
 
-        let failed = self.failed.borrow();
-        if !failed.is_empty() {
+        if !self.failed.is_empty() {
             writeln!(f)?;
             writeln!(
                 f,
                 " {}",
                 "Failed to update project files:".dark_red().bold()
             )?;
-            for (path, error) in failed.iter() {
+            for (path, error) in &self.failed {
                 writeln!(f, "   {}: {}", path.to_string_lossy(), error)?;
             }
         }
 
-        if self.errors.borrow().count() > 0 {
-            write!(f, "{}", self.errors.borrow())?;
+        if self.errors.count() > 0 {
+            write!(f, "{}", self.errors)?;
         }
         Ok(())
     }
@@ -351,7 +346,7 @@ impl Consume for Validate {
         ];
 
         let valid_solution = validators.iter_mut().fold(true, |mut res, validator| {
-            validator.validate(&mut self.statistic.borrow_mut());
+            validator.validate(&mut self.statistic);
             res &= validator.validation_result();
             res
         });
@@ -375,23 +370,23 @@ impl Consume for Validate {
         if !valid_solution {
             println!();
         }
-        self.statistic.borrow_mut().total += 1;
+        self.statistic.total += 1;
     }
 
-    fn err(&self, path: &str) {
-        self.errors.borrow_mut().add_path(path);
+    fn err(&mut self, path: &str) {
+        self.errors.add_path(path);
     }
 }
 
 impl Display for Validate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut statistic = self.statistic.borrow_mut();
-        statistic.not_parsed = self.errors.borrow().count();
+        let mut statistic = self.statistic;
+        statistic.not_parsed = self.errors.count();
         statistic.parsed = statistic.total;
         statistic.total += statistic.not_parsed;
         write!(f, "{statistic}")?;
-        if self.errors.borrow().count() > 0 {
-            write!(f, "{}", self.errors.borrow())
+        if self.errors.count() > 0 {
+            write!(f, "{}", self.errors)
         } else {
             Ok(())
         }
@@ -2091,12 +2086,12 @@ EndGlobal
 
         // statistics
         assert_eq!(
-            validator.statistic.borrow().fixed_projects,
+            validator.statistic.fixed_projects,
             1,
             "Should be one fixed project"
         );
         assert_eq!(
-            validator.statistic.borrow().removed_refs,
+            validator.statistic.removed_refs,
             1,
             "Should be one removed ref"
         );
@@ -2204,7 +2199,7 @@ EndGlobal
 
         // Assert: Should have 1 fixed project (App.csproj) and 1 removed ref (Lib.csproj)
         // Note: Even though Lib is redundant through both A and B, it's only one reference
-        let stat = validator.statistic.borrow();
+        let stat = validator.statistic;
         assert_eq!(stat.fixed_projects, 1, "Should be one fixed project");
         assert_eq!(stat.removed_refs, 1, "Should be one removed ref");
         assert_eq!(stat.fixed_solutions, 1, "Should be one fixed solution");
