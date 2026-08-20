@@ -1,5 +1,4 @@
 use std::{
-    cell::RefCell,
     collections::{BTreeSet, HashMap},
     fmt::{self, Display},
 };
@@ -14,7 +13,7 @@ use crate::{Consume, MsbuildProject, error::Collector, ux};
 pub struct Nuget {
     show_only_mismatched: bool,
     pub mismatches_found: bool,
-    errors: RefCell<Collector>,
+    errors: Collector,
 }
 
 impl Nuget {
@@ -23,7 +22,7 @@ impl Nuget {
         Self {
             show_only_mismatched,
             mismatches_found: false,
-            errors: RefCell::new(Collector::new()),
+            errors: Collector::new(),
         }
     }
 }
@@ -100,8 +99,8 @@ impl Consume for Nuget {
         println!();
     }
 
-    fn err(&self, path: &str) {
-        self.errors.borrow_mut().add_path(path);
+    fn err(&mut self, path: &str) {
+        self.errors.add_path(path);
     }
 }
 
@@ -117,8 +116,8 @@ impl Display for Nuget {
             )?;
             writeln!(f)?;
         }
-        if self.errors.borrow().count() > 0 {
-            write!(f, "{}", self.errors.borrow())
+        if self.errors.count() > 0 {
+            write!(f, "{}", self.errors)
         } else {
             Ok(())
         }

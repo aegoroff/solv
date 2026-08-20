@@ -3,7 +3,6 @@ use crossterm::style::Stylize;
 use num_format::{Locale, ToFormattedString};
 use solp::api::Solution;
 use solp::{Consume, msbuild};
-use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::fmt::Display;
@@ -14,7 +13,7 @@ pub struct Info {
     total_projects: BTreeMap<String, i32>,
     projects_in_solutions: BTreeMap<String, i32>,
     solutions: i32,
-    errors: RefCell<Collector>,
+    errors: Collector,
 }
 
 impl Info {
@@ -24,7 +23,7 @@ impl Info {
             total_projects: BTreeMap::new(),
             projects_in_solutions: BTreeMap::new(),
             solutions: 0,
-            errors: RefCell::new(Collector::new()),
+            errors: Collector::new(),
         }
     }
 }
@@ -113,8 +112,8 @@ impl Consume for Info {
         println!("{solution_table}");
     }
 
-    fn err(&self, path: &str) {
-        self.errors.borrow_mut().add_path(path);
+    fn err(&mut self, path: &str) {
+        self.errors.add_path(path);
     }
 }
 
@@ -161,6 +160,6 @@ impl Display for Info {
         ]);
         writeln!(f, "{table}")?;
 
-        write!(f, "{}", self.errors.borrow())
+        write!(f, "{}", self.errors)
     }
 }
