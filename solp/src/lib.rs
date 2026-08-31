@@ -41,7 +41,7 @@ use std::fs;
 use std::path::Path;
 
 use api::Solution;
-use dua_core::{Order, walk};
+use dua_core::{Options, Order, walk};
 use miette::{IntoDiagnostic, WrapErr};
 
 pub mod api;
@@ -269,6 +269,7 @@ impl<'a, C: Consume> SolpWalker<'a, C> {
             Path::new(&root),
             threads,
             Order::Completion,
+            Options::default(),
             move |entry| recursively || entry.depth == 0,
         )
         .filter_map(Result::ok)
