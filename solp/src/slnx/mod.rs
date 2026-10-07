@@ -291,7 +291,7 @@ pub fn parse_str(contents: &str) -> miette::Result<Solution<'_>> {
         ));
     }
     let raw = deserialize_xml(contents)?;
-    convert::to_api(raw, contents, "")
+    convert::to_api(raw, contents)
 }
 
 fn deserialize_xml(contents: &str) -> miette::Result<SlnxSolution> {

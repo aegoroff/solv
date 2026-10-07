@@ -20,7 +20,8 @@ const VISUAL_STUDIO_VERSION: &str = "VisualStudioVersion";
 const MINIMUM_VISUAL_STUDIO_VERSION: &str = "MinimumVisualStudioVersion";
 
 /// Converts a deserialized `.slnx` document into the shared public [`Solution`] model.
-pub fn to_api<'a>(slnx: SlnxSolution, contents: &'a str, path: &'a str) -> Result<Solution<'a>> {
+/// Solution path is empty like in `.sln` parsing. File path is set by [`crate::parse_file`].
+pub fn to_api<'a>(slnx: SlnxSolution, contents: &'a str) -> Result<Solution<'a>> {
     let format = match slnx.version.as_deref() {
         Some(version) => borrow_in(contents, version)?,
         None => "slnx",
@@ -122,7 +123,7 @@ pub fn to_api<'a>(slnx: SlnxSolution, contents: &'a str, path: &'a str) -> Resul
     }
 
     Ok(Solution {
-        path: borrow_in(contents, path).unwrap_or(path),
+        path: "",
         format,
         product,
         versions,
