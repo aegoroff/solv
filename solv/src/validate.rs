@@ -1313,6 +1313,7 @@ mod tests {
     use super::*;
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
+    use test_case::test_case;
 
     #[test]
     fn integration_test_correct_solution() {
@@ -2662,5 +2663,211 @@ EndGlobal
     <Platform Solution="*|Any CPU" Project="Win32" />
     <Build Solution="Debug|x64" Project="false" />
   </Project>
+</Solution>"#;
+
+    #[test_case(SLNX_CORRECT ; "default configurations")]
+    #[test_case(SLNX_WITH_CONFIGURATION_RULES ; "configuration rules")]
+    #[test_case(SLNX_WITH_PLATFORM_MAPPING ; "platform mapping")]
+    fn slnx_missing_validation_correct(slnx: &str) {
+        // Arrange
+        let solution = solp::parse_str(slnx).unwrap();
+        let mut validator = Missings::new(&solution);
+        let mut statistic = Statistic::default();
+
+        // Act
+        validator.validate(&mut statistic);
+
+        // Assert
+        assert!(validator.validation_result());
+        assert_eq!(0, statistic.missings);
+    }
+
+    #[test]
+    fn slnx_dangling_validation_correct() {
+        // Arrange
+        let solution = solp::parse_str(SLNX_WITH_CONFIGURATION_RULES).unwrap();
+        let mut validator = Danglings::new(&solution);
+        let mut statistic = Statistic::default();
+
+        // Act
+        validator.validate(&mut statistic);
+
+        // Assert
+        assert!(validator.validation_result());
+        assert_eq!(0, statistic.danglings);
+    }
+
+    #[test]
+    fn slnx_duplicate_configurations_validation_correct() {
+        // Arrange
+        let solution = solp::parse_str(SLNX_WITH_CONFIGURATION_RULES).unwrap();
+        let mut validator = DuplicateConfigurations::new(&solution);
+        let mut statistic = Statistic::default();
+
+        // Act
+        validator.validate(&mut statistic);
+
+        // Assert
+        assert!(validator.validation_result());
+        assert_eq!(0, statistic.duplicate_configurations);
+    }
+
+    #[test_case(SLNX_CORRECT, true, 0 ; "unique paths")]
+    #[test_case(SLNX_WITH_DUPLICATE_PATHS, false, 1 ; "duplicate paths")]
+    #[test_case(SLNX_WITH_DUPLICATE_PATHS_DIFFERENT_CASE, false, 1 ; "duplicate paths in different case")]
+    fn slnx_duplicate_guids_validation(slnx: &str, expected_result: bool, expected_count: u64) {
+        // Arrange
+        let solution = solp::parse_str(slnx).unwrap();
+        let mut validator = DuplicateGuids::new(&solution);
+        let mut statistic = Statistic::default();
+
+        // Act
+        validator.validate(&mut statistic);
+
+        // Assert
+        assert_eq!(expected_result, validator.validation_result());
+        assert_eq!(expected_count, statistic.duplicate_guids);
+    }
+
+    #[test]
+    fn slnx_not_found_validation_reports_only_missing_projects() {
+        // Arrange
+        let uniq = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("solv-slnx-notfound-{uniq}"));
+        fs::create_dir_all(root.join("App")).unwrap();
+        fs::write(
+            root.join("App").join("App.csproj"),
+            r#"<Project Sdk="Microsoft.NET.Sdk"></Project>"#,
+        )
+        .unwrap();
+        let slnx = r#"<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="README.md" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="App/App.csproj" />
+    <Project Path="Missing\Missing.csproj" />
+  </Folder>
+</Solution>"#;
+        let mut solution = solp::parse_str(slnx).unwrap();
+        let slnx_path = root.join("test.slnx");
+        let leaked_path: &'static str =
+            Box::leak(slnx_path.to_string_lossy().into_owned().into_boxed_str());
+        solution.path = leaked_path;
+        let mut validator = NotFound::new(&solution);
+        let mut statistic = Statistic::default();
+
+        // Act
+        validator.validate(&mut statistic);
+
+        // Assert
+        fs::remove_dir_all(&root).unwrap();
+        assert!(!validator.validation_result());
+        assert_eq!(1, statistic.not_found);
+        assert_eq!(
+            vec![root.join("Missing").join("Missing.csproj")],
+            validator.bad_paths.into_iter().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn slnx_redundants_detected() {
+        // Arrange
+        let uniq = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("solv-slnx-redundants-{uniq}"));
+        for dir in ["App", "A", "Shared"] {
+            fs::create_dir_all(root.join(dir)).unwrap();
+        }
+        fs::write(
+            root.join("Shared").join("Shared.csproj"),
+            r#"<Project Sdk="Microsoft.NET.Sdk"></Project>"#,
+        )
+        .unwrap();
+        fs::write(
+            root.join("A").join("A.csproj"),
+            r#"<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\Shared\Shared.csproj" />
+  </ItemGroup>
+</Project>"#,
+        )
+        .unwrap();
+        fs::write(
+            root.join("App").join("App.csproj"),
+            r#"<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\A\A.csproj" />
+    <ProjectReference Include="..\Shared\Shared.csproj" />
+  </ItemGroup>
+</Project>"#,
+        )
+        .unwrap();
+        let slnx = r#"<Solution>
+  <Folder Name="/src/">
+    <Project Path="App/App.csproj" />
+    <Project Path="A/A.csproj" />
+  </Folder>
+  <Project Path="Shared/Shared.csproj" />
+</Solution>"#;
+        let mut solution = solp::parse_str(slnx).unwrap();
+        let slnx_path = root.join("test.slnx");
+        let leaked_path: &'static str =
+            Box::leak(slnx_path.to_string_lossy().into_owned().into_boxed_str());
+        solution.path = leaked_path;
+        let mut validator = Redundants::new(&solution);
+        let mut statistic = Statistic::default();
+
+        // Act
+        validator.validate(&mut statistic);
+
+        // Assert
+        let app_path = root.join("App").join("App.csproj").canonicalize().unwrap();
+        fs::remove_dir_all(&root).unwrap();
+        assert_eq!(1, statistic.redundant_refs);
+        assert_eq!(1, validator.redundants.len());
+        assert_eq!(app_path, validator.redundants[0].project);
+        assert_eq!(
+            "..\\Shared\\Shared.csproj",
+            validator.redundants[0].redundant_reference
+        );
+    }
+
+    const SLNX_CORRECT: &str = r#"<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/App/App.csproj" />
+  </Folder>
+  <Project Path="src/Lib/Lib.csproj" />
+</Solution>"#;
+
+    const SLNX_WITH_PLATFORM_MAPPING: &str = r#"<Solution>
+  <Configurations>
+    <Platform Name="x86" />
+    <Platform Name="x64" />
+    <ProjectType Extension="vcxproj">
+      <Platform Solution="*|x86" Project="Win32" />
+    </ProjectType>
+  </Configurations>
+  <Project Path="src/Native/Native.vcxproj" />
+  <Project Path="src/App/App.csproj">
+    <Platform Project="Any CPU" />
+  </Project>
+</Solution>"#;
+
+    const SLNX_WITH_DUPLICATE_PATHS: &str = r#"<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/App/App.csproj" />
+  </Folder>
+  <Project Path="src/App/App.csproj" />
+</Solution>"#;
+
+    const SLNX_WITH_DUPLICATE_PATHS_DIFFERENT_CASE: &str = r#"<Solution>
+  <Project Path="src/App/App.csproj" />
+  <Project Path="SRC/app/APP.csproj" />
 </Solution>"#;
 }

@@ -163,3 +163,38 @@ impl Display for Info {
         write!(f, "{}", self.errors)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn slnx_info_counts_projects_by_type_without_folders() {
+        // Arrange
+        let slnx = r#"<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/App/App.csproj" />
+    <Project Path="src/Native/Native.vcxproj" />
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path="README.md" />
+  </Folder>
+  <Project Path="src/Lib/Lib.csproj" />
+</Solution>"#;
+        let solution = solp::parse_str(slnx).unwrap();
+        let mut info = Info::new();
+
+        // Act
+        info.ok(&solution);
+
+        // Assert
+        assert_eq!(1, info.solutions);
+        assert_eq!(
+            vec![("C# (.Net Core)", 2), ("C++", 1)],
+            info.total_projects
+                .iter()
+                .map(|(k, v)| (k.as_str(), *v))
+                .collect::<Vec<_>>()
+        );
+    }
+}

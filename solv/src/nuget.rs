@@ -168,11 +168,59 @@ fn nugets_from_packages_configs(projects: &[MsbuildProject]) -> HashMap<String, 
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
     use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     use solp::msbuild::{ItemGroup, PackageReference, Project};
+    use test_case::test_case;
 
     use super::*;
+
+    #[test_case("10.0.1", "13.0.3", true ; "different versions")]
+    #[test_case("13.0.3", "13.0.3", false ; "same versions")]
+    fn slnx_nuget_mismatches(app_version: &str, lib_version: &str, expected: bool) {
+        // Arrange
+        let uniq = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("solv-slnx-nuget-{uniq}"));
+        for (name, version) in [("App", app_version), ("Lib", lib_version)] {
+            fs::create_dir_all(root.join(name)).unwrap();
+            fs::write(
+                root.join(name).join(format!("{name}.csproj")),
+                format!(
+                    r#"<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="{version}" />
+  </ItemGroup>
+</Project>"#
+                ),
+            )
+            .unwrap();
+        }
+        let slnx_path = root.join("test.slnx");
+        fs::write(
+            &slnx_path,
+            r#"<Solution>
+  <Folder Name="/src/">
+    <Project Path="App/App.csproj" />
+  </Folder>
+  <Project Path="Lib\Lib.csproj" />
+</Solution>"#,
+        )
+        .unwrap();
+        let mut nuget = Nuget::new(false);
+
+        // Act
+        let result = solp::parse_file(slnx_path.to_str().unwrap(), &mut nuget);
+
+        // Assert
+        fs::remove_dir_all(&root).unwrap();
+        assert!(result.is_ok());
+        assert_eq!(expected, nuget.mismatches_found);
+    }
 
     #[test]
     fn nugets_no_mismatches() {
