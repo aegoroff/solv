@@ -1,7 +1,8 @@
 //! Project files i.e. MSBuild project files on disk referenced by solution projects.
 
 use std::borrow::Cow;
-use std::path::{Path, PathBuf};
+use std::fs;
+use std::path::{Component, Path, PathBuf};
 
 use crate::api::{Project, Solution, SolutionKind};
 use crate::msbuild;
@@ -57,12 +58,54 @@ pub fn locate<'a>(
                 SolutionKind::Sln => Cow::Borrowed(p.path_or_uri),
             };
             let path = make_path(dir, &relative);
-            let location = match path.canonicalize() {
-                Ok(path) => ProjectLocation::Found(ProjectFile { path }),
-                Err(_) => ProjectLocation::Missing(path),
+            let location = match canonicalize_ignoring_case(&path) {
+                Some(path) => ProjectLocation::Found(ProjectFile { path }),
+                None => ProjectLocation::Missing(path),
             };
             (p, location)
         })
+}
+
+/// Canonical path of the existing file or directory. Solutions and projects are usually
+/// written on Windows where file names are case-insensitive, so if the path doesn't
+/// exist as is, its components are matched ignoring case (exact match is preferred).
+#[must_use]
+pub fn canonicalize_ignoring_case(path: &Path) -> Option<PathBuf> {
+    path.canonicalize()
+        .ok()
+        .or_else(|| find_ignoring_case(path)?.canonicalize().ok())
+}
+
+fn find_ignoring_case(path: &Path) -> Option<PathBuf> {
+    let mut found = PathBuf::new();
+    for component in path.components() {
+        let Component::Normal(name) = component else {
+            found.push(component);
+            continue;
+        };
+        let exact = found.join(name);
+        if exact.exists() {
+            found = exact;
+            continue;
+        }
+        let name = name.to_str()?.to_lowercase();
+        let dir = if found.as_os_str().is_empty() {
+            Path::new(".")
+        } else {
+            &found
+        };
+        let entry = fs::read_dir(dir)
+            .ok()?
+            .filter_map(Result::ok)
+            .find(|entry| {
+                entry
+                    .file_name()
+                    .to_str()
+                    .is_some_and(|entry_name| entry_name.to_lowercase() == name)
+            })?;
+        found.push(entry.file_name());
+    }
+    Some(found)
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -81,7 +124,6 @@ fn make_path(dir: &Path, relative: &str) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
     use test_case::test_case;
 
     const PROJECT_TYPE: &str = "{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}";
@@ -213,5 +255,55 @@ EndProject
         // Assert
         let _ = fs::remove_dir_all(&dir);
         assert_eq!(loaded, vec![false]);
+    }
+
+    #[test]
+    fn locate_found_ignoring_case() {
+        // Arrange
+        let dir =
+            std::env::temp_dir().join(format!("solp_project_files_case_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(dir.join("Src").join("App")).unwrap();
+        fs::create_dir_all(dir.join("Tools")).unwrap();
+        fs::write(dir.join("Src").join("App").join("App.csproj"), "").unwrap();
+        let solution_path = dir.join("Tools").join("a.sln");
+        let solution_path = solution_path.to_str().unwrap();
+        let contents = sln(r"..\src\app\APP.csproj");
+        let mut solution = crate::parse_str(&contents).unwrap();
+        solution.path = solution_path;
+
+        // Act
+        let located: Vec<_> = locate(&solution).map(|(_, location)| location).collect();
+
+        // Assert
+        let expected = dir
+            .join("Src")
+            .join("App")
+            .join("App.csproj")
+            .canonicalize();
+        let _ = fs::remove_dir_all(&dir);
+        assert_eq!(
+            located,
+            vec![ProjectLocation::Found(ProjectFile::new(expected.unwrap()))]
+        );
+    }
+
+    #[test]
+    fn canonicalize_ignoring_case_missing() {
+        // Arrange
+        let dir = std::env::temp_dir().join(format!(
+            "solp_project_files_case_missing_{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(dir.join("App")).unwrap();
+        let path = dir.join("app").join("App.csproj");
+
+        // Act
+        let actual = canonicalize_ignoring_case(&path);
+
+        // Assert
+        let _ = fs::remove_dir_all(&dir);
+        assert_eq!(actual, None);
     }
 }

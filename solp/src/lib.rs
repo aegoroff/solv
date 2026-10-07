@@ -678,6 +678,36 @@ EndGlobal
     }
 
     #[test]
+    fn parse_str_sln_section_name_with_spaces() {
+        // Arrange
+        let contents = r#"
+Microsoft Visual Studio Solution File, Format Version 9.00
+# Visual Studio 2005
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "App", "App.csproj", "{46B962CC-097B-4E5E-8835-6D89E548ED12}"
+EndProject
+Global
+	GlobalSection(DevPartner Solution Properties) = postSolution
+	EndGlobalSection
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{46B962CC-097B-4E5E-8835-6D89E548ED12}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{46B962CC-097B-4E5E-8835-6D89E548ED12}.Debug|Any CPU.Build.0 = Debug|Any CPU
+	EndGlobalSection
+EndGlobal
+"#;
+
+        // Act
+        let solution = parse_str(contents).unwrap();
+
+        // Assert
+        assert_eq!(1, solution.configurations.len());
+        let configurations = solution.projects[0].configurations.as_ref().unwrap();
+        assert_eq!(1, configurations.len());
+    }
+
+    #[test]
     fn parse_str_sln_keeps_solution_and_project_platforms() {
         // Arrange
         let content = r#"

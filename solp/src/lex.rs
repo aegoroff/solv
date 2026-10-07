@@ -66,6 +66,7 @@ impl Display for LexicalError {
 
 enum LexerContext {
     None,
+    SectionName,
     SectionDefinition,
     InsideSection,
     InsideString,
@@ -123,7 +124,7 @@ impl<'a> Lexer<'a> {
                     let collected = &self.input[i..finish];
                     // Check if identifier is suffixed with 'Section' and update context if so
                     if collected.ends_with(SECTION_SUFFIX) {
-                        self.context = LexerContext::SectionDefinition;
+                        self.context = LexerContext::SectionName;
                     }
                     return (i, Tok::OpenElement(collected), finish);
                 }
@@ -131,6 +132,25 @@ impl<'a> Lexer<'a> {
             }
         }
         self.id_or_close_element(&self.input[i..], i, self.input.len())
+    }
+
+    /// Section name is any text between parentheses (spaces included)
+    /// e.g. `GlobalSection(DevPartner Solution Properties)`
+    fn section_name(&mut self, c: char, i: usize) -> Spanned<Tok<'a>, usize, LexicalError> {
+        self.context = LexerContext::SectionDefinition;
+        let mut current = Some((i, c));
+        while let Some((j, c)) = current {
+            match c {
+                ')' => {
+                    let start = Lexer::trim_start(self.input, i);
+                    let finish = Lexer::trim_end(self.input, j).max(start);
+                    return Ok((start, Tok::Id(&self.input[start..finish]), finish));
+                }
+                '\r' | '\n' => break,
+                _ => current = self.chars.next(),
+            }
+        }
+        Err(LexicalError::PrematureEndOfStream(i))
     }
 
     fn comment(&mut self, i: usize) -> (usize, Tok<'a>, usize) {
@@ -308,6 +328,9 @@ impl<'a> Iterator for Lexer<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             let (i, c) = self.chars.next()?;
+            if let LexerContext::SectionName = self.context {
+                return Some(self.section_name(c, i));
+            }
             let tok = match c {
                 '\r' | '\n' => self.section_key(i),
                 '=' => self.section_value(i),
@@ -371,6 +394,37 @@ mod tests {
 
         // Assert
         assert_eq!(actual, expected);
+    }
+
+    #[test_case("GlobalSection(SolutionProperties) = preSolution", "SolutionProperties" ; "identifier")]
+    #[test_case("GlobalSection(DevPartner Solution Properties) = postSolution", "DevPartner Solution Properties" ; "with spaces")]
+    #[test_case("GlobalSection( Spaced ) = postSolution", "Spaced" ; "trimmed")]
+    #[test_case("GlobalSection(Team-Foundation.VersionControl 1) = preSolution", "Team-Foundation.VersionControl 1" ; "other chars")]
+    #[test_case("GlobalSection() = preSolution", "" ; "empty")]
+    #[test_case("ProjectSection(Solution Items) = preProject", "Solution Items" ; "project section")]
+    fn section_name_tests(content: &str, expected: &str) {
+        // Arrange
+        let lexer = Lexer::new(content);
+
+        // Act
+        let actual: Vec<String> = lexer.map(|tok| tok.unwrap().1.to_string()).collect();
+
+        // Assert
+        assert_eq!(actual[1], format!("Identifier({expected})"));
+        assert_eq!(actual[2], "Eq");
+        assert_eq!(actual.len(), 4);
+    }
+
+    #[test]
+    fn section_name_unclosed() {
+        // Arrange
+        let lexer = Lexer::new("GlobalSection(Solution\nEndGlobalSection");
+
+        // Act
+        let actual: Vec<_> = lexer.collect();
+
+        // Assert
+        assert!(actual[1].is_err());
     }
 
     const REAL_SOLUTION: &str = r#"

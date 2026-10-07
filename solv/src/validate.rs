@@ -9,6 +9,7 @@ use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::prelude::DiGraphMap;
 use petgraph::visit::EdgeRef;
 use solp::api::{Solution, SolutionConfiguration, Tag};
+use solp::msbuild;
 use solp::project_files::{self, ProjectLocation};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fmt;
@@ -769,6 +770,7 @@ impl<'a> Orphans<'a> {
     pub fn new(solution: &'a Solution<'a>) -> Self {
         let mut projects = solution
             .iterate_projects_without_web_sites()
+            .filter(|project| !msbuild::is_shared_project(project.type_id, project.path_or_uri))
             .filter(|project| !Self::has_build_configuration(project))
             .map(|project| (project.name, project.id, project.path_or_uri))
             .collect::<Vec<_>>();
@@ -920,7 +922,8 @@ impl<'a> Redundants<'a> {
                     let normalized_include = decorate_path(include);
 
                     let joined = parent.join(normalized_include);
-                    let Ok(reference_path) = joined.canonicalize() else {
+                    let Some(reference_path) = project_files::canonicalize_ignoring_case(&joined)
+                    else {
                         continue;
                     };
 
@@ -1740,6 +1743,20 @@ EndGlobal
         assert!(matches!(problem, Some(Problem::Orphans(_))));
     }
 
+    #[test_case(SOLUTION_WITH_SHARED_PROJECTS ; "sln")]
+    #[test_case(SLNX_WITH_SHARED_PROJECTS ; "slnx")]
+    fn orphans_validation_shared_projects_ignored(content: &str) {
+        // Arrange
+        let solution = solp::parse_str(content).unwrap();
+        let validator = Orphans::new(&solution);
+
+        // Act
+        let problem = validator.check();
+
+        // Assert
+        assert_eq!(None, problem);
+    }
+
     #[test]
     fn print_statistic_test() {
         // Arrange
@@ -2520,6 +2537,26 @@ Global
 EndGlobal
 "#;
 
+    const SOLUTION_WITH_SHARED_PROJECTS: &str = r#"
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 14
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "a", "a\a.csproj", "{78965571-A6C2-4161-95B1-813B46610EA7}"
+EndProject
+Project("{D954291E-2A0B-460D-934E-DC6B0785DB48}") = "Shared", "Shared\Shared.shproj", "{D0BC9BE7-24F6-40CA-8DC6-FCB93BD44B34}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Items", "Items\Items.vcxitems", "{C1930979-C824-496B-A630-70F5369A636F}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{78965571-A6C2-4161-95B1-813B46610EA7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{78965571-A6C2-4161-95B1-813B46610EA7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+	EndGlobalSection
+EndGlobal
+"#;
+
     const SOLUTION_WITH_DUPLICATE_SOLUTION_CONFIGURATIONS: &str = r#"
 Microsoft Visual Studio Solution File, Format Version 11.00
 # Visual Studio 2010
@@ -2786,6 +2823,12 @@ EndGlobal
   </Project>
 </Solution>"#;
 
+    const SLNX_WITH_SHARED_PROJECTS: &str = r#"<Solution>
+  <Project Path="src/Lib/Lib.csproj" />
+  <Project Path="src/Shared/Shared.shproj" />
+  <Project Path="src/Items/Items.vcxitems" />
+</Solution>"#;
+
     const SLNX_WITH_CONFIGURATION_RULES: &str = r#"<Solution>
   <Configurations>
     <Platform Name="Any CPU" />
@@ -2951,6 +2994,66 @@ EndGlobal
         let expected = RedundantRef {
             project: app_path,
             redundant_reference: "..\\Shared\\Shared.csproj".to_owned(),
+        };
+        assert_eq!(Some(Problem::Redundants(vec![expected])), problem);
+    }
+
+    #[test]
+    fn redundants_detected_with_paths_in_other_case() {
+        // Arrange
+        let uniq = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("solv-case-redundants-{uniq}"));
+        for dir in ["App", "A", "Shared"] {
+            fs::create_dir_all(root.join(dir)).unwrap();
+        }
+        fs::write(
+            root.join("Shared").join("Shared.csproj"),
+            r#"<Project Sdk="Microsoft.NET.Sdk"></Project>"#,
+        )
+        .unwrap();
+        fs::write(
+            root.join("A").join("A.csproj"),
+            r#"<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\shared\SHARED.csproj" />
+  </ItemGroup>
+</Project>"#,
+        )
+        .unwrap();
+        fs::write(
+            root.join("App").join("App.csproj"),
+            r#"<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\a\a.csproj" />
+    <ProjectReference Include="..\Shared\shared.csproj" />
+  </ItemGroup>
+</Project>"#,
+        )
+        .unwrap();
+        let slnx = r#"<Solution>
+  <Project Path="app/APP.csproj" />
+  <Project Path="a/A.csproj" />
+  <Project Path="SHARED/Shared.csproj" />
+</Solution>"#;
+        let mut solution = solp::parse_str(slnx).unwrap();
+        let slnx_path = root.join("test.slnx");
+        let leaked_path: &'static str =
+            Box::leak(slnx_path.to_string_lossy().into_owned().into_boxed_str());
+        solution.path = leaked_path;
+        let validator = Redundants::new(&solution);
+
+        // Act
+        let problem = validator.check();
+
+        // Assert
+        let app_path = root.join("App").join("App.csproj").canonicalize().unwrap();
+        fs::remove_dir_all(&root).unwrap();
+        let expected = RedundantRef {
+            project: app_path,
+            redundant_reference: "..\\Shared\\shared.csproj".to_owned(),
         };
         assert_eq!(Some(Problem::Redundants(vec![expected])), problem);
     }

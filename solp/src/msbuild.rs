@@ -19,6 +19,17 @@ pub fn is_web_site_project(id: &str) -> bool {
     id == ID_WEB_SITE_PROJECT
 }
 
+/// Shows whether project is a shared items project (`.shproj` or `.vcxitems`).
+/// Such projects are never built themselves: their items are compiled
+/// as a part of projects that import them
+#[must_use]
+pub fn is_shared_project(id: &str, path: &str) -> bool {
+    id.eq_ignore_ascii_case(ID_SHARED_PROJECT)
+        || Path::new(path)
+            .extension()
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("vcxitems"))
+}
+
 /// Describes project by id.
 /// Returns human-readable description
 /// or id itself if it's not match any
@@ -176,6 +187,7 @@ pub struct Import {
 
 pub(crate) const ID_SOLUTION_FOLDER: &str = "{2150E333-8FDC-42A3-9474-1A3956D46DE8}";
 const ID_WEB_SITE_PROJECT: &str = "{E24C65DC-7377-472B-9ABA-BC803B73C61A}";
+const ID_SHARED_PROJECT: &str = "{D954291E-2A0B-460D-934E-DC6B0785DB48}";
 
 // all project guids from here https://github.com/JamesW75/visual-studio-project-type-guid
 // convert command: awk -F '{'  '{print "\"{"$2"\" => \""$1"\","}' ./vs_guids.txt
@@ -260,7 +272,7 @@ static PROJECT_TYPES: phf::Map<&'static str, &'static str> = phf::phf_map! {
     "{D399B71A-8929-442a-A9AC-8BEC78BB2433}" => "XNA (Zune)",
     "{930C7802-8A8C-48F9-8165-68863BCCD9DD}" => "WiX (Windows Installer XML)",
     "{778DAE3C-4631-46EA-AA77-85C1314464D9}" => "VB.NET",
-    "{D954291E-2A0B-460D-934E-DC6B0785DB48}" => "Windows Store App Universal",
+    "{D954291E-2A0B-460D-934E-DC6B0785DB48}" => "Shared Project",
     "{EAF909A5-FA59-4C3D-9431-0FCC20D5BCF9}" => "Intel C++",
     "{7CF6DF6D-3B04-46F8-A40B-537D21BCA0B4}" => "Sandcastle Documentation",
     "{A33008B1-5DAC-44D5-9060-242E3B6E38F2}" => "#SharpDevelop",
@@ -623,6 +635,22 @@ mod tests {
         let refs = p.item_group.unwrap()[0].project_reference.take().unwrap();
         assert_eq!("a.csproj", refs[0].include);
         assert_eq!(expected, refs[0].is_transitive());
+    }
+
+    #[test_case("{D954291E-2A0B-460D-934E-DC6B0785DB48}", r"Shared\Shared.shproj", true ; "shproj")]
+    #[test_case("{d954291e-2a0b-460d-934e-dc6b0785db48}", r"Shared\Shared.shproj", true ; "shproj lowercase id")]
+    #[test_case("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}", r"Shared\Shared.vcxitems", true ; "vcxitems")]
+    #[test_case("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}", r"Shared\Shared.VcxItems", true ; "vcxitems extension case")]
+    #[test_case("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}", r"App\App.vcxproj", false ; "vcxproj")]
+    #[test_case("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}", r"App\App.csproj", false ; "csproj")]
+    fn is_shared_project_test(id: &str, path: &str, expected: bool) {
+        // Arrange
+
+        // Act
+        let actual = is_shared_project(id, path);
+
+        // Assert
+        assert_eq!(expected, actual);
     }
 
     const PACKAGES_CONFIG: &str = r#"<?xml version="1.0" encoding="utf-8"?>
