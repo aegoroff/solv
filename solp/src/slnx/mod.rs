@@ -169,9 +169,9 @@ pub struct Property {
 
 /// Borrows `value` (already unescaped by XML deserializer) from the source `contents`.
 ///
-/// If value contains characters that were escaped in source (e.g. `&amp;`) the unescaped value
-/// isn't present in source. In this case raw (escaped) attribute value is returned because
-/// borrowed [`Solution`] cannot hold newly allocated strings.
+/// If value contains characters that were escaped in source (e.g. `&amp;`) or whitespace
+/// normalized by XML parser (tabs and line breaks) the value isn't present in source. In this case
+/// raw attribute value is returned because borrowed [`Solution`] cannot hold newly allocated strings.
 pub(crate) fn borrow_in<'a>(contents: &'a str, value: &str) -> miette::Result<&'a str> {
     if value.is_empty() {
         return Ok(&contents[0..0]);
@@ -184,7 +184,8 @@ pub(crate) fn borrow_in<'a>(contents: &'a str, value: &str) -> miette::Result<&'
         .ok_or_else(|| miette::miette!("XML value not found in source: {value}"))
 }
 
-/// Finds raw attribute value that contains entity references and is equal to `value` after unescaping
+/// Finds raw attribute value that contains entity references or whitespace to be normalized
+/// and is equal to `value` after unescaping
 fn find_escaped_attribute<'a>(contents: &'a str, value: &str) -> Option<&'a str> {
     contents.match_indices('=').find_map(|(eq, _)| {
         let rest = &contents[eq + 1..];
@@ -193,16 +194,18 @@ fn find_escaped_attribute<'a>(contents: &'a str, value: &str) -> Option<&'a str>
         let start = eq + 1 + (rest.len() - quoted.len()) + 1;
         let end = start + contents[start..].find(quote)?;
         let raw = &contents[start..end];
-        (raw.contains('&') && unescape(raw).as_deref() == Some(value)).then_some(raw)
+        (raw.contains(['&', '\t', '\n', '\r']) && unescape(raw).as_deref() == Some(value))
+            .then_some(raw)
     })
 }
 
-/// Unescapes predefined XML entities and character references. Returns `None` on malformed input.
+/// Unescapes predefined XML entities and character references and normalizes literal tabs and
+/// line breaks to spaces like XML parser does for attribute values. Returns `None` on malformed input.
 fn unescape(raw: &str) -> Option<String> {
     let mut result = String::with_capacity(raw.len());
     let mut rest = raw;
     while let Some(amp) = rest.find('&') {
-        result.push_str(&rest[..amp]);
+        push_normalized(&mut result, &rest[..amp]);
         let semicolon = rest[amp..].find(';')? + amp;
         let entity = &rest[amp + 1..semicolon];
         let c = match entity {
@@ -226,8 +229,23 @@ fn unescape(raw: &str) -> Option<String> {
         result.push(c);
         rest = &rest[semicolon + 1..];
     }
-    result.push_str(rest);
+    push_normalized(&mut result, rest);
     Some(result)
+}
+
+/// Pushes attribute text replacing each tab, line feed, carriage return and `\r\n` pair by a space
+fn push_normalized(result: &mut String, text: &str) {
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '\r' => {
+                chars.next_if_eq(&'\n');
+                result.push(' ');
+            }
+            '\t' | '\n' => result.push(' '),
+            c => result.push(c),
+        }
+    }
 }
 
 /// Splits file name of the path into name without extension (Visual Studio default project name)
@@ -450,6 +468,8 @@ mod tests {
     #[test_case("plain", Some("plain") ; "no entities")]
     #[test_case("a &amp b", None ; "unterminated entity")]
     #[test_case("&unknown;", None ; "unknown entity")]
+    #[test_case("a\tb\nc\r\nd\re", Some("a b c d e") ; "whitespace normalized")]
+    #[test_case("&#9;&#10;&#13;", Some("\t\n\r") ; "whitespace character references kept")]
     fn unescape_cases(raw: &str, expected: Option<&str>) {
         // Arrange
 
@@ -463,6 +483,8 @@ mod tests {
     #[test_case(r#"<Folder Name="/R&amp;D/" />"#, "/R&D/", "/R&amp;D/" ; "double quoted")]
     #[test_case("<Folder Name = '/R&#38;D/' />", "/R&D/", "/R&#38;D/" ; "single quoted with spaces")]
     #[test_case(r#"<Project Path="a.csproj" />"#, "a.csproj", "a.csproj" ; "unescaped value")]
+    #[test_case("<Project DisplayName=\"My\tApp\" />", "My App", "My\tApp" ; "tab")]
+    #[test_case("<Project DisplayName=\"My\r\n  App\" />", "My   App", "My\r\n  App" ; "line break")]
     fn borrow_in_cases(contents: &str, value: &str, expected: &str) {
         // Arrange
 
@@ -512,6 +534,19 @@ mod tests {
             solution.projects[1].depends_from.as_ref().unwrap(),
             &[solution.projects[2].id]
         );
+    }
+
+    #[test]
+    fn parse_str_slnx_with_multiline_attribute() {
+        // Arrange
+        let content =
+            "<Solution>\n  <Project Path=\"App.csproj\" DisplayName=\"My\n  App\" />\n</Solution>";
+
+        // Act
+        let solution = parse_str(content).unwrap();
+
+        // Assert
+        assert_eq!(solution.projects[0].name, "My\n  App");
     }
 
     #[test_case("<Solution />" ; "self closing")]
