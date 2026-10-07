@@ -116,8 +116,11 @@ impl Display for Statistic {
 
         table.add_row([
             Cell::new("Contain duplicate configurations"),
-            Cell::new(self.duplicate_configurations.to_formatted_string(&Locale::en))
-                .add_attribute(Attribute::Italic),
+            Cell::new(
+                self.duplicate_configurations
+                    .to_formatted_string(&Locale::en),
+            )
+            .add_attribute(Attribute::Italic),
             Cell::new(format!("{duplicate_configurations_percent:.2}%"))
                 .add_attribute(Attribute::Italic),
         ]);
@@ -698,11 +701,14 @@ impl<'a> Orphans<'a> {
     }
 
     fn has_build_configuration(project: &solp::api::Project<'_>) -> bool {
-        project.configurations.as_ref().is_some_and(|configurations| {
-            configurations
-                .iter()
-                .any(|configuration| configuration.tags.contains(&Tag::Build))
-        })
+        project
+            .configurations
+            .as_ref()
+            .is_some_and(|configurations| {
+                configurations
+                    .iter()
+                    .any(|configuration| configuration.tags.contains(&Tag::Build))
+            })
     }
 }
 
@@ -1431,6 +1437,21 @@ mod tests {
     }
 
     #[test]
+    fn slnx_orphans_validation_correct_with_configuration_rules() {
+        // Arrange
+        let solution = solp::parse_str(SLNX_WITH_CONFIGURATION_RULES).unwrap();
+        let mut validator = Orphans::new(&solution);
+        let mut statistic = Statistic::default();
+
+        // Act
+        validator.validate(&mut statistic);
+
+        // Assert
+        assert!(validator.validation_result());
+        assert_eq!(0, statistic.orphans);
+    }
+
+    #[test]
     fn missing_validation_correct() {
         // Arrange
         let solution = solp::parse_str(CORRECT_SOLUTION).unwrap();
@@ -2086,13 +2107,11 @@ EndGlobal
 
         // statistics
         assert_eq!(
-            validator.statistic.fixed_projects,
-            1,
+            validator.statistic.fixed_projects, 1,
             "Should be one fixed project"
         );
         assert_eq!(
-            validator.statistic.removed_refs,
-            1,
+            validator.statistic.removed_refs, 1,
             "Should be one removed ref"
         );
 
@@ -2629,7 +2648,19 @@ EndGlobal
 
     const SLNX_WITH_ORPHAN: &str = r#"<Solution>
   <Project Path="src/Lib/Lib.csproj">
-    <Build Solution="Staging" />
+    <Build Project="false" />
+  </Project>
+</Solution>"#;
+
+    const SLNX_WITH_CONFIGURATION_RULES: &str = r#"<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+  </Configurations>
+  <Project Path="src/Native/Native.vcxproj">
+    <BuildType Solution="Release|*" Project="Debug" />
+    <Platform Solution="*|Any CPU" Project="Win32" />
+    <Build Solution="Debug|x64" Project="false" />
   </Project>
 </Solution>"#;
 }

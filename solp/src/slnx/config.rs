@@ -90,21 +90,33 @@ pub fn project_configurations<'a>(
     let mut configurations = BTreeSet::new();
     for solution_configuration in &names.build_types {
         for solution_platform in &names.platforms {
-            let configuration = map_build_type(solution_configuration, &rules.build_types);
-            let platform = map_platform(solution_platform, &rules.platforms);
+            let configuration = map_build_type(
+                solution_configuration,
+                solution_platform,
+                &rules.build_types,
+            );
+            let platform =
+                map_platform(solution_configuration, solution_platform, &rules.platforms);
             let mut tags = Vec::new();
 
-            if should_build(solution_configuration, &rules.builds) {
+            if flag_value(
+                solution_configuration,
+                solution_platform,
+                &rules.builds,
+                true,
+            ) {
                 tags.push(Tag::Build);
             }
-            if should_deploy(solution_configuration, &rules.deploys) {
+            if flag_value(
+                solution_configuration,
+                solution_platform,
+                &rules.deploys,
+                false,
+            ) {
                 tags.push(Tag::Deploy);
             }
 
-            if tags.is_empty() {
-                continue;
-            }
-
+            // Configuration without tags is the analogue of ActiveCfg only mapping in .sln
             configurations.insert(ProjectConfiguration {
                 configuration,
                 solution_configuration,
@@ -138,7 +150,10 @@ pub fn effective_rules<'a>(
     Ok(rules)
 }
 
-fn find_project_type<'a>(configs: &'a Configurations, project: &RawProject) -> Option<&'a ProjectType> {
+fn find_project_type<'a>(
+    configs: &'a Configurations,
+    project: &RawProject,
+) -> Option<&'a ProjectType> {
     if let Some(type_name) = project.project_type.as_deref()
         && let Some(project_type) = configs
             .project_types
@@ -238,40 +253,102 @@ fn borrow_platform_rule<'a>(
     })
 }
 
-fn map_build_type<'a>(solution_configuration: &'a str, rules: &[ConfigurationRuleBorrowed<'a>]) -> &'a str {
+fn map_build_type<'a>(
+    solution_build_type: &'a str,
+    solution_platform: &str,
+    rules: &[ConfigurationRuleBorrowed<'a>],
+) -> &'a str {
     rules
         .iter()
-        .find(|rule| rule_matches_solution(rule.solution, solution_configuration))
-        .and_then(|rule| rule.project)
-        .unwrap_or(solution_configuration)
+        .rev()
+        .filter(|rule| {
+            rule_matches_solution(
+                rule.solution,
+                Dimension::BuildType,
+                solution_build_type,
+                solution_platform,
+            )
+        })
+        .find_map(|rule| rule.project)
+        .unwrap_or(solution_build_type)
 }
 
-fn map_platform<'a>(solution_platform: &'a str, rules: &[ConfigurationRulePlatformBorrowed<'a>]) -> &'a str {
+fn map_platform<'a>(
+    solution_build_type: &str,
+    solution_platform: &'a str,
+    rules: &[ConfigurationRulePlatformBorrowed<'a>],
+) -> &'a str {
     rules
         .iter()
-        .find(|rule| rule_matches_solution(rule.solution, solution_platform))
-        .map(|rule| rule.project)
-        .unwrap_or(solution_platform)
+        .rev()
+        .find(|rule| {
+            rule_matches_solution(
+                rule.solution,
+                Dimension::Platform,
+                solution_build_type,
+                solution_platform,
+            )
+        })
+        .map_or(solution_platform, |rule| rule.project)
 }
 
-fn should_build(solution_configuration: &str, rules: &[ConfigurationRuleBorrowed<'_>]) -> bool {
-    if rules.is_empty() {
+/// Returns the value of the last matching `Build`/`Deploy` rule or `default` when no rule matches.
+fn flag_value(
+    solution_build_type: &str,
+    solution_platform: &str,
+    rules: &[ConfigurationRuleBorrowed<'_>],
+    default: bool,
+) -> bool {
+    rules
+        .iter()
+        .rev()
+        .find(|rule| {
+            rule_matches_solution(
+                rule.solution,
+                Dimension::Flag,
+                solution_build_type,
+                solution_platform,
+            )
+        })
+        .map_or(default, |rule| {
+            rule.project
+                .is_none_or(|value| !value.trim().eq_ignore_ascii_case("false"))
+        })
+}
+
+/// Rule dimension. Defines how a bare `Solution` value (without `|`) is interpreted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Dimension {
+    BuildType,
+    Platform,
+    Flag,
+}
+
+/// Matches rule's `Solution` attribute against solution configuration.
+///
+/// The attribute has `BuildType|Platform` form where any part may be `*` (or empty) meaning all values.
+/// A bare value without `|` is accepted leniently: it is treated as a platform for `Platform` rules
+/// and as a build type for others.
+fn rule_matches_solution(
+    rule_solution: Option<&str>,
+    dimension: Dimension,
+    solution_build_type: &str,
+    solution_platform: &str,
+) -> bool {
+    let Some(rule_solution) = rule_solution else {
         return true;
-    }
-
-    rules
-        .iter()
-        .any(|rule| rule_matches_solution(rule.solution, solution_configuration))
+    };
+    let (build_type, platform) = match rule_solution.split_once('|') {
+        Some((build_type, platform)) => (build_type, platform),
+        None if dimension == Dimension::Platform => ("*", rule_solution),
+        None => (rule_solution, "*"),
+    };
+    part_matches(build_type, solution_build_type) && part_matches(platform, solution_platform)
 }
 
-fn should_deploy(solution_configuration: &str, rules: &[ConfigurationRuleBorrowed<'_>]) -> bool {
-    rules
-        .iter()
-        .any(|rule| rule_matches_solution(rule.solution, solution_configuration))
-}
-
-fn rule_matches_solution(rule_solution: Option<&str>, solution_configuration: &str) -> bool {
-    rule_solution.is_none_or(|value| value == solution_configuration)
+fn part_matches(pattern: &str, value: &str) -> bool {
+    let pattern = pattern.trim();
+    pattern.is_empty() || pattern == "*" || pattern.eq_ignore_ascii_case(value)
 }
 
 #[cfg(test)]
@@ -279,28 +356,70 @@ mod tests {
     use super::*;
     use test_case::test_case;
 
-    const SLNX_DEBUG_ONLY_BUILD: &str = r#"<Solution>
+    const SLNX_RELEASE_NOT_BUILT: &str = r#"<Solution>
   <Project Path="tests/Tests.csproj">
-    <Build Solution="Debug" />
+    <Build Solution="Release|*" Project="false" />
   </Project>
 </Solution>"#;
 
     const SLNX_PLATFORM_MAPPING: &str = r#"<Solution>
   <Configurations>
     <ProjectType Extension="csproj">
-      <Platform Solution="Any CPU" Project="x64" />
+      <Platform Solution="*|Any CPU" Project="x64" />
     </ProjectType>
   </Configurations>
   <Project Path="src/App/App.csproj" />
 </Solution>"#;
 
+    const SLNX_PROJECT_RULES_OVERRIDE_TYPE_RULES: &str = r#"<Solution>
+  <Configurations>
+    <ProjectType Extension="vcxproj">
+      <Build Project="false" />
+    </ProjectType>
+  </Configurations>
+  <Project Path="native/Native.vcxproj">
+    <Build Solution="Debug|*" />
+  </Project>
+</Solution>"#;
+
+    const SLNX_FULL_RULES: &str = r#"<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+  </Configurations>
+  <Project Path="native/Native.vcxproj">
+    <BuildType Solution="Release|*" Project="Debug" />
+    <Platform Solution="*|Any CPU" Project="Win32" />
+    <Build Solution="Debug|x64" Project="false" />
+    <Deploy Solution="Release|x64" />
+  </Project>
+</Solution>"#;
+
+    fn default_names() -> SolutionConfigNames<'static> {
+        SolutionConfigNames {
+            build_types: DEFAULT_BUILD_TYPES.to_vec(),
+            platforms: DEFAULT_PLATFORMS.to_vec(),
+        }
+    }
+
+    fn find<'a>(
+        configurations: &'a BTreeSet<ProjectConfiguration<'a>>,
+        solution_configuration: &str,
+        platform: &str,
+    ) -> &'a ProjectConfiguration<'a> {
+        configurations
+            .iter()
+            .find(|configuration| {
+                configuration.solution_configuration == solution_configuration
+                    && configuration.platform == platform
+            })
+            .expect("project configuration")
+    }
+
     #[test]
     fn default_rules_build_in_debug_and_release() {
         // Arrange
-        let names = SolutionConfigNames {
-            build_types: DEFAULT_BUILD_TYPES.to_vec(),
-            platforms: DEFAULT_PLATFORMS.to_vec(),
-        };
+        let names = default_names();
         let rules = EffectiveRules::default();
 
         // Act
@@ -308,27 +427,47 @@ mod tests {
 
         // Assert
         assert_eq!(configurations.len(), 2);
-        assert!(configurations
-            .iter()
-            .all(|configuration| configuration.tags == vec![Tag::Build]));
+        assert!(
+            configurations
+                .iter()
+                .all(|configuration| configuration.tags == vec![Tag::Build])
+        );
     }
 
     #[test]
-    fn debug_only_build_rule_limits_configurations() {
+    fn not_buildable_project_has_no_configurations() {
+        // Arrange
+        let names = default_names();
+        let rules = EffectiveRules {
+            is_buildable: false,
+            ..Default::default()
+        };
+
+        // Act
+        let configurations = project_configurations(&names, &rules);
+
+        // Assert
+        assert!(configurations.is_empty());
+    }
+
+    #[test]
+    fn build_false_rule_excludes_configuration_from_build() {
         // Arrange
 
         // Act
-        let solution = super::super::parse_str(SLNX_DEBUG_ONLY_BUILD).unwrap();
+        let solution = super::super::parse_str(SLNX_RELEASE_NOT_BUILT).unwrap();
 
         // Assert
         let configurations = solution.projects[0]
             .configurations
             .as_ref()
             .expect("project configurations");
-        assert_eq!(configurations.len(), 1);
-        let configuration = configurations.iter().next().unwrap();
-        assert_eq!(configuration.solution_configuration, "Debug");
-        assert_eq!(configuration.tags, vec![Tag::Build]);
+        assert_eq!(configurations.len(), 2);
+        assert_eq!(
+            find(configurations, "Debug", "Any CPU").tags,
+            vec![Tag::Build]
+        );
+        assert!(find(configurations, "Release", "Any CPU").tags.is_empty());
     }
 
     #[test]
@@ -344,69 +483,133 @@ mod tests {
             .as_ref()
             .expect("project configurations");
         assert_eq!(configurations.len(), 2);
-        assert!(configurations
-            .iter()
-            .all(|configuration| configuration.platform == "x64"));
+        assert!(
+            configurations
+                .iter()
+                .all(|configuration| configuration.platform == "x64")
+        );
     }
 
     #[test]
-    fn debug_only_build_rule_limits_configurations_unit() {
+    fn project_rules_override_project_type_rules() {
         // Arrange
-        let names = SolutionConfigNames {
-            build_types: DEFAULT_BUILD_TYPES.to_vec(),
-            platforms: DEFAULT_PLATFORMS.to_vec(),
-        };
-        let rules = EffectiveRules {
-            builds: vec![ConfigurationRuleBorrowed {
-                solution: Some("Debug"),
-                project: None,
-            }],
-            ..Default::default()
-        };
 
         // Act
-        let configurations = project_configurations(&names, &rules);
+        let solution = super::super::parse_str(SLNX_PROJECT_RULES_OVERRIDE_TYPE_RULES).unwrap();
 
         // Assert
-        assert_eq!(configurations.len(), 1);
+        let configurations = solution.projects[0]
+            .configurations
+            .as_ref()
+            .expect("project configurations");
+        assert_eq!(
+            find(configurations, "Debug", "Any CPU").tags,
+            vec![Tag::Build]
+        );
+        assert!(find(configurations, "Release", "Any CPU").tags.is_empty());
     }
 
-    #[test]
-    fn project_type_platform_mapping_applies_unit() {
-        // Arrange
-        let names = SolutionConfigNames {
-            build_types: DEFAULT_BUILD_TYPES.to_vec(),
-            platforms: DEFAULT_PLATFORMS.to_vec(),
-        };
-        let rules = EffectiveRules {
-            platforms: vec![ConfigurationRulePlatformBorrowed {
-                solution: Some("Any CPU"),
-                project: "x64",
-            }],
-            ..Default::default()
-        };
-
-        // Act
-        let configurations = project_configurations(&names, &rules);
-
-        // Assert
-        assert!(configurations
-            .iter()
-            .all(|configuration| configuration.platform == "x64"));
-    }
-
-    #[test_case("Debug", None, true ; "missing solution matches all")]
-    #[test_case("Debug", Some("Debug"), true ; "matching solution")]
-    #[test_case("Release", Some("Debug"), false ; "non matching solution")]
-    fn rule_matches_solution_cases(
+    // Project configuration doesn't keep solution platform so mapped platform identifies it
+    #[test_case("Debug", "Win32", "Debug", vec![Tag::Build] ; "debug any cpu")]
+    #[test_case("Debug", "x64", "Debug", vec![] ; "debug x64 not built")]
+    #[test_case("Release", "Win32", "Debug", vec![Tag::Build] ; "release any cpu")]
+    #[test_case("Release", "x64", "Debug", vec![Tag::Build, Tag::Deploy] ; "release x64 deployed")]
+    fn full_rules_are_applied(
         solution_configuration: &str,
+        platform: &str,
+        expected_configuration: &str,
+        expected_tags: Vec<Tag>,
+    ) {
+        // Arrange
+        let solution = super::super::parse_str(SLNX_FULL_RULES).unwrap();
+        let configurations = solution.projects[0]
+            .configurations
+            .as_ref()
+            .expect("project configurations");
+
+        // Act
+        let actual = find(configurations, solution_configuration, platform);
+
+        // Assert
+        assert_eq!(configurations.len(), 4);
+        assert_eq!(actual.configuration, expected_configuration);
+        assert_eq!(actual.tags, expected_tags);
+    }
+
+    #[test]
+    fn last_matching_build_type_rule_wins() {
+        // Arrange
+        let rules = [
+            ConfigurationRuleBorrowed {
+                solution: Some("*|*"),
+                project: Some("First"),
+            },
+            ConfigurationRuleBorrowed {
+                solution: Some("Debug|*"),
+                project: Some("Second"),
+            },
+        ];
+
+        // Act
+        let actual = map_build_type("Debug", "Any CPU", &rules);
+
+        // Assert
+        assert_eq!(actual, "Second");
+    }
+
+    #[test_case(None, true, true ; "no rules uses default true")]
+    #[test_case(None, false, false ; "no rules uses default false")]
+    #[test_case(Some(None), false, true ; "missing project value means true")]
+    #[test_case(Some(Some("false")), true, false ; "false value")]
+    #[test_case(Some(Some("False")), true, false ; "false value ignores case")]
+    #[test_case(Some(Some("true")), false, true ; "true value")]
+    fn flag_value_cases(rule_project: Option<Option<&str>>, default: bool, expected: bool) {
+        // Arrange
+        let rules = rule_project
+            .map(|project| {
+                vec![ConfigurationRuleBorrowed {
+                    solution: Some("Debug|*"),
+                    project,
+                }]
+            })
+            .unwrap_or_default();
+
+        // Act
+        let actual = flag_value("Debug", "Any CPU", &rules, default);
+
+        // Assert
+        assert_eq!(actual, expected);
+    }
+
+    #[test_case(None, Dimension::Flag, "Debug", "x64", true ; "missing solution matches all")]
+    #[test_case(Some("Debug|x64"), Dimension::Flag, "Debug", "x64", true ; "full match")]
+    #[test_case(Some("Debug|x64"), Dimension::Flag, "Debug", "Any CPU", false ; "platform mismatch")]
+    #[test_case(Some("Debug|*"), Dimension::Flag, "Debug", "x64", true ; "any platform")]
+    #[test_case(Some("*|x64"), Dimension::Flag, "Release", "x64", true ; "any build type")]
+    #[test_case(Some("*|x64"), Dimension::Flag, "Release", "Any CPU", false ; "any build type platform mismatch")]
+    #[test_case(Some("*|*"), Dimension::Flag, "Release", "Any CPU", true ; "all wildcards")]
+    #[test_case(Some("|x64"), Dimension::Flag, "Release", "x64", true ; "empty build type is wildcard")]
+    #[test_case(Some("debug|X64"), Dimension::Flag, "Debug", "x64", true ; "case insensitive")]
+    #[test_case(Some("Debug"), Dimension::Flag, "Debug", "x64", true ; "bare value is build type")]
+    #[test_case(Some("Debug"), Dimension::BuildType, "Release", "x64", false ; "bare build type mismatch")]
+    #[test_case(Some("x64"), Dimension::Platform, "Release", "x64", true ; "bare value is platform for platform rule")]
+    #[test_case(Some("x64"), Dimension::Platform, "Release", "Any CPU", false ; "bare platform mismatch")]
+    fn rule_matches_solution_cases(
         rule_solution: Option<&str>,
+        dimension: Dimension,
+        solution_build_type: &str,
+        solution_platform: &str,
         expected: bool,
     ) {
         // Arrange
 
         // Act
-        let actual = rule_matches_solution(rule_solution, solution_configuration);
+        let actual = rule_matches_solution(
+            rule_solution,
+            dimension,
+            solution_build_type,
+            solution_platform,
+        );
 
         // Assert
         assert_eq!(actual, expected);

@@ -285,10 +285,9 @@ impl<'a, C: Consume> SolpWalker<'a, C> {
         .filter(|f| f.file_type.is_file())
         .map(|f| f.path())
         .filter(|p| {
-                p.extension().is_some_and(|extension| {
-                    extensions.iter().any(|expected| extension == *expected)
-                })
-            })
+            p.extension()
+                .is_some_and(|extension| extensions.iter().any(|expected| extension == *expected))
+        })
         .filter_map(|fp| {
             let p = fp.to_str()?;
             if let Err(e) = parse_file(p, &mut self.consumer) {

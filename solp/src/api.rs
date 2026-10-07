@@ -251,7 +251,9 @@ impl<'a> Solution<'a> {
         }
     }
 
-    fn duplicate_solution_configurations(solution: &Sol<'a>) -> Option<Vec<SolutionConfiguration<'a>>> {
+    fn duplicate_solution_configurations(
+        solution: &Sol<'a>,
+    ) -> Option<Vec<SolutionConfiguration<'a>>> {
         let mut seen = HashSet::new();
         let mut duplicates = BTreeSet::new();
         for config in &solution.solution_configuration_platform_entries {

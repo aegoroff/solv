@@ -181,6 +181,11 @@ pub struct Property {
     pub value: Option<String>,
 }
 
+/// Borrows `value` (already unescaped by XML deserializer) from the source `contents`.
+///
+/// If value contains characters that were escaped in source (e.g. `&amp;`) the unescaped value
+/// isn't present in source. In this case raw (escaped) attribute value is returned because
+/// borrowed [`Solution`] cannot hold newly allocated strings.
 pub(crate) fn borrow_in<'a>(contents: &'a str, value: &str) -> miette::Result<&'a str> {
     if value.is_empty() {
         return Ok(&contents[0..0]);
@@ -189,14 +194,65 @@ pub(crate) fn borrow_in<'a>(contents: &'a str, value: &str) -> miette::Result<&'
     contents
         .find(value)
         .map(|start| &contents[start..start + value.len()])
+        .or_else(|| find_escaped_attribute(contents, value))
         .ok_or_else(|| miette::miette!("XML value not found in source: {value}"))
+}
+
+/// Finds raw attribute value that contains entity references and is equal to `value` after unescaping
+fn find_escaped_attribute<'a>(contents: &'a str, value: &str) -> Option<&'a str> {
+    contents.match_indices('=').find_map(|(eq, _)| {
+        let rest = &contents[eq + 1..];
+        let quoted = rest.trim_start();
+        let quote = quoted.chars().next().filter(|c| *c == '"' || *c == '\'')?;
+        let start = eq + 1 + (rest.len() - quoted.len()) + 1;
+        let end = start + contents[start..].find(quote)?;
+        let raw = &contents[start..end];
+        (raw.contains('&') && unescape(raw).as_deref() == Some(value)).then_some(raw)
+    })
+}
+
+/// Unescapes predefined XML entities and character references. Returns `None` on malformed input.
+fn unescape(raw: &str) -> Option<String> {
+    let mut result = String::with_capacity(raw.len());
+    let mut rest = raw;
+    while let Some(amp) = rest.find('&') {
+        result.push_str(&rest[..amp]);
+        let semicolon = rest[amp..].find(';')? + amp;
+        let entity = &rest[amp + 1..semicolon];
+        let c = match entity {
+            "amp" => '&',
+            "lt" => '<',
+            "gt" => '>',
+            "quot" => '"',
+            "apos" => '\'',
+            _ => {
+                let code = if let Some(hex) = entity
+                    .strip_prefix("#x")
+                    .or_else(|| entity.strip_prefix("#X"))
+                {
+                    u32::from_str_radix(hex, 16).ok()?
+                } else {
+                    entity.strip_prefix('#')?.parse().ok()?
+                };
+                char::from_u32(code)?
+            }
+        };
+        result.push(c);
+        rest = &rest[semicolon + 1..];
+    }
+    result.push_str(rest);
+    Some(result)
 }
 
 /// Returns `true` when the content looks like an XML `.slnx` solution file.
 #[must_use]
 pub fn is_slnx(contents: &str) -> bool {
-    let trimmed = contents.trim_start();
+    let trimmed = strip_bom(contents).trim_start();
     trimmed.starts_with('<') && !trimmed.starts_with("Microsoft Visual Studio")
+}
+
+fn strip_bom(contents: &str) -> &str {
+    contents.strip_prefix('\u{feff}').unwrap_or(contents)
 }
 
 /// Parses `.slnx` XML content and converts it into the public [`Solution`] API type.
@@ -207,7 +263,7 @@ pub fn parse_str(contents: &str) -> miette::Result<Solution<'_>> {
 
 fn deserialize_xml(contents: &str) -> miette::Result<SlnxSolution> {
     let config = serde_xml_rs::SerdeXml::new().overlapping_sequences(true);
-    let mut de = serde_xml_rs::Deserializer::from_config(config, contents.as_bytes());
+    let mut de = serde_xml_rs::Deserializer::from_config(config, strip_bom(contents).as_bytes());
     SlnxSolution::deserialize(&mut de)
         .into_diagnostic()
         .wrap_err("Failed to deserialize .slnx solution file")
@@ -316,6 +372,113 @@ mod tests {
 
         // Assert
         assert!(actual);
+    }
+
+    #[test]
+    fn parse_str_slnx_with_bom_and_xml_declaration() {
+        // Arrange
+        let content = "\u{feff}<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<Solution>\n  <Project Path=\"src/App/App.csproj\" />\n</Solution>";
+
+        // Act
+        let solution = crate::parse_str(content).unwrap();
+
+        // Assert
+        assert_eq!(solution.format, "slnx");
+        assert_eq!(solution.projects.len(), 1);
+    }
+
+    #[test_case("\u{feff}<Solution></Solution>" ; "bom")]
+    #[test_case("\u{feff}  \n<?xml version=\"1.0\"?><Solution></Solution>" ; "bom whitespace and declaration")]
+    fn is_slnx_detects_xml_with_bom(content: &str) {
+        // Arrange
+
+        // Act
+        let actual = is_slnx(content);
+
+        // Assert
+        assert!(actual);
+    }
+
+    #[test_case("Microsoft Visual Studio Solution File, Format Version 12.00\n" ; "plain")]
+    #[test_case("\u{feff}\r\nMicrosoft Visual Studio Solution File, Format Version 12.00\n" ; "bom")]
+    fn is_slnx_rejects_legacy_sln_variants(content: &str) {
+        // Arrange
+
+        // Act
+        let actual = is_slnx(content);
+
+        // Assert
+        assert!(!actual);
+    }
+
+    #[test_case("a &amp; b", Some("a & b") ; "amp")]
+    #[test_case("&lt;&gt;&quot;&apos;", Some("<>\"'") ; "predefined entities")]
+    #[test_case("&#38;&#x26;&#X26;", Some("&&&") ; "character references")]
+    #[test_case("plain", Some("plain") ; "no entities")]
+    #[test_case("a &amp b", None ; "unterminated entity")]
+    #[test_case("&unknown;", None ; "unknown entity")]
+    fn unescape_cases(raw: &str, expected: Option<&str>) {
+        // Arrange
+
+        // Act
+        let actual = unescape(raw);
+
+        // Assert
+        assert_eq!(actual.as_deref(), expected);
+    }
+
+    #[test_case(r#"<Folder Name="/R&amp;D/" />"#, "/R&D/", "/R&amp;D/" ; "double quoted")]
+    #[test_case("<Folder Name = '/R&#38;D/' />", "/R&D/", "/R&#38;D/" ; "single quoted with spaces")]
+    #[test_case(r#"<Project Path="a.csproj" />"#, "a.csproj", "a.csproj" ; "unescaped value")]
+    fn borrow_in_cases(contents: &str, value: &str, expected: &str) {
+        // Arrange
+
+        // Act
+        let actual = borrow_in(contents, value).unwrap();
+
+        // Assert
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn borrow_in_missing_value_fails() {
+        // Arrange
+        let contents = r#"<Project Path="a.csproj" />"#;
+
+        // Act
+        let actual = borrow_in(contents, "b.csproj");
+
+        // Assert
+        assert!(actual.is_err());
+    }
+
+    #[test]
+    fn parse_str_slnx_with_escaped_values() {
+        // Arrange
+        let content = r#"<Solution>
+  <Folder Name="/R&amp;D/">
+    <File Path="notes &amp; docs.md" />
+  </Folder>
+  <Project Path="src/R&amp;D/App.csproj">
+    <BuildDependency Project="src/R&amp;D/Lib.csproj" />
+  </Project>
+  <Project Path="src/R&amp;D/Lib.csproj" />
+</Solution>"#;
+
+        // Act
+        let solution = parse_str(content).unwrap();
+
+        // Assert
+        assert_eq!(solution.projects.len(), 3);
+        assert_eq!(solution.projects[0].name, "R&amp;D");
+        assert_eq!(
+            solution.projects[0].items.as_ref().unwrap(),
+            &["notes &amp; docs.md"]
+        );
+        assert_eq!(
+            solution.projects[1].depends_from.as_ref().unwrap(),
+            &[solution.projects[2].id]
+        );
     }
 
     #[test]
