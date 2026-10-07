@@ -12,6 +12,8 @@
 //! * conditions are ignored, imports of missing files are skipped
 //! * `PackageReference Update` items from `Directory.Build.props` and `Directory.Packages.props`
 //!   are applied before project items and from `Directory.Build.targets` after them
+//!
+//! Use [`PackageResolver`] to get packages referenced by project files.
 
 use std::{
     collections::{HashMap, HashSet},
@@ -23,16 +25,17 @@ use std::{
 use miette::{IntoDiagnostic, WrapErr};
 use serde::Deserialize;
 
-use crate::msbuild::{Import, ImportGroup, PackageReference};
+use crate::msbuild::{self, Import, ImportGroup, ItemGroup, PackageReference};
+use crate::project_files::ProjectFile;
 
 /// Central Package Management file name
-pub const PACKAGES_PROPS: &str = "Directory.Packages.props";
+const PACKAGES_PROPS: &str = "Directory.Packages.props";
 /// MSBuild file that is imported before `Directory.Packages.props`
-pub const BUILD_PROPS: &str = "Directory.Build.props";
+const BUILD_PROPS: &str = "Directory.Build.props";
 /// MSBuild file that is imported at the end of the project
-pub const BUILD_TARGETS: &str = "Directory.Build.targets";
+const BUILD_TARGETS: &str = "Directory.Build.targets";
 /// Files implicitly imported into every project below them in MSBuild evaluation order
-pub const IMPLICIT_IMPORTS: [&str; 3] = [BUILD_PROPS, PACKAGES_PROPS, BUILD_TARGETS];
+const IMPLICIT_IMPORTS: [&str; 3] = [BUILD_PROPS, PACKAGES_PROPS, BUILD_TARGETS];
 
 const MAX_IMPORT_DEPTH: usize = 32;
 const MAX_EXPAND_DEPTH: usize = 10;
@@ -101,7 +104,7 @@ impl PropsFile {
 
 /// Packages defined in `Directory.Build.props`, `Directory.Packages.props` and `Directory.Build.targets`
 #[derive(Debug, Default)]
-pub struct CentralPackages {
+struct CentralPackages {
     /// lowercased package name to version map
     versions: HashMap<String, String>,
     global: Vec<PackageReference>,
@@ -114,7 +117,7 @@ impl CentralPackages {
     /// Evaluates files in the order specified (see [`find_implicit_imports`]).
     /// Unreadable files are skipped.
     #[must_use]
-    pub fn load<P: AsRef<Path>>(files: &[P]) -> Self {
+    fn load<P: AsRef<Path>>(files: &[P]) -> Self {
         let mut evaluator = Evaluator::default();
         for path in files {
             let path = path.as_ref();
@@ -129,41 +132,190 @@ impl CentralPackages {
 
     /// Centrally defined version of the package. Package name is case insensitive.
     #[must_use]
-    pub fn version(&self, name: &str) -> Option<&str> {
+    fn version(&self, name: &str) -> Option<&str> {
         self.versions.get(&name.to_lowercase()).map(String::as_str)
     }
 
     /// Packages referenced by all projects (`GlobalPackageReference` items)
     #[must_use]
-    pub fn global_references(&self) -> &[PackageReference] {
+    fn global_references(&self) -> &[PackageReference] {
         &self.global
     }
 
     /// `PackageReference` items defined in props files i.e. referenced by every project below.
     /// Version is empty if it should be taken from `PackageVersion` (see [`CentralPackages::version`])
     #[must_use]
-    pub fn references(&self) -> &[PackageReference] {
+    fn references(&self) -> &[PackageReference] {
         &self.references
     }
 
     /// `PackageReference Update` items that are evaluated before project items
     /// (defined in `Directory.Build.props` and `Directory.Packages.props`)
     #[must_use]
-    pub fn updates_before_project(&self) -> &[PackageReference] {
+    fn updates_before_project(&self) -> &[PackageReference] {
         &self.updates_before
     }
 
     /// `PackageReference Update` items that are evaluated after project items
     /// (defined in `Directory.Build.targets`)
     #[must_use]
-    pub fn updates_after_project(&self) -> &[PackageReference] {
+    fn updates_after_project(&self) -> &[PackageReference] {
         &self.updates_after
     }
 }
 
+/// Package referenced by a project after MSBuild evaluation of the project and
+/// `Directory.Build.props`, `Directory.Packages.props` and `Directory.Build.targets` above it
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectPackage {
+    pub name: String,
+    /// Version as MSBuild evaluates it (not normalized). Empty if it isn't defined anywhere.
+    pub version: String,
+    /// Condition of the item group that includes the package
+    pub condition: Option<String>,
+}
+
+/// Resolves packages referenced by projects. Evaluated `Directory.*` files are cached
+/// so resolve all projects of a solution with the same resolver.
+#[derive(Debug, Default)]
+pub struct PackageResolver {
+    /// key - Directory.Build.props, Directory.Packages.props, Directory.Build.targets paths
+    cache: HashMap<Vec<PathBuf>, CentralPackages>,
+}
+
+impl PackageResolver {
+    /// Loads the project file and returns its packages:
+    /// * `PackageReference` and `GlobalPackageReference` items from `Directory.*` files are
+    ///   added to every project below
+    /// * `PackageReference Update` items from these files and the project change versions of
+    ///   included packages (props files before project items, `Directory.Build.targets` after them).
+    ///   The last applied update wins.
+    /// * `VersionOverride` wins, otherwise if `Version` is not set the version is taken
+    ///   from `PackageVersion` items (Central Package Management)
+    ///
+    /// Update items and items without name aren't returned.
+    pub fn packages(&mut self, file: &ProjectFile) -> miette::Result<Vec<ProjectPackage>> {
+        let mut project = file.load()?;
+        let central = file.path().parent().and_then(|dir| {
+            let files = find_implicit_imports(dir);
+            if files.is_empty() {
+                return None;
+            }
+            let central = self
+                .cache
+                .entry(files)
+                .or_insert_with_key(|files| CentralPackages::load(files));
+            Some(&*central)
+        });
+        apply_central_packages(&mut project, central);
+        Ok(project_packages(project))
+    }
+}
+
+fn apply_central_packages(project: &mut msbuild::Project, central: Option<&CentralPackages>) {
+    if let Some(central) = central {
+        let inherited: Vec<_> = central
+            .global_references()
+            .iter()
+            .chain(central.references())
+            .cloned()
+            .collect();
+        if !inherited.is_empty() {
+            project.item_group.get_or_insert_default().push(ItemGroup {
+                project_reference: None,
+                package_reference: Some(inherited),
+                condition: None,
+            });
+        }
+    }
+    // Update items change already included packages and don't define packages themselves
+    let mut own_updates = vec![];
+    let groups = project.item_group.iter_mut().flatten();
+    for packs in groups.filter_map(|ig| ig.package_reference.as_mut()) {
+        let (updates, includes): (Vec<_>, Vec<_>) = std::mem::take(packs)
+            .into_iter()
+            .partition(|p| p.name.is_empty() && p.update.is_some());
+        *packs = includes;
+        own_updates.extend(updates);
+    }
+    let mut packs: Vec<&mut PackageReference> = project
+        .item_group
+        .iter_mut()
+        .flatten()
+        .filter_map(|ig| ig.package_reference.as_mut())
+        .flatten()
+        .collect();
+    let updates = central
+        .map(CentralPackages::updates_before_project)
+        .unwrap_or_default()
+        .iter()
+        .chain(&own_updates)
+        .chain(
+            central
+                .map(CentralPackages::updates_after_project)
+                .unwrap_or_default(),
+        );
+    for update in updates {
+        apply_update(&mut packs, update);
+    }
+    for pack in packs {
+        if let Some(version_override) = pack.version_override.take() {
+            pack.version = version_override;
+        } else if pack.version.is_empty()
+            && let Some(version) = central.and_then(|c| c.version(&pack.name))
+        {
+            version.clone_into(&mut pack.version);
+        }
+    }
+}
+
+/// Applies `PackageReference Update` item version metadata to included packages with names
+/// specified (`;` separated list). The last applied update wins like in MSBuild.
+fn apply_update(packs: &mut [&mut PackageReference], update: &PackageReference) {
+    let names = update
+        .update
+        .iter()
+        .flat_map(|names| names.split(';'))
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .collect::<Vec<_>>();
+    let updated = packs.iter_mut().filter(|pack| {
+        names
+            .iter()
+            .any(|name| name.eq_ignore_ascii_case(&pack.name))
+    });
+    for pack in updated {
+        if !update.version.is_empty() {
+            update.version.clone_into(&mut pack.version);
+        }
+        if update.version_override.is_some() {
+            pack.version_override.clone_from(&update.version_override);
+        }
+    }
+}
+
+fn project_packages(project: msbuild::Project) -> Vec<ProjectPackage> {
+    project
+        .item_group
+        .into_iter()
+        .flatten()
+        .filter_map(|ig| {
+            let condition = ig.condition;
+            let packs = ig.package_reference?;
+            Some(packs.into_iter().map(move |p| ProjectPackage {
+                name: p.name,
+                version: p.version,
+                condition: condition.clone(),
+            }))
+        })
+        .flatten()
+        .filter(|p| !p.name.is_empty())
+        .collect()
+}
+
 /// Finds the nearest [`IMPLICIT_IMPORTS`] files for the project directory in MSBuild evaluation order.
 #[must_use]
-pub fn find_implicit_imports(project_dir: &Path) -> Vec<PathBuf> {
+fn find_implicit_imports(project_dir: &Path) -> Vec<PathBuf> {
     IMPLICIT_IMPORTS
         .iter()
         .filter_map(|name| find_file_above(project_dir, name))
@@ -172,7 +324,7 @@ pub fn find_implicit_imports(project_dir: &Path) -> Vec<PathBuf> {
 
 /// Finds file with the name specified in the directory or any of its parents.
 #[must_use]
-pub fn find_file_above(dir: &Path, name: &str) -> Option<PathBuf> {
+fn find_file_above(dir: &Path, name: &str) -> Option<PathBuf> {
     normalize(dir)
         .ancestors()
         .map(|d| d.join(name))
@@ -933,5 +1085,186 @@ mod tests {
 
         // Assert
         assert_eq!(Path::new(expected), actual);
+    }
+
+    /// Writes project file with the package references specified into `dir`
+    fn project_file(dir: &Path, packages: &str) -> ProjectFile {
+        let path = dir.join("App.csproj");
+        fs::create_dir_all(dir).unwrap();
+        fs::write(
+            &path,
+            format!(
+                r#"<Project Sdk="Microsoft.NET.Sdk"><ItemGroup>{packages}</ItemGroup></Project>"#
+            ),
+        )
+        .unwrap();
+        ProjectFile::new(path)
+    }
+
+    fn version_of<'a>(packages: &'a [ProjectPackage], name: &str) -> Vec<&'a str> {
+        packages
+            .iter()
+            .filter(|p| p.name.eq_ignore_ascii_case(name))
+            .map(|p| p.version.as_str())
+            .collect()
+    }
+
+    #[test_case(r#"<PackageReference Include="Newtonsoft.Json" />"#, "13.0.3" ; "central version")]
+    #[test_case(r#"<PackageReference Include="Newtonsoft.Json" VersionOverride="12.0.1" />"#, "12.0.1" ; "version override")]
+    #[test_case(r#"<PackageReference Include="Newtonsoft.Json" Version="11.0.1" />"#, "11.0.1" ; "explicit version")]
+    fn resolve_central_packages(package: &str, expected: &str) {
+        // Arrange
+        let root = create_tree(
+            "resolve-cpm",
+            &[
+                (
+                    BUILD_PROPS,
+                    r#"<Project>
+  <PropertyGroup>
+    <Json>13.0.3</Json>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="SonarAnalyzer.CSharp" />
+  </ItemGroup>
+</Project>"#,
+                ),
+                (
+                    PACKAGES_PROPS,
+                    r#"<Project>
+  <ItemGroup>
+    <PackageVersion Include="Newtonsoft.Json" Version="$(Json)" />
+    <GlobalPackageReference Include="StyleCop.Analyzers" Version="1.1.118" />
+    <PackageVersion Include="SonarAnalyzer.CSharp" Version="10.15.0" />
+  </ItemGroup>
+</Project>"#,
+                ),
+            ],
+        );
+        let file = project_file(&root.join("src").join("App"), package);
+        let mut resolver = PackageResolver::default();
+
+        // Act
+        let actual = resolver.packages(&file);
+
+        // Assert
+        fs::remove_dir_all(&root).unwrap();
+        let actual = actual.unwrap();
+        assert_eq!(3, actual.len());
+        assert_eq!(vec![expected], version_of(&actual, "Newtonsoft.Json"));
+        assert_eq!(vec!["1.1.118"], version_of(&actual, "StyleCop.Analyzers"));
+        assert_eq!(vec!["10.15.0"], version_of(&actual, "SonarAnalyzer.CSharp"));
+    }
+
+    #[test]
+    fn resolve_build_props_and_targets_references_without_cpm() {
+        // Arrange
+        let root = create_tree(
+            "resolve-no-cpm",
+            &[
+                (
+                    BUILD_PROPS,
+                    r#"<Project><ItemGroup><PackageReference Include="StyleCop.Analyzers" Version="1.1.118" /></ItemGroup></Project>"#,
+                ),
+                (
+                    BUILD_TARGETS,
+                    r#"<Project><ItemGroup><PackageReference Include="Roslynator.Analyzers" Version="4.12.0" /></ItemGroup></Project>"#,
+                ),
+            ],
+        );
+        let file = project_file(
+            &root.join("App"),
+            r#"<PackageReference Include="StyleCop.Analyzers" Version="1.2.0" />"#,
+        );
+        let mut resolver = PackageResolver::default();
+
+        // Act
+        let actual = resolver.packages(&file);
+
+        // Assert
+        fs::remove_dir_all(&root).unwrap();
+        let actual = actual.unwrap();
+        assert_eq!(
+            vec!["1.2.0", "1.1.118"],
+            version_of(&actual, "StyleCop.Analyzers")
+        );
+        assert_eq!(vec!["4.12.0"], version_of(&actual, "Roslynator.Analyzers"));
+    }
+
+    #[test_case(None, "3.0.0" ; "project update")]
+    #[test_case(Some(r#"<PackageReference Update="serilog" Version="2.0.0" />"#), "2.0.0" ; "targets update wins")]
+    #[test_case(Some(r#"<PackageReference Update="Other;Serilog" VersionOverride="4.0.0" />"#), "4.0.0" ; "targets update list with override")]
+    #[test_case(Some(r#"<PackageReference Update="Other" Version="2.0.0" />"#), "3.0.0" ; "targets update of other package")]
+    fn resolve_package_updates(targets_item: Option<&str>, expected: &str) {
+        // Arrange
+        let targets =
+            targets_item.map(|item| format!("<Project><ItemGroup>{item}</ItemGroup></Project>"));
+        let mut files = vec![(
+            BUILD_PROPS,
+            r#"<Project><ItemGroup><PackageReference Update="Serilog" Version="1.0.0" /></ItemGroup></Project>"#,
+        )];
+        if let Some(targets) = &targets {
+            files.push((BUILD_TARGETS, targets));
+        }
+        let root = create_tree("resolve-updates", &files);
+        let file = project_file(
+            &root.join("App"),
+            r#"<PackageReference Include="Serilog" /><PackageReference Update="Serilog" Version="3.0.0" />"#,
+        );
+        let mut resolver = PackageResolver::default();
+
+        // Act
+        let actual = resolver.packages(&file);
+
+        // Assert
+        fs::remove_dir_all(&root).unwrap();
+        let actual = actual.unwrap();
+        assert_eq!(1, actual.len());
+        assert_eq!(vec![expected], version_of(&actual, "Serilog"));
+    }
+
+    #[test]
+    fn resolve_keeps_item_group_condition() {
+        // Arrange
+        let root = create_tree("resolve-condition", &[]);
+        let path = root.join("App.csproj");
+        fs::create_dir_all(&root).unwrap();
+        fs::write(
+            &path,
+            r#"<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+    <PackageReference Include="A" Version="1.0.0" />
+  </ItemGroup>
+</Project>"#,
+        )
+        .unwrap();
+        let file = ProjectFile::new(path);
+        let mut resolver = PackageResolver::default();
+
+        // Act
+        let actual = resolver.packages(&file);
+
+        // Assert
+        fs::remove_dir_all(&root).unwrap();
+        let expected = ProjectPackage {
+            name: "A".to_string(),
+            version: "1.0.0".to_string(),
+            condition: Some("'$(TargetFramework)' == 'net48'".to_string()),
+        };
+        assert_eq!(vec![expected], actual.unwrap());
+    }
+
+    #[test]
+    fn resolve_unparsable_project_fails() {
+        // Arrange
+        let root = create_tree("resolve-bad", &[("App.csproj", "not xml")]);
+        let file = ProjectFile::new(root.join("App.csproj"));
+        let mut resolver = PackageResolver::default();
+
+        // Act
+        let actual = resolver.packages(&file);
+
+        // Assert
+        fs::remove_dir_all(&root).unwrap();
+        assert!(actual.is_err());
     }
 }

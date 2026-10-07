@@ -23,6 +23,11 @@ pub struct ProjectFile {
 }
 
 impl ProjectFile {
+    #[cfg(test)]
+    pub(crate) fn new(path: PathBuf) -> Self {
+        Self { path }
+    }
+
     /// Canonical path to the project file
     #[must_use]
     pub fn path(&self) -> &Path {
