@@ -4,9 +4,9 @@ This file provides guidance to LLM when working with code in this repository.
 
 ## Project Overview
 
-**solv** is a Microsoft Visual Studio solution (`.sln`) validation console tool and parsing library, written in Rust. The repository is a Cargo workspace composed of two crates:
+**solv** is a Microsoft Visual Studio solution (`.sln` and `.slnx`) validation console tool and parsing library, written in Rust. The repository is a Cargo workspace composed of two crates:
 
-- **`solp/`** — A library that parses Visual Studio solution files into a structured AST. Uses [LALRPOP](https://github.com/lalrpop/lalrpop) for grammar generation (`solp/src/solp.lalrpop`) and custom lexing (`solp/src/lex.rs`). Exposes a `Consume` trait and `SolpWalker` for directory traversal.
+- **`solp/`** — A library that parses Visual Studio solution files into a structured AST. Classic `.sln` files are parsed with [LALRPOP](https://github.com/lalrpop/lalrpop) grammar (`solp/src/solp.lalrpop`) and custom lexing (`solp/src/lex.rs`); XML `.slnx` files are deserialized with `serde-xml-rs` (`solp/src/slnx/`). Exposes a `Consume` trait and `SolpWalker` for directory traversal.
 - **`solv/`** — The CLI binary that consumes `solp`. Built with `clap`. Implements the subcommands: `validate`, `info`, `nuget`, `json`, `completion`, `bugreport`.
 
 The default workspace member is `solv` (see the root `Cargo.toml`).
@@ -21,10 +21,15 @@ The default workspace member is `solv` (see the root `Cargo.toml`).
 - `src/api.rs` — Public `Solution`, `Project`, `Configuration`, etc. types exposed to consumers.
 - `src/msbuild.rs` — MSBuild-specific helpers (parsing referenced `.csproj`/`.vcxproj` metadata, packages, etc.).
 - `src/lib.rs` — Entry point. Defines:
-  - `parse_str(&str) -> Result<Solution, ...>`
+  - `parse_str(&str) -> Result<Solution, ...>` — detects the format by content (`slnx::is_slnx`) and routes to `.sln` or `.slnx` parser
   - `parse_file(path, &mut impl Consume) -> Result<...>`
   - `Consume` trait (`ok(&Solution)` / `err(path)`)
-  - `SolpWalker<C: Consume>` for parallel directory walking via `jwalk`.
+  - `SolpWalker<C: Consume>` for directory walking via `dua-core`. Extension may be a comma-separated list; default is `DEFAULT_SOLUTION_EXTENSIONS` (`sln,slnx`).
+- `src/slnx/` — `.slnx` support:
+  - `mod.rs` — serde schema of the XML format, format detection, `borrow_in` (borrows deserialized values from source text so `Solution` keeps borrowing input).
+  - `convert.rs` — conversion into `api::Solution` (folders hierarchy, ids, dependencies, Visual Studio properties).
+  - `config.rs` — configuration rules (`BuildType`, `Platform`, `Build`, `Deploy`) with `BuildType|Platform` patterns; the last matching rule wins.
+  - `types.rs` — built-in project types table with implicit rules and project type resolution (`Type`, extension, `ProjectType`, `BasedOn`). Mirrors Microsoft.VisualStudio.SolutionPersistence.
 - `fuzz/` — `cargo-fuzz` target (`fuzz_targets/parse.rs`). Only included in the workspace when explicitly enabled (see comment in root `Cargo.toml`).
 
 ### `solv` (CLI)
@@ -77,6 +82,8 @@ cargo audit
 Rust **1.88.0** or newer. Both crates use `edition = "2024"` and the workspace uses `resolver = "3"`.
 
 ## Things to watch out for
+- `.slnx` behavior follows the reference implementation [Microsoft.VisualStudio.SolutionPersistence](https://github.com/microsoft/vs-solutionpersistence). Check it before changing project type or configuration rules logic.
+- `api::ProjectConfiguration::platform` is always the solution platform; the project platform is in `project_platform`. `api::Project::parent` is the containing solution folder id. Both formats must fill these fields the same way.
 - Changing `solp/src/solp.lalrpop` regenerates the parser via `build.rs`. After edits, run `cargo build -p solp` and check for LALRPOP conflicts.
 - Public API of `solp::api` is re-exported and consumed by `solv`; breaking changes require coordinated updates in both crates.
 - `solv/src/main.rs` reads stdin only for subcommands that route through `scan_path_or_stdin` (`info`, `json`). `validate` and `nuget` require a path.

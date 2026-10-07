@@ -1,8 +1,10 @@
 /*!
-A library for parsing Microsoft Visual Studio solution file
+A library for parsing Microsoft Visual Studio solution files.
 
+Both classic text (`.sln`) and XML (`.slnx`) formats are supported. The format is detected
+by content, and both formats are parsed into the same [`api::Solution`] model.
 
-## Example: parsing solution from [&str]
+## Example: parsing `.sln` solution from [&str]
 
 ```
 use solp::parse_str;
@@ -32,6 +34,33 @@ assert_eq!(solution.projects.len(), 1);
 assert_eq!(solution.configurations.len(), 2);
 assert_eq!(solution.format, "12.00");
 
+```
+
+## Example: parsing `.slnx` solution from [&str]
+
+```
+use solp::parse_str;
+
+const SOLUTION: &str = r#"<Solution>
+  <Folder Name="/tests/">
+    <Project Path="tests/Tests.csproj">
+      <BuildDependency Project="src/App.csproj" />
+    </Project>
+  </Folder>
+  <Project Path="src/App.csproj" />
+</Solution>"#;
+
+let solution = parse_str(SOLUTION).unwrap();
+// solution folder and two projects
+assert_eq!(solution.projects.len(), 3);
+// Debug and Release for Any CPU by default
+assert_eq!(solution.configurations.len(), 2);
+assert_eq!(solution.format, "slnx");
+
+let tests = &solution.projects[1];
+assert_eq!(tests.name, "Tests");
+assert_eq!(tests.parent, Some("/tests/"));
+assert_eq!(tests.depends_from.as_deref(), Some(&["src/App.csproj"][..]));
 ```
 */
 

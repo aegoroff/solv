@@ -1,6 +1,6 @@
 [package]
 name = "solp"
-description = "Microsoft Visual Studio solution parsing library"
+description = "Microsoft Visual Studio solution (.sln and .slnx) parsing library"
 repository = "https://github.com/aegoroff/solv"
 version = "0.22.1"
 authors = ["egoroff <egoroff@gmail.com>"]
