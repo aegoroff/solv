@@ -1,7 +1,7 @@
 //! SLNX XML solution format support.
 #![expect(
     dead_code,
-    reason = "SLNX schema types include fields reserved for properties support in later phases"
+    reason = "SLNX schema describes all elements but only solution level Visual Studio properties are exposed"
 )]
 
 mod config;

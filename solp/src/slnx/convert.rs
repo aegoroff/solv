@@ -9,9 +9,15 @@ use super::config::{
     SolutionConfigNames, project_configurations, project_setup, solution_build_types,
     solution_platforms,
 };
-use super::{Configurations, Folder, Project as RawProject, SlnxSolution, borrow_in};
+use super::{Configurations, Folder, Project as RawProject, Properties, SlnxSolution, borrow_in};
 
 const ID_SOLUTION_FOLDER: &str = "{2150E333-8FDC-42A3-9474-1A3956D46DE8}";
+
+/// Name of solution properties group with Visual Studio specific properties
+const VISUAL_STUDIO_PROPERTIES: &str = "Visual Studio";
+/// Version names like they're named in .sln
+const VISUAL_STUDIO_VERSION: &str = "VisualStudioVersion";
+const MINIMUM_VISUAL_STUDIO_VERSION: &str = "MinimumVisualStudioVersion";
 
 /// Converts a deserialized `.slnx` document into the shared public [`Solution`] model.
 pub fn to_api<'a>(slnx: SlnxSolution, contents: &'a str, path: &'a str) -> Result<Solution<'a>> {
@@ -19,10 +25,20 @@ pub fn to_api<'a>(slnx: SlnxSolution, contents: &'a str, path: &'a str) -> Resul
         Some(version) => borrow_in(contents, version)?,
         None => "slnx",
     };
-    let product = match slnx.description.as_deref() {
-        Some(description) => borrow_in(contents, description)?,
-        None => "",
+    let vs = VisualStudioProperties::new(contents, &slnx.properties)?;
+    // OpenWith is the same as the first comment (# Visual Studio Version 17) in .sln
+    let product = match (vs.open_with, slnx.description.as_deref()) {
+        (Some(open_with), _) => open_with,
+        (None, Some(description)) => borrow_in(contents, description)?,
+        (None, None) => "",
     };
+    let versions = [
+        (VISUAL_STUDIO_VERSION, vs.version),
+        (MINIMUM_VISUAL_STUDIO_VERSION, vs.minimum_version),
+    ]
+    .into_iter()
+    .filter_map(|(name, version)| version.map(|version| Version { name, version }))
+    .collect();
 
     let build_types = solution_build_types(contents, slnx.configurations.as_ref())?;
     let platforms = solution_platforms(contents, slnx.configurations.as_ref())?;
@@ -99,13 +115,49 @@ pub fn to_api<'a>(slnx: SlnxSolution, contents: &'a str, path: &'a str) -> Resul
         path: borrow_in(contents, path).unwrap_or(path),
         format,
         product,
-        versions: Vec::<Version<'_>>::new(),
+        versions,
         projects,
         configurations,
         dangling_project_configurations: None,
         duplicate_solution_configurations: None,
         duplicate_project_configurations: None,
     })
+}
+
+/// Visual Studio specific solution properties i.e.
+/// `<Properties Name="Visual Studio"><Property Name="OpenWith" Value="Visual Studio Version 17" /></Properties>`
+#[derive(Debug, Default)]
+struct VisualStudioProperties<'a> {
+    open_with: Option<&'a str>,
+    version: Option<&'a str>,
+    minimum_version: Option<&'a str>,
+}
+
+impl<'a> VisualStudioProperties<'a> {
+    /// Property and group names are case-insensitive. The last value wins like in Visual Studio.
+    fn new(contents: &'a str, properties: &[Properties]) -> Result<Self> {
+        let mut result = Self::default();
+        let vs_properties = properties
+            .iter()
+            .filter(|group| group.name.eq_ignore_ascii_case(VISUAL_STUDIO_PROPERTIES))
+            .flat_map(|group| &group.properties);
+        for property in vs_properties {
+            let target = if property.name.eq_ignore_ascii_case("OpenWith") {
+                &mut result.open_with
+            } else if property.name.eq_ignore_ascii_case("Version") {
+                &mut result.version
+            } else if property.name.eq_ignore_ascii_case("MinimumVersion") {
+                &mut result.minimum_version
+            } else {
+                continue;
+            };
+            *target = match property.value.as_deref() {
+                Some(value) if !value.trim().is_empty() => Some(borrow_in(contents, value)?),
+                _ => None,
+            };
+        }
+        Ok(result)
+    }
 }
 
 /// Solution folders (including implicit parents of nested folders) converted into projects
@@ -444,6 +496,107 @@ mod tests {
 
         // Assert
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn visual_studio_properties_map_to_product_and_versions() {
+        // Arrange
+        let slnx = r#"<Solution Description="Ignored description">
+  <Properties Name="Visual Studio">
+    <Property Name="OpenWith" Value="Visual Studio Version 17" />
+    <Property Name="Version" Value="17.10.35013.160" />
+    <Property Name="MinimumVersion" Value="10.0.40219.1" />
+  </Properties>
+  <Project Path="App/App.csproj" />
+</Solution>"#;
+
+        // Act
+        let solution = super::super::parse_str(slnx).unwrap();
+
+        // Assert
+        assert_eq!(solution.product, "Visual Studio Version 17");
+        let versions = solution
+            .versions
+            .iter()
+            .map(|version| (version.name, version.version))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            versions,
+            vec![
+                ("VisualStudioVersion", "17.10.35013.160"),
+                ("MinimumVisualStudioVersion", "10.0.40219.1"),
+            ]
+        );
+    }
+
+    #[test]
+    fn visual_studio_properties_are_case_insensitive_and_last_wins() {
+        // Arrange
+        let slnx = r#"<Solution>
+  <Properties Name="visual studio">
+    <Property Name="openwith" Value="Visual Studio Version 16" />
+  </Properties>
+  <Properties Name="Other">
+    <Property Name="Version" Value="1.0" />
+  </Properties>
+  <Properties Name="VISUAL STUDIO">
+    <Property Name="OpenWith" Value="Visual Studio Version 17" />
+  </Properties>
+</Solution>"#;
+
+        // Act
+        let solution = super::super::parse_str(slnx).unwrap();
+
+        // Assert
+        assert_eq!(solution.product, "Visual Studio Version 17");
+        assert!(solution.versions.is_empty());
+    }
+
+    #[test_case(r#"<Solution Description="Description" />"#, "Description" ; "description fallback")]
+    #[test_case(r#"<Solution><Properties Name="Visual Studio"><Property Name="OpenWith" /></Properties></Solution>"#, "" ; "empty value")]
+    #[test_case("<Solution />", "" ; "no properties")]
+    fn product_without_open_with(slnx: &str, expected: &str) {
+        // Arrange
+
+        // Act
+        let solution = super::super::parse_str(slnx).unwrap();
+
+        // Assert
+        assert_eq!(solution.product, expected);
+        assert!(solution.versions.is_empty());
+    }
+
+    #[test]
+    fn project_and_folder_properties_do_not_affect_parsing() {
+        // Arrange
+        let slnx = r#"<Solution>
+  <Folder Name="/src/">
+    <Properties Name="FolderBag">
+      <Property Name="A" Value="1" />
+    </Properties>
+    <Project Path="src/Web/Web.csproj">
+      <Properties Name="Visual Studio" Scope="PostLoad">
+        <Property Name="OpenWith" Value="Should not be product" />
+      </Properties>
+      <BuildDependency Project="src/Lib/Lib.csproj" />
+    </Project>
+  </Folder>
+  <Project Path="src/Lib/Lib.csproj" />
+</Solution>"#;
+
+        // Act
+        let solution = super::super::parse_str(slnx).unwrap();
+
+        // Assert
+        assert_eq!(solution.product, "");
+        assert_eq!(solution.projects.len(), 3);
+        assert_eq!(
+            find(&solution, "src/Web/Web.csproj")
+                .depends_from
+                .as_ref()
+                .unwrap(),
+            &["src/Lib/Lib.csproj"]
+        );
     }
 
     #[test]
