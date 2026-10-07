@@ -41,20 +41,18 @@ pub fn to_api<'a>(slnx: SlnxSolution, contents: &'a str) -> Result<Solution<'a>>
     .filter_map(|(name, version)| version.map(|version| Version { name, version }))
     .collect();
 
-    let build_types = solution_build_types(contents, slnx.configurations.as_ref())?;
-    let platforms = solution_platforms(contents, slnx.configurations.as_ref())?;
     let config_names = SolutionConfigNames {
-        build_types: build_types.clone(),
-        platforms: platforms.clone(),
+        build_types: solution_build_types(contents, slnx.configurations.as_ref())?,
+        platforms: solution_platforms(contents, slnx.configurations.as_ref())?,
     };
-    let configurations: BTreeSet<SolutionConfiguration<'a>> = build_types
+    let configurations: BTreeSet<SolutionConfiguration<'a>> = config_names
+        .build_types
         .iter()
-        .copied()
-        .flat_map(|configuration| {
-            platforms
+        .flat_map(|&configuration| {
+            config_names
+                .platforms
                 .iter()
-                .copied()
-                .map(move |platform| SolutionConfiguration {
+                .map(move |&platform| SolutionConfiguration {
                     configuration,
                     platform,
                 })
