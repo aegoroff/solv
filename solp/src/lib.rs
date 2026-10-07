@@ -80,6 +80,7 @@ mod lex;
 pub mod msbuild;
 mod parser;
 pub mod project_files;
+mod sln;
 mod slnx;
 
 #[macro_use]
@@ -251,12 +252,13 @@ pub fn parse_file(path: &str, consumer: &mut dyn Consume) -> miette::Result<()> 
 /// This function uses the `parser::parse_str` function to perform the actual parsing and then
 /// constructs a [`Solution`] object from the parsed data.
 pub fn parse_str(contents: &'_ str) -> miette::Result<Solution<'_>> {
-    if slnx::is_slnx(contents) {
-        slnx::parse_str(contents)
+    let mut solution = if slnx::is_slnx(contents) {
+        slnx::parse_str(contents)?
     } else {
-        let parsed = parser::parse_str(contents)?;
-        Ok(Solution::from(&parsed))
-    }
+        sln::parse_str(contents)?
+    };
+    solution.resolve_references();
+    Ok(solution)
 }
 
 impl<'a, C: Consume> SolpWalker<'a, C> {
@@ -367,6 +369,7 @@ fn decorate_path(path: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::{BTreeMap, BTreeSet};
     use test_case::test_case;
 
     const MINIMAL_SOLUTION: &str = r#"
@@ -538,6 +541,140 @@ EndGlobal
                 ("lower", Some("{AAAAAAAA-1111-1111-1111-111111111111}")),
             ]
         );
+    }
+
+    #[test]
+    fn parse_str_sln_resolves_dependencies_to_project_ids() {
+        // Arrange
+        let content = r#"
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "app", "app.csproj", "{A61CD222-0F3B-47B6-9F7F-25D658368EEC}"
+	ProjectSection(ProjectDependencies) = postProject
+		{b61cd222-0f3b-47b6-9f7f-25d658368eec} = {b61cd222-0f3b-47b6-9f7f-25d658368eec}
+		{33333333-3333-3333-3333-333333333333} = {33333333-3333-3333-3333-333333333333}
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "lib", "lib.csproj", "{B61CD222-0F3B-47B6-9F7F-25D658368EEC}"
+EndProject
+"#;
+
+        // Act
+        let solution = parse_str(content).unwrap();
+
+        // Assert
+        assert_eq!(
+            solution.projects[0].depends_from.as_deref(),
+            Some(
+                &[
+                    // dependency GUID case is taken from the project itself
+                    "{B61CD222-0F3B-47B6-9F7F-25D658368EEC}",
+                    // dependency that isn't in the solution is kept as is
+                    "{33333333-3333-3333-3333-333333333333}",
+                ][..]
+            )
+        );
+    }
+
+    const PARITY_SLN: &str = r#"
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{11111111-1111-1111-1111-111111111111}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "App", "src\App\App.csproj", "{A61CD222-0F3B-47B6-9F7F-25D658368EEC}"
+	ProjectSection(ProjectDependencies) = postProject
+		{b61cd222-0f3b-47b6-9f7f-25d658368eec} = {b61cd222-0f3b-47b6-9f7f-25d658368eec}
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lib", "Lib\Lib.csproj", "{B61CD222-0F3B-47B6-9F7F-25D658368EEC}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A61CD222-0F3B-47B6-9F7F-25D658368EEC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A61CD222-0F3B-47B6-9F7F-25D658368EEC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A61CD222-0F3B-47B6-9F7F-25D658368EEC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A61CD222-0F3B-47B6-9F7F-25D658368EEC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B61CD222-0F3B-47B6-9F7F-25D658368EEC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B61CD222-0F3B-47B6-9F7F-25D658368EEC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B61CD222-0F3B-47B6-9F7F-25D658368EEC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B61CD222-0F3B-47B6-9F7F-25D658368EEC}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{a61cd222-0f3b-47b6-9f7f-25d658368eec} = {11111111-1111-1111-1111-111111111111}
+	EndGlobalSection
+EndGlobal
+"#;
+
+    const PARITY_SLNX: &str = r#"<Solution>
+  <Configurations>
+    <BuildType Name="Debug" />
+    <BuildType Name="Release" />
+    <Platform Name="Any CPU" />
+  </Configurations>
+  <Folder Name="/src/" Id="{11111111-1111-1111-1111-111111111111}">
+    <Project Path="src/App/App.csproj" Id="{A61CD222-0F3B-47B6-9F7F-25D658368EEC}">
+      <BuildDependency Project="Lib\Lib.csproj" />
+    </Project>
+  </Folder>
+  <Project Path="Lib/Lib.csproj" Id="{B61CD222-0F3B-47B6-9F7F-25D658368EEC}" />
+</Solution>"#;
+
+    /// Format independent project data: id, name, parent, dependencies and configurations
+    type ProjectData<'a> = (
+        &'a str,
+        &'a str,
+        Option<&'a str>,
+        Option<Vec<&'a str>>,
+        Option<BTreeSet<api::ProjectConfiguration<'a>>>,
+    );
+
+    fn project_data<'a>(solution: &'a Solution<'a>) -> BTreeMap<&'a str, ProjectData<'a>> {
+        solution
+            .projects
+            .iter()
+            .map(|p| {
+                let data = (
+                    p.id,
+                    p.name,
+                    p.parent,
+                    p.depends_from.clone(),
+                    p.configurations.clone(),
+                );
+                (p.id, data)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn parse_str_sln_and_slnx_give_same_projects() {
+        // Arrange
+
+        // Act
+        let sln = parse_str(PARITY_SLN).unwrap();
+        let slnx = parse_str(PARITY_SLNX).unwrap();
+
+        // Assert
+        let expected = project_data(&sln);
+        let app = &expected["{A61CD222-0F3B-47B6-9F7F-25D658368EEC}"];
+        assert_eq!(3, expected.len());
+        assert_eq!(Some(2), app.4.as_ref().map(BTreeSet::len));
+        assert_eq!(expected, project_data(&slnx));
+    }
+
+    #[test]
+    fn parse_str_sln_and_slnx_give_same_configurations() {
+        // Arrange
+
+        // Act
+        let sln = parse_str(PARITY_SLN).unwrap();
+        let slnx = parse_str(PARITY_SLNX).unwrap();
+
+        // Assert
+        assert_eq!(sln.configurations, slnx.configurations);
+        assert_eq!(api::SolutionKind::Sln, sln.kind);
+        assert_eq!(api::SolutionKind::Slnx, slnx.kind);
     }
 
     #[test]

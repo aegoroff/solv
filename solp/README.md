@@ -246,6 +246,8 @@ Will parse solution into structure that may be represented by this json
   elements and `BuildType`, `Platform`, `Build` and `Deploy` rules.
 - `platform` is the solution platform and `project_platform` is the platform the project is built for.
 - `parent` is the id of the solution folder that contains the project or folder.
+- `parent` and `depends_from` reference projects by their declared ids in both formats
+  (`.sln` GUIDs are matched ignoring case).
 - `OpenWith`, `Version` and `MinimumVersion` properties of `<Properties Name="Visual Studio">`
   become `product`, `VisualStudioVersion` and `MinimumVisualStudioVersion` like in `.sln`.
 - Values are borrowed from the source so values with XML entities are kept escaped

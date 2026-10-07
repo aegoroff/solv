@@ -18,7 +18,8 @@ The default workspace member is `solv` (see the root `Cargo.toml`).
 - `src/lex.rs` — Hand-written lexer feeding LALRPOP.
 - `src/parser.rs` — High-level parse functions built on top of the generated parser.
 - `src/ast.rs` — Internal AST produced by the grammar.
-- `src/api.rs` — Public `Solution`, `Project`, `Configuration`, etc. types exposed to consumers.
+- `src/api.rs` — Public `Solution`, `Project`, `Configuration`, etc. types exposed to consumers. Also `Solution::resolve_references` — the shared step `parse_str` runs after either format parser: `parent` and `depends_from` become declared project ids (case-insensitive).
+- `src/sln/` — `.sln` support: `convert.rs` builds `api::Solution` from `ast::Sol` (configurations grouping, nested projects, danglings, duplicates), symmetric to `slnx/convert.rs`.
 - `src/msbuild.rs` — MSBuild-specific helpers (parsing referenced `.csproj`/`.vcxproj` metadata, packages, etc.).
 - `src/project_files.rs` — Project files: `locate(&Solution)` resolves every local solution project to its MSBuild project file on disk (`ProjectLocation::Missing` / `Found(ProjectFile)`, canonical path, lazy `load()`). Owns path joining, `\` → `/` conversion, URI skipping and `.slnx` XML unescaping by `Solution::kind`. Consumers must not resolve project paths themselves.
 - `src/cpm.rs` — Central Package Management: simplified evaluation of `Directory.Build.props` + `Directory.Packages.props` + `Directory.Build.targets` (imports, `$(Property)` expansion, `GetPathOfFileAbove`/`GetDirectoryNameOfFileAbove`, `PackageVersion`, `GlobalPackageReference`, `PackageReference` inherited by projects). The only public entry point is `PackageResolver::packages(&ProjectFile) -> Vec<ProjectPackage>`: it applies MSBuild order (inherited references, `Update` items before/after project items, `VersionOverride`, `PackageVersion` fallback) and caches evaluated files. Versions are returned as MSBuild sees them; NuGet version normalization stays in `solv nuget`.
@@ -85,7 +86,7 @@ Rust **1.88.0** or newer. Both crates use `edition = "2024"` and the workspace u
 
 ## Things to watch out for
 - `.slnx` behavior follows the reference implementation [Microsoft.VisualStudio.SolutionPersistence](https://github.com/microsoft/vs-solutionpersistence). Check it before changing project type or configuration rules logic.
-- `api::ProjectConfiguration::platform` is always the solution platform; the project platform is in `project_platform`. `api::Project::parent` is the containing solution folder id. Both formats must fill these fields the same way.
+- `api::ProjectConfiguration::platform` is always the solution platform; the project platform is in `project_platform`. `api::Project::parent` is the containing solution folder id and `depends_from` holds ids of projects the project depends on; both are resolved to declared project ids by `Solution::resolve_references`, so consumers compare ids as is. Both formats must fill these fields the same way: `parse_str_sln_and_slnx_give_same_*` tests in `solp/src/lib.rs` check it.
 - Changing `solp/src/solp.lalrpop` regenerates the parser via `build.rs`. After edits, run `cargo build -p solp` and check for LALRPOP conflicts.
 - Public API of `solp::api` is re-exported and consumed by `solv`; breaking changes require coordinated updates in both crates.
 - `solv/src/main.rs` reads stdin only for subcommands that route through `scan_path_or_stdin` (`info`, `json`). `validate` and `nuget` require a path.

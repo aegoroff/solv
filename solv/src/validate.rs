@@ -814,27 +814,15 @@ impl<'a> Cycles<'a> {
 
 impl<'a> Validator for Cycles<'a> {
     fn check(&self) -> Option<Problem> {
-        // Dependencies may use different GUID case so nodes are the first met project ids
-        let ids: HashMap<String, &'a str> = self
-            .solution
-            .projects
-            .iter()
-            .rev()
-            .map(|p| (p.id.to_uppercase(), p.id))
-            .collect();
-        let node = |id: &'a str| ids.get(&id.to_uppercase()).copied().unwrap_or(id);
+        // Dependencies are resolved to project ids by solp
         let mut graph = DiGraphMap::<&'a str, ()>::new();
         for to in &self.solution.projects {
-            let to_id = node(to.id);
-            graph.add_node(to_id);
-            if let Some(depends_from) = &to.depends_from {
-                for from in depends_from {
-                    let from = node(from);
-                    if !graph.contains_node(from) {
-                        graph.add_node(from);
-                    }
-                    graph.add_edge(from, to_id, ());
+            graph.add_node(to.id);
+            for from in to.depends_from.iter().flatten() {
+                if !graph.contains_node(from) {
+                    graph.add_node(from);
                 }
+                graph.add_edge(from, to.id, ());
             }
         }
 
