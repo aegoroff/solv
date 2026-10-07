@@ -614,7 +614,7 @@ mod tests {
         expected: bool,
     ) {
         // Arrange
-        let projects = vec![
+        let projects = [
             create_msbuild_project(vec![pack(name, "1.0.0")], None),
             create_msbuild_project(vec![pack(other_name, other_version)], None),
         ];
@@ -634,7 +634,7 @@ mod tests {
     #[test_case("13.0.3", false ; "same versions")]
     fn nugets_merges_packages_config_with_package_references(config_version: &str, expected: bool) {
         // Arrange
-        let projects = vec![create_msbuild_project(
+        let projects = [create_msbuild_project(
             vec![pack("Newtonsoft.Json", "13.0.3")],
             None,
         )];
@@ -657,7 +657,7 @@ mod tests {
     #[test]
     fn nugets_skips_packages_without_name() {
         // Arrange
-        let projects = vec![create_msbuild_project(
+        let projects = [create_msbuild_project(
             vec![pack("", "1.0.0"), pack("a", "1.0.0")],
             None,
         )];
