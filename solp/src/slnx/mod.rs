@@ -1,8 +1,7 @@
 //! SLNX XML solution format support.
-#![expect(
-    dead_code,
-    reason = "SLNX schema describes all elements but only solution level Visual Studio properties are exposed"
-)]
+//!
+//! Only elements and attributes used by conversion are described. Other ones
+//! (e.g. project and folder level `Properties`) are skipped by deserializer.
 
 mod config;
 mod convert;
@@ -89,15 +88,13 @@ pub struct ProjectType {
     pub supports_platform: Option<bool>,
 }
 
-/// Folder containing files, projects, and properties
+/// Folder containing files and projects
 #[derive(Debug, Deserialize)]
 pub struct Folder {
     #[serde(rename = "File", default)]
     pub files: Vec<FileRef>,
     #[serde(rename = "Project", default)]
     pub projects: Vec<Project>,
-    #[serde(rename = "Properties", default)]
-    pub properties: Vec<Properties>,
 
     #[serde(rename = "@Name")]
     pub name: String,
@@ -126,9 +123,6 @@ pub struct Project {
     pub builds: Vec<ConfigurationRule>,
     #[serde(rename = "Deploy", default)]
     pub deploys: Vec<ConfigurationRule>,
-
-    #[serde(rename = "Properties", default)]
-    pub properties: Vec<Properties>,
 
     #[serde(rename = "@Path")]
     pub path: String,
@@ -164,8 +158,6 @@ pub struct Properties {
 
     #[serde(rename = "@Name")]
     pub name: String,
-    #[serde(rename = "@Scope", default)]
-    pub scope: Option<String>,
 }
 
 /// Individual property

@@ -16,8 +16,6 @@ pub const MISSING_PLATFORM: &str = "?";
 /// Implicit configuration rules of a built-in project type
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuiltInRules {
-    /// No rules besides default ones
-    None,
     /// CLR project: project platform is always Any CPU
     Clr,
     /// Visual C++ project: Any CPU maps to x64 and x86 maps to Win32
@@ -222,7 +220,7 @@ impl BuiltInType {
             BuiltInRules::Clr => CLR_PLATFORM_RULES,
             BuiltInRules::Vc => VC_PLATFORM_RULES,
             BuiltInRules::NoPlatforms => NO_PLATFORMS_RULES,
-            BuiltInRules::None | BuiltInRules::NoBuild => &[],
+            BuiltInRules::NoBuild => &[],
         }
     }
 
