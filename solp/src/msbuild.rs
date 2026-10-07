@@ -134,7 +134,7 @@ pub struct Import {
     pub label: Option<String>,
 }
 
-const ID_SOLUTION_FOLDER: &str = "{2150E333-8FDC-42A3-9474-1A3956D46DE8}";
+pub(crate) const ID_SOLUTION_FOLDER: &str = "{2150E333-8FDC-42A3-9474-1A3956D46DE8}";
 const ID_WEB_SITE_PROJECT: &str = "{E24C65DC-7377-472B-9ABA-BC803B73C61A}";
 
 // all project guids from here https://github.com/JamesW75/visual-studio-project-type-guid

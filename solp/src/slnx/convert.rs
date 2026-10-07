@@ -3,15 +3,13 @@ use std::collections::{BTreeSet, HashMap};
 use miette::Result;
 
 use crate::api::{Project, Solution, SolutionConfiguration, Version};
-use crate::msbuild;
+use crate::msbuild::{self, ID_SOLUTION_FOLDER};
 
 use super::config::{
     SolutionConfigNames, project_configurations, project_setup, solution_build_types,
     solution_platforms,
 };
 use super::{Folder, Project as RawProject, Properties, SlnxSolution, borrow_in, split_file_name};
-
-const ID_SOLUTION_FOLDER: &str = "{2150E333-8FDC-42A3-9474-1A3956D46DE8}";
 
 /// Name of solution properties group with Visual Studio specific properties
 const VISUAL_STUDIO_PROPERTIES: &str = "Visual Studio";
