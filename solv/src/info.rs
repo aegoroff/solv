@@ -190,7 +190,7 @@ mod tests {
         // Assert
         assert_eq!(1, info.solutions);
         assert_eq!(
-            vec![("C# (.Net Core)", 2), ("C++", 1)],
+            vec![("C#", 2), ("C++", 1)],
             info.total_projects
                 .iter()
                 .map(|(k, v)| (k.as_str(), *v))

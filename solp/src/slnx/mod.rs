@@ -6,6 +6,7 @@
 
 mod config;
 mod convert;
+mod types;
 
 use miette::{IntoDiagnostic, WrapErr};
 use serde::Deserialize;

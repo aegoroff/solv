@@ -4,6 +4,7 @@ use miette::Result;
 
 use crate::api::{ProjectConfiguration, Tag};
 
+use super::types::{MISSING_PLATFORM, Resolver, TypeRef, built_in_type_id};
 use super::{
     ConfigurationRule, ConfigurationRulePlatform, Configurations, Project as RawProject,
     ProjectType,
@@ -18,25 +19,19 @@ pub struct SolutionConfigNames<'a> {
     pub platforms: Vec<&'a str>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct EffectiveRules<'a> {
     pub build_types: Vec<ConfigurationRuleBorrowed<'a>>,
     pub platforms: Vec<ConfigurationRulePlatformBorrowed<'a>>,
     pub builds: Vec<ConfigurationRuleBorrowed<'a>>,
     pub deploys: Vec<ConfigurationRuleBorrowed<'a>>,
-    pub is_buildable: bool,
 }
 
-impl<'a> Default for EffectiveRules<'a> {
-    fn default() -> Self {
-        Self {
-            build_types: Vec::new(),
-            platforms: Vec::new(),
-            builds: Vec::new(),
-            deploys: Vec::new(),
-            is_buildable: true,
-        }
-    }
+/// Project type id and configuration rules that apply to a project
+#[derive(Debug)]
+pub struct ProjectSetup<'a> {
+    pub type_id: &'a str,
+    pub rules: EffectiveRules<'a>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -83,10 +78,6 @@ pub fn project_configurations<'a>(
     names: &SolutionConfigNames<'a>,
     rules: &EffectiveRules<'a>,
 ) -> BTreeSet<ProjectConfiguration<'a>> {
-    if !rules.is_buildable {
-        return BTreeSet::new();
-    }
-
     let mut configurations = BTreeSet::new();
     for solution_configuration in &names.build_types {
         for solution_platform in &names.platforms {
@@ -130,62 +121,84 @@ pub fn project_configurations<'a>(
     configurations
 }
 
-pub fn effective_rules<'a>(
+/// Resolves project type and collects configuration rules from the most general to the most specific:
+/// project type rules (including `BasedOn` chain), solution wide rules and project own rules.
+pub fn project_setup<'a>(
     contents: &'a str,
     configs: Option<&Configurations>,
     project: &RawProject,
-) -> Result<EffectiveRules<'a>> {
-    let project_type = configs.and_then(|configs| find_project_type(configs, project));
-    let mut rules = EffectiveRules {
-        is_buildable: project_type
-            .and_then(|project_type| project_type.is_buildable)
-            .unwrap_or(true),
-        ..Default::default()
-    };
+) -> Result<ProjectSetup<'a>> {
+    let resolver = Resolver::new(configs);
+    let path = super::borrow_in(contents, &project.path)?;
+    let extension = project_extension(path);
+    let explicit_type = project.project_type.as_deref();
+    let resolved = resolver.resolve(explicit_type, extension);
 
-    if let Some(project_type) = project_type {
-        append_type_rules(contents, project_type, &mut rules)?;
+    let mut rules = EffectiveRules::default();
+    if let Some(project_type) = resolved {
+        for project_type in resolver.chain(project_type) {
+            append_type_rules(contents, project_type, &mut rules)?;
+        }
+    }
+    for project_type in resolver.solution_defaults() {
+        append_custom_type_rules(contents, project_type, &mut rules)?;
     }
     append_project_rules(contents, project, &mut rules)?;
 
-    Ok(rules)
+    // Unknown type is described by Type attribute or by extension like unknown GUID in .sln
+    let type_id = match resolved.and_then(|project_type| resolver.type_id(project_type)) {
+        Some(id) => match built_in_type_id(id) {
+            Some(id) => id,
+            None => super::borrow_in(contents, id)?,
+        },
+        None => match explicit_type {
+            Some(explicit_type) => super::borrow_in(contents, explicit_type)?,
+            None => extension.unwrap_or_default(),
+        },
+    };
+
+    Ok(ProjectSetup { type_id, rules })
 }
 
-fn find_project_type<'a>(
-    configs: &'a Configurations,
-    project: &RawProject,
-) -> Option<&'a ProjectType> {
-    if let Some(type_name) = project.project_type.as_deref()
-        && let Some(project_type) = configs
-            .project_types
-            .iter()
-            .find(|project_type| project_type.name.as_deref() == Some(type_name))
-    {
-        return Some(project_type);
-    }
-
-    let extension = project
-        .path
-        .rsplit('.')
-        .next()
-        .unwrap_or_default()
-        .to_ascii_lowercase();
-
-    configs.project_types.iter().find(|project_type| {
-        project_type
-            .extension
-            .as_deref()
-            .is_some_and(|configured| configured.eq_ignore_ascii_case(&extension))
-    })
+fn project_extension(path: &str) -> Option<&str> {
+    let file_name = path.rsplit(['/', '\\']).next().unwrap_or(path);
+    file_name
+        .rsplit_once('.')
+        .map(|(_, extension)| extension)
+        .filter(|extension| !extension.is_empty())
 }
 
 fn append_type_rules<'a>(
     contents: &'a str,
+    project_type: TypeRef<'_>,
+    rules: &mut EffectiveRules<'a>,
+) -> Result<()> {
+    match project_type {
+        TypeRef::BuiltIn(built_in) => {
+            rules.platforms.extend_from_slice(built_in.platform_rules());
+            rules.builds.extend_from_slice(built_in.build_rules());
+            Ok(())
+        }
+        TypeRef::Custom(custom) => append_custom_type_rules(contents, custom, rules),
+    }
+}
+
+fn append_custom_type_rules<'a>(
+    contents: &'a str,
     project_type: &ProjectType,
     rules: &mut EffectiveRules<'a>,
 ) -> Result<()> {
-    if let Some(is_buildable) = project_type.is_buildable {
-        rules.is_buildable = is_buildable;
+    if project_type.is_buildable == Some(false) {
+        rules.builds.push(ConfigurationRuleBorrowed {
+            solution: None,
+            project: Some("false"),
+        });
+    }
+    if project_type.supports_platform == Some(false) {
+        rules.platforms.push(ConfigurationRulePlatformBorrowed {
+            solution: None,
+            project: MISSING_PLATFORM,
+        });
     }
 
     for rule in &project_type.build_types {
@@ -349,7 +362,18 @@ fn rule_matches_solution(
 
 fn part_matches(pattern: &str, value: &str) -> bool {
     let pattern = pattern.trim();
-    pattern.is_empty() || pattern == "*" || pattern.eq_ignore_ascii_case(value)
+    pattern.is_empty()
+        || pattern == "*"
+        || canonical_platform(pattern).eq_ignore_ascii_case(canonical_platform(value))
+}
+
+/// `AnyCPU` and `Any CPU` are the same platform
+fn canonical_platform(value: &str) -> &str {
+    if value.eq_ignore_ascii_case("AnyCPU") {
+        "Any CPU"
+    } else {
+        value
+    }
 }
 
 #[cfg(test)]
@@ -435,20 +459,191 @@ mod tests {
         );
     }
 
-    #[test]
-    fn not_buildable_project_has_no_configurations() {
+    const SLNX_BUILT_IN_TYPES: &str = r#"<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x86" />
+    <Platform Name="x64" />
+  </Configurations>
+  <Project Path="App/App.csproj" />
+  <Project Path="Native/Native.vcxproj" />
+  <Project Path="Shared/Shared.vcxitems" />
+  <Project Path="Db/Db.sqlproj" />
+  <Project Path="Reports/Reports.rptproj" />
+  <Project Path="Tool/Tool.pyproj" />
+</Solution>"#;
+
+    fn project_configuration<'a>(
+        solution: &'a crate::api::Solution<'a>,
+        path: &str,
+        solution_platform: &str,
+    ) -> &'a ProjectConfiguration<'a> {
+        let project = solution
+            .projects
+            .iter()
+            .find(|project| project.path_or_uri == path)
+            .expect("project");
+        find(
+            project
+                .configurations
+                .as_ref()
+                .expect("project configurations"),
+            "Debug",
+            solution_platform,
+        )
+    }
+
+    #[test_case("App/App.csproj", "x64", "Any CPU", true ; "clr project platform is any cpu")]
+    #[test_case("Native/Native.vcxproj", "Any CPU", "x64", true ; "vc any cpu maps to x64")]
+    #[test_case("Native/Native.vcxproj", "x86", "Win32", true ; "vc x86 maps to win32")]
+    #[test_case("Native/Native.vcxproj", "x64", "x64", true ; "vc x64 stays as is")]
+    #[test_case("Shared/Shared.vcxitems", "x64", "x64", false ; "vcxitems is not built")]
+    #[test_case("Db/Db.sqlproj", "Any CPU", "Any CPU", false ; "sql project is not built")]
+    #[test_case("Reports/Reports.rptproj", "x64", MISSING_PLATFORM, true ; "ssrs has no platforms")]
+    #[test_case("Tool/Tool.pyproj", "x86", "x86", true ; "unknown type uses default rules")]
+    fn built_in_type_rules_are_applied(
+        path: &str,
+        solution_platform: &str,
+        expected_platform: &str,
+        expected_built: bool,
+    ) {
         // Arrange
-        let names = default_names();
-        let rules = EffectiveRules {
-            is_buildable: false,
-            ..Default::default()
-        };
+        let solution = super::super::parse_str(SLNX_BUILT_IN_TYPES).unwrap();
 
         // Act
-        let configurations = project_configurations(&names, &rules);
+        let actual = project_configuration(&solution, path, solution_platform);
 
         // Assert
-        assert!(configurations.is_empty());
+        assert_eq!(actual.project_platform, expected_platform);
+        assert_eq!(actual.tags.contains(&Tag::Build), expected_built);
+    }
+
+    #[test_case(r#"<Project Path="Db/Db.sqlproj" />"#, false ; "built in no build type")]
+    #[test_case(r#"<Project Path="Db/Db.sqlproj"><Build /></Project>"#, true ; "project rule overrides no build type")]
+    #[test_case(r#"<Project Path="A/A.proj" Type="Custom" />"#, false ; "not buildable custom type")]
+    #[test_case(r#"<Project Path="A/A.proj" Type="Custom"><Build Solution="Debug|*" /></Project>"#, true ; "project rule overrides not buildable custom type")]
+    fn not_buildable_types_can_be_overridden_by_project(project: &str, expected_built: bool) {
+        // Arrange
+        let slnx = format!(
+            r#"<Solution>
+  <Configurations>
+    <ProjectType Name="Custom" IsBuildable="false" />
+  </Configurations>
+  {project}
+</Solution>"#
+        );
+
+        // Act
+        let solution = super::super::parse_str(&slnx).unwrap();
+
+        // Assert
+        let configurations = solution.projects[0]
+            .configurations
+            .as_ref()
+            .expect("project configurations");
+        assert_eq!(
+            find(configurations, "Debug", "Any CPU")
+                .tags
+                .contains(&Tag::Build),
+            expected_built
+        );
+    }
+
+    #[test]
+    fn based_on_type_rules_apply_before_own_rules() {
+        // Arrange
+        let slnx = r#"<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x86" />
+    <ProjectType Name="Native" Extension="nproj" BasedOn="VC">
+      <Platform Solution="*|x86" Project="x86" />
+    </ProjectType>
+  </Configurations>
+  <Project Path="A/A.nproj" />
+</Solution>"#;
+
+        // Act
+        let solution = super::super::parse_str(slnx).unwrap();
+
+        // Assert
+        let project = &solution.projects[0];
+        let configurations = project.configurations.as_ref().unwrap();
+        assert_eq!(project.type_id, "{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}");
+        assert_eq!(
+            find(configurations, "Debug", "Any CPU").project_platform,
+            "x64"
+        );
+        assert_eq!(find(configurations, "Debug", "x86").project_platform, "x86");
+    }
+
+    #[test]
+    fn solution_wide_rules_apply_to_all_projects() {
+        // Arrange
+        let slnx = r#"<Solution>
+  <Configurations>
+    <ProjectType>
+      <Build Solution="Release|*" Project="false" />
+    </ProjectType>
+  </Configurations>
+  <Project Path="A/A.csproj" />
+  <Project Path="B/B.vcxproj" />
+</Solution>"#;
+
+        // Act
+        let solution = super::super::parse_str(slnx).unwrap();
+
+        // Assert
+        for project in &solution.projects {
+            let configurations = project.configurations.as_ref().unwrap();
+            assert!(
+                find(configurations, "Debug", "Any CPU")
+                    .tags
+                    .contains(&Tag::Build)
+            );
+            assert!(find(configurations, "Release", "Any CPU").tags.is_empty());
+        }
+    }
+
+    #[test_case(r#"<Project Path="A/A.csproj" />"#, "{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}" ; "csproj is classic c sharp")]
+    #[test_case(r#"<Project Path="A/A.csproj" Type="Common C#" />"#, "{9A19103F-16F7-4668-BE54-9A1E7A4F7556}" ; "common c sharp by name")]
+    #[test_case(r#"<Project Path="A/A.csproj" Type="9a19103f-16f7-4668-be54-9a1e7a4f7556" />"#, "{9A19103F-16F7-4668-BE54-9A1E7A4F7556}" ; "built in guid is normalized")]
+    #[test_case(r#"<Project Path="A/A.vbproj" />"#, "{F184B08F-C81C-45F6-A57F-5ABD9991F28F}" ; "vbproj")]
+    #[test_case(r#"<Project Path="A/A.njsproj" />"#, "{9092AA53-FB77-4645-B42D-1CCCA6BD08BD}" ; "njsproj")]
+    #[test_case(r#"<Project Path="A/A.pyproj" Type="888888A0-9F3D-457C-B088-3A5042F75D52" />"#, "888888A0-9F3D-457C-B088-3A5042F75D52" ; "unknown guid kept as is")]
+    #[test_case(r#"<Project Path="A/A.pyproj" Type="Python" />"#, "Python" ; "unknown name kept as is")]
+    #[test_case(r#"<Project Path="A/A.pyproj" />"#, "pyproj" ; "unknown extension")]
+    #[test_case(r#"<Project Path="A/A.proj" Type="Custom" />"#, "11111111-2222-3333-4444-555555555555" ; "solution defined type id")]
+    fn project_type_id_is_resolved(project: &str, expected: &str) {
+        // Arrange
+        let slnx = format!(
+            r#"<Solution>
+  <Configurations>
+    <ProjectType Name="Custom" TypeId="11111111-2222-3333-4444-555555555555" />
+  </Configurations>
+  {project}
+</Solution>"#
+        );
+
+        // Act
+        let solution = super::super::parse_str(&slnx).unwrap();
+
+        // Assert
+        assert_eq!(solution.projects[0].type_id, expected);
+    }
+
+    #[test_case("AnyCPU", "Any CPU", true ; "any cpu without space")]
+    #[test_case("anycpu", "Any CPU", true ; "any cpu ignores case")]
+    #[test_case("Any CPU", "AnyCPU", true ; "solution any cpu without space")]
+    #[test_case("x64", "Any CPU", false ; "different platforms")]
+    fn part_matches_canonical_platforms(pattern: &str, value: &str, expected: bool) {
+        // Arrange
+
+        // Act
+        let actual = part_matches(pattern, value);
+
+        // Assert
+        assert_eq!(actual, expected);
     }
 
     #[test]
