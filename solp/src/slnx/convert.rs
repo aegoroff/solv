@@ -65,11 +65,12 @@ pub fn to_api<'a>(slnx: SlnxSolution, contents: &'a str) -> Result<Solution<'a>>
     let raw_projects = slnx
         .folders
         .iter()
-        .flat_map(|folder| {
+        .enumerate()
+        .flat_map(|(index, folder)| {
             folder
                 .projects
                 .iter()
-                .map(move |project| (Some(folder), project))
+                .map(move |project| (Some(index), project))
         })
         .chain(slnx.projects.iter().map(|project| (None, project)))
         .collect::<Vec<_>>();
@@ -87,7 +88,7 @@ pub fn to_api<'a>(slnx: SlnxSolution, contents: &'a str) -> Result<Solution<'a>>
     }
 
     let mut projects = std::mem::take(&mut folders.projects);
-    for ((folder, project), id) in raw_projects.iter().zip(&ids) {
+    for ((folder_index, project), id) in raw_projects.iter().zip(&ids) {
         let path = borrow_in(contents, &project.path)?;
         let setup = project_setup(contents, slnx.configurations.as_ref(), project)?;
         let configurations = project_configurations(&config_names, &setup.rules);
@@ -114,7 +115,7 @@ pub fn to_api<'a>(slnx: SlnxSolution, contents: &'a str) -> Result<Solution<'a>>
             configurations: (!configurations.is_empty()).then_some(configurations),
             items: None,
             depends_from,
-            parent: folder.and_then(|folder| folders.declared_id(&folder.name)),
+            parent: folder_index.map(|index| folders.declared[index].1),
         });
     }
 
@@ -401,6 +402,22 @@ mod tests {
             find(&solution, "/src/Native/").parent,
             Some("11111111-1111-1111-1111-111111111111")
         );
+    }
+
+    #[test]
+    fn project_in_escaped_folder_keeps_parent() {
+        // Arrange
+        let slnx = r#"<Solution>
+  <Folder Name="/R&amp;D/">
+    <Project Path="App/App.csproj" />
+  </Folder>
+</Solution>"#;
+
+        // Act
+        let solution = super::super::parse_str(slnx).unwrap();
+
+        // Assert
+        assert_eq!(find(&solution, "App/App.csproj").parent, Some("/R&amp;D/"));
     }
 
     #[test]
