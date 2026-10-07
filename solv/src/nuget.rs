@@ -309,6 +309,7 @@ fn packages_config(file: &ProjectFile) -> Vec<Package> {
 #[cfg(test)]
 mod tests {
     use std::fs;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use solp::msbuild::PackageReference;
@@ -320,11 +321,14 @@ mod tests {
     #[test_case("13.0.3", "13.0.3", false ; "same versions")]
     fn slnx_nuget_mismatches(app_version: &str, lib_version: &str, expected: bool) {
         // Arrange
+        // cases run in parallel and the clock may be too coarse to tell them apart
+        static CASE: AtomicUsize = AtomicUsize::new(0);
+        let case = CASE.fetch_add(1, Ordering::Relaxed);
         let uniq = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let root = std::env::temp_dir().join(format!("solv-slnx-nuget-{uniq}"));
+        let root = std::env::temp_dir().join(format!("solv-slnx-nuget-{uniq}-{case}"));
         for (name, version) in [("App", app_version), ("Lib", lib_version)] {
             fs::create_dir_all(root.join(name)).unwrap();
             fs::write(

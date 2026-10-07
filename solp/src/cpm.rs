@@ -623,6 +623,7 @@ fn normalize(path: &Path) -> PathBuf {
 mod tests {
     use std::{
         fs,
+        sync::atomic::{AtomicUsize, Ordering},
         time::{SystemTime, UNIX_EPOCH},
     };
 
@@ -632,11 +633,14 @@ mod tests {
 
     /// Creates files in a new temp directory and returns the directory
     fn create_tree(name: &str, files: &[(&str, &str)]) -> PathBuf {
+        // cases run in parallel and the clock may be too coarse to tell them apart
+        static CASE: AtomicUsize = AtomicUsize::new(0);
+        let case = CASE.fetch_add(1, Ordering::Relaxed);
         let uniq = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let root = std::env::temp_dir().join(format!("solp-cpm-{name}-{uniq}"));
+        let root = std::env::temp_dir().join(format!("solp-cpm-{name}-{uniq}-{case}"));
         for (path, content) in files {
             let path = root.join(path);
             fs::create_dir_all(path.parent().unwrap()).unwrap();
