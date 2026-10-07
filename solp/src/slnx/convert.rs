@@ -89,12 +89,9 @@ pub fn to_api<'a>(slnx: SlnxSolution, contents: &'a str, path: &'a str) -> Resul
             .or_insert(*id);
     }
 
-    let mut projects = folders.projects;
+    let mut projects = std::mem::take(&mut folders.projects);
     for ((folder, project), id) in raw_projects.iter().zip(&ids) {
-        let parent = match folder {
-            Some(folder) => folders.ids.get(folder.name.as_str()).copied(),
-            None => None,
-        };
+        let parent = folder.and_then(|folder| folders.declared_id(&folder.name));
         let depends_from = if project.build_dependencies.is_empty() {
             None
         } else {
@@ -168,16 +165,14 @@ impl<'a> VisualStudioProperties<'a> {
 }
 
 /// Solution folders (including implicit parents of nested folders) converted into projects
-struct Folders<'a, 's> {
+struct Folders<'a> {
     projects: Vec<Project<'a>>,
-    /// Folder path (`Name` attribute) to folder id
-    ids: HashMap<&'s str, &'a str>,
-    /// Declared folder paths in source
+    /// Declared folder paths and ids in source
     declared: Vec<(&'a str, &'a str)>,
 }
 
-impl<'a, 's> Folders<'a, 's> {
-    fn new(contents: &'a str, folders: &'s [Folder]) -> Result<Self> {
+impl<'a> Folders<'a> {
+    fn new(contents: &'a str, folders: &[Folder]) -> Result<Self> {
         let declared = folders
             .iter()
             .map(|folder| {
@@ -191,12 +186,11 @@ impl<'a, 's> Folders<'a, 's> {
             .collect::<Result<Vec<_>>>()?;
         Ok(Self {
             projects: Vec::new(),
-            ids: HashMap::new(),
             declared,
         })
     }
 
-    fn add_declared(&mut self, contents: &'a str, folder: &'s Folder) -> Result<()> {
+    fn add_declared(&mut self, contents: &'a str, folder: &Folder) -> Result<()> {
         let path = borrow_in(contents, &folder.name)?;
         let id = self.declared_id(path).unwrap_or(path);
         let parent = self.ensure_parents(path);
@@ -211,7 +205,6 @@ impl<'a, 's> Folders<'a, 's> {
                     .collect::<Result<Vec<_>>>()?,
             )
         };
-        self.ids.insert(folder.name.as_str(), id);
         self.projects.push(folder_project(path, id, parent, items));
         Ok(())
     }
