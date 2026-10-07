@@ -1352,6 +1352,7 @@ fn decorate_path(path: &str) -> String {
 mod tests {
     use super::*;
     use std::fs;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::{SystemTime, UNIX_EPOCH};
     use test_case::test_case;
 
@@ -3071,11 +3072,14 @@ EndGlobal
         expected: usize,
     ) {
         // Arrange
+        // cases run in parallel and the clock may be too coarse to tell them apart
+        static CASE: AtomicUsize = AtomicUsize::new(0);
+        let case = CASE.fetch_add(1, Ordering::Relaxed);
         let uniq = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let root = std::env::temp_dir().join(format!("solv-transitive-redundants-{uniq}"));
+        let root = std::env::temp_dir().join(format!("solv-transitive-redundants-{uniq}-{case}"));
         for dir in ["App", "A", "Shared"] {
             fs::create_dir_all(root.join(dir)).unwrap();
         }
