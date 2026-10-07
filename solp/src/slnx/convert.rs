@@ -9,7 +9,7 @@ use super::config::{
     SolutionConfigNames, project_configurations, project_setup, solution_build_types,
     solution_platforms,
 };
-use super::{Configurations, Folder, Project as RawProject, Properties, SlnxSolution, borrow_in};
+use super::{Folder, Project as RawProject, Properties, SlnxSolution, borrow_in};
 
 const ID_SOLUTION_FOLDER: &str = "{2150E333-8FDC-42A3-9474-1A3956D46DE8}";
 
@@ -91,7 +91,9 @@ pub fn to_api<'a>(slnx: SlnxSolution, contents: &'a str, path: &'a str) -> Resul
 
     let mut projects = std::mem::take(&mut folders.projects);
     for ((folder, project), id) in raw_projects.iter().zip(&ids) {
-        let parent = folder.and_then(|folder| folders.declared_id(&folder.name));
+        let path = borrow_in(contents, &project.path)?;
+        let setup = project_setup(contents, slnx.configurations.as_ref(), project)?;
+        let configurations = project_configurations(&config_names, &setup.rules);
         let depends_from = if project.build_dependencies.is_empty() {
             None
         } else {
@@ -103,16 +105,20 @@ pub fn to_api<'a>(slnx: SlnxSolution, contents: &'a str, path: &'a str) -> Resul
                     .collect::<Result<Vec<_>>>()?,
             )
         };
-        let mut project = raw_project_to_api(
-            contents,
-            slnx.configurations.as_ref(),
-            &config_names,
-            project,
-        )?;
-        project.id = id;
-        project.parent = parent;
-        project.depends_from = depends_from;
-        projects.push(project);
+        projects.push(Project {
+            type_id: setup.type_id,
+            type_description: msbuild::describe_project(setup.type_id),
+            id,
+            name: match project.display_name.as_deref() {
+                Some(display_name) => borrow_in(contents, display_name)?,
+                None => project_name(path),
+            },
+            path_or_uri: path,
+            configurations: (!configurations.is_empty()).then_some(configurations),
+            items: None,
+            depends_from,
+            parent: folder.and_then(|folder| folders.declared_id(&folder.name)),
+        });
     }
 
     Ok(Solution {
@@ -302,37 +308,6 @@ fn dependency_id<'a>(
 /// Paths are compared ignoring case and separator kind
 fn normalize_project_path(path: &str) -> String {
     path.replace('\\', "/").to_ascii_lowercase()
-}
-
-fn raw_project_to_api<'a>(
-    contents: &'a str,
-    configurations: Option<&Configurations>,
-    config_names: &SolutionConfigNames<'a>,
-    project: &RawProject,
-) -> Result<Project<'a>> {
-    let path = borrow_in(contents, &project.path)?;
-    let setup = project_setup(contents, configurations, project)?;
-    let type_id = setup.type_id;
-    let project_configurations = project_configurations(config_names, &setup.rules);
-
-    Ok(Project {
-        type_id,
-        type_description: msbuild::describe_project(type_id),
-        id: path,
-        name: match project.display_name.as_deref() {
-            Some(display_name) => borrow_in(contents, display_name)?,
-            None => project_name(path),
-        },
-        path_or_uri: path,
-        configurations: if project_configurations.is_empty() {
-            None
-        } else {
-            Some(project_configurations)
-        },
-        items: None,
-        depends_from: None,
-        parent: None,
-    })
 }
 
 /// Default project name is the file name without extension like in Visual Studio
