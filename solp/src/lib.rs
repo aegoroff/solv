@@ -454,7 +454,7 @@ EndGlobal
     }
 
     #[test_case("upper_default", None, &["ROOT.SLN", "Root.Slnx"], 2 ; "default extensions")]
-    #[test_case("upper_option", Some("SLN"), &["root.sln", "ROOT.Sln"], 2 ; "upper case option")]
+    #[test_case("upper_option", Some("SLN"), &["first.sln", "SECOND.Sln"], 2 ; "upper case option")]
     #[test_case("upper_only_sln", Some("sln"), &["ROOT.SLN", "root.SLNX"], 1 ; "other extension skipped")]
     fn walk_and_parse_ignores_extension_case(
         name: &str,
