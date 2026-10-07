@@ -260,8 +260,41 @@ fn strip_bom(contents: &str) -> &str {
     contents.strip_prefix('\u{feff}').unwrap_or(contents)
 }
 
+/// Returns `true` if the first element of XML document is `<Solution>`.
+/// XML declaration, processing instructions, comments and DOCTYPE before it are skipped.
+fn has_solution_root(contents: &str) -> bool {
+    const ROOT: &str = "<Solution";
+    let mut rest = strip_bom(contents).trim_start();
+    loop {
+        let skip_until = if rest.starts_with("<?") {
+            "?>"
+        } else if rest.starts_with("<!--") {
+            "-->"
+        } else if rest.starts_with("<!") {
+            ">"
+        } else {
+            break;
+        };
+        let Some(end) = rest.find(skip_until) else {
+            return false;
+        };
+        rest = rest[end + skip_until.len()..].trim_start();
+    }
+    rest.strip_prefix(ROOT).is_some_and(|after| {
+        after
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_whitespace() || c == '>' || c == '/')
+    })
+}
+
 /// Parses `.slnx` XML content and converts it into the public [`Solution`] API type.
 pub fn parse_str(contents: &str) -> miette::Result<Solution<'_>> {
+    if !has_solution_root(contents) {
+        return Err(miette::miette!(
+            "Failed to parse .slnx solution file: root element must be <Solution>"
+        ));
+    }
     let raw = deserialize_xml(contents)?;
     convert::to_api(raw, contents, "")
 }
@@ -484,6 +517,47 @@ mod tests {
             solution.projects[1].depends_from.as_ref().unwrap(),
             &[solution.projects[2].id]
         );
+    }
+
+    #[test_case("<Solution />" ; "self closing")]
+    #[test_case("<Solution>\n</Solution>" ; "with content")]
+    #[test_case("<Solution Description=\"d\"></Solution>" ; "with attribute")]
+    #[test_case("\u{feff}<?xml version=\"1.0\"?>\n<!-- comment > with gt -->\n<!DOCTYPE Solution>\n<Solution/>" ; "prolog")]
+    fn has_solution_root_accepts(content: &str) {
+        // Arrange
+
+        // Act
+        let actual = has_solution_root(content);
+
+        // Assert
+        assert!(actual);
+    }
+
+    #[test_case("<Project Sdk=\"Microsoft.NET.Sdk\"></Project>" ; "csproj")]
+    #[test_case("<SolutionX></SolutionX>" ; "similar name")]
+    #[test_case("<solution></solution>" ; "different case")]
+    #[test_case("<!-- unterminated comment <Solution/>" ; "unterminated comment")]
+    #[test_case("<?xml version=\"1.0\"?>" ; "prolog only")]
+    fn has_solution_root_rejects(content: &str) {
+        // Arrange
+
+        // Act
+        let actual = has_solution_root(content);
+
+        // Assert
+        assert!(!actual);
+    }
+
+    #[test]
+    fn parse_str_rejects_non_solution_xml() {
+        // Arrange
+        let content = r#"<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup /></Project>"#;
+
+        // Act
+        let actual = crate::parse_str(content);
+
+        // Assert
+        assert!(actual.is_err());
     }
 
     #[test]
