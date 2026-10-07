@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 
 use miette::Result;
 
@@ -81,6 +81,13 @@ pub fn to_api<'a>(slnx: SlnxSolution, contents: &'a str, path: &'a str) -> Resul
         .iter()
         .map(|(_, project)| project_id(contents, project))
         .collect::<Result<Vec<_>>>()?;
+    // The first project wins if several projects have the same path
+    let mut ids_by_path = HashMap::with_capacity(raw_projects.len());
+    for ((_, project), id) in raw_projects.iter().zip(&ids) {
+        ids_by_path
+            .entry(normalize_project_path(&project.path))
+            .or_insert(*id);
+    }
 
     let mut projects = folders.projects;
     for ((folder, project), id) in raw_projects.iter().zip(&ids) {
@@ -95,7 +102,7 @@ pub fn to_api<'a>(slnx: SlnxSolution, contents: &'a str, path: &'a str) -> Resul
                 project
                     .build_dependencies
                     .iter()
-                    .map(|dep| dependency_id(contents, &dep.project, &raw_projects, &ids))
+                    .map(|dep| dependency_id(contents, &dep.project, &ids_by_path))
                     .collect::<Result<Vec<_>>>()?,
             )
         };
@@ -164,7 +171,7 @@ impl<'a> VisualStudioProperties<'a> {
 struct Folders<'a, 's> {
     projects: Vec<Project<'a>>,
     /// Folder path (`Name` attribute) to folder id
-    ids: std::collections::HashMap<&'s str, &'a str>,
+    ids: HashMap<&'s str, &'a str>,
     /// Declared folder paths in source
     declared: Vec<(&'a str, &'a str)>,
 }
@@ -184,7 +191,7 @@ impl<'a, 's> Folders<'a, 's> {
             .collect::<Result<Vec<_>>>()?;
         Ok(Self {
             projects: Vec::new(),
-            ids: std::collections::HashMap::new(),
+            ids: HashMap::new(),
             declared,
         })
     }
@@ -291,18 +298,17 @@ fn project_id<'a>(contents: &'a str, project: &RawProject) -> Result<&'a str> {
 fn dependency_id<'a>(
     contents: &'a str,
     dependency: &str,
-    projects: &[(Option<&Folder>, &RawProject)],
-    ids: &[&'a str],
+    ids_by_path: &HashMap<String, &'a str>,
 ) -> Result<&'a str> {
-    let normalize = |path: &str| path.replace('\\', "/").to_ascii_lowercase();
-    let dependency_path = normalize(dependency);
-    match projects
-        .iter()
-        .position(|(_, project)| normalize(&project.path) == dependency_path)
-    {
-        Some(index) => Ok(ids[index]),
+    match ids_by_path.get(&normalize_project_path(dependency)) {
+        Some(id) => Ok(id),
         None => borrow_in(contents, dependency),
     }
+}
+
+/// Paths are compared ignoring case and separator kind
+fn normalize_project_path(path: &str) -> String {
+    path.replace('\\', "/").to_ascii_lowercase()
 }
 
 fn raw_project_to_api<'a>(
@@ -474,6 +480,30 @@ mod tests {
                 "cccccccc-0000-0000-0000-000000000000",
                 "src/Missing/Missing.csproj"
             ]
+        );
+    }
+
+    #[test]
+    fn dependency_on_duplicate_path_resolves_to_first_project() {
+        // Arrange
+        let slnx = r#"<Solution>
+  <Project Path="App/App.csproj">
+    <BuildDependency Project="LIB\Lib.csproj" />
+  </Project>
+  <Project Path="Lib/Lib.csproj" Id="11111111-0000-0000-0000-000000000000" />
+  <Project Path="Lib/Lib.csproj" Id="22222222-0000-0000-0000-000000000000" />
+</Solution>"#;
+
+        // Act
+        let solution = super::super::parse_str(slnx).unwrap();
+
+        // Assert
+        assert_eq!(
+            find(&solution, "App/App.csproj")
+                .depends_from
+                .as_ref()
+                .unwrap(),
+            &["11111111-0000-0000-0000-000000000000"]
         );
     }
 
