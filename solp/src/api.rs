@@ -173,44 +173,43 @@ impl<'a> Solution<'a> {
     }
 
     fn projects(solution: &Sol<'a>) -> Vec<Project<'a>> {
-        let project_configs = solution
-            .project_configs
-            .iter()
-            .map(|c| {
-                (
-                    c.project_id,
-                    c.configs
-                        .iter()
-                        .into_grouping_map_by(|pc| {
-                            (
-                                pc.project_config,
-                                pc.solution_config,
-                                pc.platform,
-                                pc.project_platform,
-                            )
-                        })
-                        .fold(
-                            ProjectConfiguration::default(),
-                            |mut pc, (p, s, plat, project_plat), val| {
-                                pc.configuration = p;
-                                pc.solution_configuration = s;
-                                pc.platform = plat;
-                                pc.project_platform = project_plat;
-                                match val.tag {
-                                    crate::ast::ProjectConfigTag::ActiveCfg => {}
-                                    crate::ast::ProjectConfigTag::Build => pc.tags.push(Tag::Build),
-                                    crate::ast::ProjectConfigTag::Deploy => {
-                                        pc.tags.push(Tag::Deploy);
-                                    }
-                                }
-                                pc
-                            },
-                        )
-                        .into_values()
-                        .collect(),
+        // Configurations section may use different GUID case
+        let mut project_configs: HashMap<String, BTreeSet<ProjectConfiguration>> = HashMap::new();
+        for c in &solution.project_configs {
+            let configs = c
+                .configs
+                .iter()
+                .into_grouping_map_by(|pc| {
+                    (
+                        pc.project_config,
+                        pc.solution_config,
+                        pc.platform,
+                        pc.project_platform,
+                    )
+                })
+                .fold(
+                    ProjectConfiguration::default(),
+                    |mut pc, (p, s, plat, project_plat), val| {
+                        pc.configuration = p;
+                        pc.solution_configuration = s;
+                        pc.platform = plat;
+                        pc.project_platform = project_plat;
+                        match val.tag {
+                            crate::ast::ProjectConfigTag::ActiveCfg => {}
+                            crate::ast::ProjectConfigTag::Build => pc.tags.push(Tag::Build),
+                            crate::ast::ProjectConfigTag::Deploy => {
+                                pc.tags.push(Tag::Deploy);
+                            }
+                        }
+                        pc
+                    },
                 )
-            })
-            .collect::<HashMap<&str, BTreeSet<ProjectConfiguration>>>();
+                .into_values();
+            project_configs
+                .entry(c.project_id.to_uppercase())
+                .or_default()
+                .extend(configs);
+        }
         // Parent is reported as id of the parent project itself because
         // NestedProjects section may use different GUID case
         let ids = solution
@@ -246,7 +245,7 @@ impl<'a> Solution<'a> {
                     id: p.id,
                     name: p.name,
                     path_or_uri: p.path_or_uri,
-                    configurations: project_configs.get(p.id).cloned(),
+                    configurations: project_configs.get(&p.id.to_uppercase()).cloned(),
                     items,
                     depends_from,
                     parent: parents.get(&p.id.to_uppercase()).copied(),

@@ -7,6 +7,7 @@ use petgraph::Direction;
 use petgraph::algo::DfsSpace;
 use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::prelude::DiGraphMap;
+use petgraph::visit::EdgeRef;
 use solp::api::{Solution, SolutionConfiguration, Tag};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fmt;
@@ -764,15 +765,26 @@ impl<'a> Cycles<'a> {
 
 impl<'a> Validator for Cycles<'a> {
     fn validate(&mut self, statistic: &mut Statistic) {
+        // Dependencies may use different GUID case so nodes are the first met project ids
+        let ids: HashMap<String, &'a str> = self
+            .solution
+            .projects
+            .iter()
+            .rev()
+            .map(|p| (p.id.to_uppercase(), p.id))
+            .collect();
+        let node = |id: &'a str| ids.get(&id.to_uppercase()).copied().unwrap_or(id);
         let mut graph = DiGraphMap::<&'a str, ()>::new();
         for to in &self.solution.projects {
-            graph.add_node(to.id);
+            let to_id = node(to.id);
+            graph.add_node(to_id);
             if let Some(depends_from) = &to.depends_from {
                 for from in depends_from {
+                    let from = node(from);
                     if !graph.contains_node(from) {
                         graph.add_node(from);
                     }
-                    graph.add_edge(from, to.id, ());
+                    graph.add_edge(from, to_id, ());
                 }
             }
         }
@@ -807,6 +819,23 @@ struct RedundantRef {
     redundant_reference: String,
 }
 
+/// Project reference i.e. graph edge `from -> to` where project `to` references project `from`
+struct ProjectRef {
+    /// `Include` attribute value as it's written in the referencing project file
+    include: String,
+    /// Whether the referencing project passes referenced one to its own consumers
+    transitive: bool,
+}
+
+impl ProjectRef {
+    fn new(include: &str, transitive: bool) -> Self {
+        Self {
+            include: include.to_owned(),
+            transitive,
+        }
+    }
+}
+
 struct Redundants<'a> {
     solution: &'a Solution<'a>,
     redundants: Vec<RedundantRef>,
@@ -823,9 +852,14 @@ impl<'a> Redundants<'a> {
     /// Builds a directed graph where an edge `from -> to` means
     /// project `to` directly references project `from`
     /// (i.e., `to` depends on `from`).
-    fn build_graph(&self) -> DiGraph<PathBuf, String> {
+    ///
+    /// Only SDK-style projects get project references transitively, so references of
+    /// legacy .NET and C++ projects aren't added (all of them are needed). References that
+    /// don't flow to consumers (`PrivateAssets="all"`, `ReferenceOutputAssembly="false"`)
+    /// or are conditional aren't transitive.
+    fn build_graph(&self) -> DiGraph<PathBuf, ProjectRef> {
         let projects = crate::collect_msbuild_projects(self.solution);
-        let mut graph = DiGraph::<PathBuf, String>::new();
+        let mut graph = DiGraph::<PathBuf, ProjectRef>::new();
         let mut nodes: HashMap<PathBuf, NodeIndex> = HashMap::new();
 
         for prj in projects {
@@ -833,6 +867,9 @@ impl<'a> Redundants<'a> {
             let to = Self::ensure_node(&mut graph, &mut nodes, &to_path);
 
             let Some(project) = prj.project else { continue };
+            if !project.is_sdk_project() {
+                continue;
+            }
             let Some(item_groups) = project.item_group else {
                 continue;
             };
@@ -845,11 +882,14 @@ impl<'a> Redundants<'a> {
                     continue;
                 };
                 for reference in refs {
-                    let include = reference.include.clone();
+                    let transitive = ig.condition.is_none()
+                        && reference.condition.is_none()
+                        && reference.is_transitive();
+                    let include = reference.include.as_str();
                     #[cfg(target_os = "windows")]
-                    let normalized_include = include.as_str();
+                    let normalized_include = include;
                     #[cfg(not(target_os = "windows"))]
-                    let normalized_include = decorate_path(&include);
+                    let normalized_include = decorate_path(include);
 
                     let joined = parent.join(normalized_include);
                     let Ok(reference_path) = joined.canonicalize() else {
@@ -861,8 +901,11 @@ impl<'a> Redundants<'a> {
                     if from == to {
                         continue;
                     }
-                    if graph.find_edge(from, to).is_none() {
-                        graph.add_edge(from, to, include);
+                    // the same project may be referenced several times (e.g. conditionally)
+                    if let Some(edge) = graph.find_edge(from, to) {
+                        graph[edge].transitive |= transitive;
+                    } else {
+                        graph.add_edge(from, to, ProjectRef::new(include, transitive));
                     }
                 }
             }
@@ -871,7 +914,7 @@ impl<'a> Redundants<'a> {
     }
 
     fn ensure_node(
-        graph: &mut DiGraph<PathBuf, String>,
+        graph: &mut DiGraph<PathBuf, ProjectRef>,
         nodes: &mut HashMap<PathBuf, NodeIndex>,
         path: &Path,
     ) -> NodeIndex {
@@ -884,12 +927,12 @@ impl<'a> Redundants<'a> {
         }
     }
 
-    /// Returns true if `target` is reachable from `start` without visiting
-    /// `forbidden`. This is used to verify whether a direct reference
+    /// Returns true if `target` is reachable from `start` by transitive references
+    /// without visiting `forbidden`. This is used to verify whether a direct reference
     /// `start -> forbidden` is still implied transitively through another
     /// predecessor of `forbidden` after effectively removing that edge.
     fn has_path_avoiding_node(
-        graph: &DiGraph<PathBuf, String>,
+        graph: &DiGraph<PathBuf, ProjectRef>,
         start: NodeIndex,
         target: NodeIndex,
         forbidden: NodeIndex,
@@ -908,7 +951,11 @@ impl<'a> Redundants<'a> {
             if !visited.insert(current) {
                 continue;
             }
-            for next in graph.neighbors_directed(current, Direction::Outgoing) {
+            let transitive = graph
+                .edges_directed(current, Direction::Outgoing)
+                .filter(|edge| edge.weight().transitive)
+                .map(|edge| edge.target());
+            for next in transitive {
                 if next == forbidden {
                     continue;
                 }
@@ -929,8 +976,9 @@ impl<'a> Redundants<'a> {
     /// there exists another direct predecessor `p'` of N (with `p' != p`) such
     /// that there is a path `p -> ... -> p'` in the graph. In that case, N
     /// already receives a transitive dependency on `p` through `p'`, so the
-    /// direct reference `p -> N` is unnecessary.
-    fn find_redundants(graph: &DiGraph<PathBuf, String>) -> Vec<RedundantRef> {
+    /// direct reference `p -> N` is unnecessary. The path and `p' -> N` reference
+    /// must be transitive.
+    fn find_redundants(graph: &DiGraph<PathBuf, ProjectRef>) -> Vec<RedundantRef> {
         let mut result: Vec<RedundantRef> = Vec::new();
 
         for node in graph.node_indices() {
@@ -951,6 +999,11 @@ impl<'a> Redundants<'a> {
                 let reachable_via_other = direct_preds
                     .iter()
                     .filter(|&&other| other != candidate)
+                    .filter(|&&other| {
+                        graph
+                            .find_edge(other, node)
+                            .is_some_and(|edge| graph[edge].transitive)
+                    })
                     .any(|&other| Self::has_path_avoiding_node(graph, candidate, other, node));
 
                 if reachable_via_other {
@@ -959,7 +1012,7 @@ impl<'a> Redundants<'a> {
                     };
                     result.push(RedundantRef {
                         project: graph[node].clone(),
-                        redundant_reference: graph[edge].clone(),
+                        redundant_reference: graph[edge].include.clone(),
                     });
                 }
             }
@@ -1394,10 +1447,17 @@ mod tests {
         assert_eq!(0, statistic.cycles);
     }
 
-    #[test]
-    fn cycles_validation_incorrect() {
+    #[test_case(SOLUTION_WITH_CYCLES.to_owned() ; "same guid case")]
+    #[test_case(
+        SOLUTION_WITH_CYCLES.replace(
+            "{939DD379-CDC8-47EF-8D37-0E5E71D99D30} = {939DD379-CDC8-47EF-8D37-0E5E71D99D30}",
+            "{939dd379-cdc8-47ef-8d37-0e5e71d99d30} = {939dd379-cdc8-47ef-8d37-0e5e71d99d30}",
+        ) ;
+        "different guid case"
+    )]
+    fn cycles_validation_incorrect(content: String) {
         // Arrange
-        let solution = solp::parse_str(SOLUTION_WITH_CYCLES).unwrap();
+        let solution = solp::parse_str(&content).unwrap();
         let mut validator = Cycles::new(&solution);
         let mut statistic = Statistic::default();
 
@@ -1642,14 +1702,14 @@ mod tests {
         // Assert
     }
 
-    fn add_node(graph: &mut DiGraph<PathBuf, String>, name: &str) -> NodeIndex {
+    fn add_node(graph: &mut DiGraph<PathBuf, ProjectRef>, name: &str) -> NodeIndex {
         graph.add_node(PathBuf::from(name))
     }
 
     #[test]
     fn redundants_empty_graph_has_no_redundants() {
         // Arrange
-        let graph = DiGraph::<PathBuf, String>::new();
+        let graph = DiGraph::<PathBuf, ProjectRef>::new();
 
         // Act
         let redundants = Redundants::find_redundants(&graph);
@@ -1661,10 +1721,10 @@ mod tests {
     #[test]
     fn redundants_single_dependency_has_no_redundants() {
         // Arrange
-        let mut graph = DiGraph::<PathBuf, String>::new();
+        let mut graph = DiGraph::<PathBuf, ProjectRef>::new();
         let a = add_node(&mut graph, "a");
         let b = add_node(&mut graph, "b");
-        graph.add_edge(a, b, "a->b".to_owned());
+        graph.add_edge(a, b, ProjectRef::new("a->b", true));
 
         // Act
         let redundants = Redundants::find_redundants(&graph);
@@ -1679,13 +1739,13 @@ mod tests {
         //   a -> b, a -> c, b -> c
         // 'a' is a direct ref of 'c', but already reachable transitively
         // through 'b' (a -> b -> c). So the direct edge a -> c is redundant.
-        let mut graph = DiGraph::<PathBuf, String>::new();
+        let mut graph = DiGraph::<PathBuf, ProjectRef>::new();
         let a = add_node(&mut graph, "a");
         let b = add_node(&mut graph, "b");
         let c = add_node(&mut graph, "c");
-        graph.add_edge(a, b, "a->b".to_owned());
-        graph.add_edge(a, c, "..\\A\\A.csproj".to_owned());
-        graph.add_edge(b, c, "..\\B\\B.csproj".to_owned());
+        graph.add_edge(a, b, ProjectRef::new("a->b", true));
+        graph.add_edge(a, c, ProjectRef::new("..\\A\\A.csproj", true));
+        graph.add_edge(b, c, ProjectRef::new("..\\B\\B.csproj", true));
 
         // Act
         let redundants = Redundants::find_redundants(&graph);
@@ -1700,12 +1760,12 @@ mod tests {
     fn redundants_independent_refs_are_not_redundant() {
         // Arrange:
         //   a -> c, b -> c (a and b are independent)
-        let mut graph = DiGraph::<PathBuf, String>::new();
+        let mut graph = DiGraph::<PathBuf, ProjectRef>::new();
         let a = add_node(&mut graph, "a");
         let b = add_node(&mut graph, "b");
         let c = add_node(&mut graph, "c");
-        graph.add_edge(a, c, "a->c".to_owned());
-        graph.add_edge(b, c, "b->c".to_owned());
+        graph.add_edge(a, c, ProjectRef::new("a->c", true));
+        graph.add_edge(b, c, ProjectRef::new("b->c", true));
 
         // Act
         let redundants = Redundants::find_redundants(&graph);
@@ -1719,15 +1779,15 @@ mod tests {
         // Arrange:
         //   a -> b -> c -> d, and a -> d (direct)
         // 'a' is a direct ref of 'd', reachable transitively via 'c' (a -> b -> c -> d).
-        let mut graph = DiGraph::<PathBuf, String>::new();
+        let mut graph = DiGraph::<PathBuf, ProjectRef>::new();
         let a = add_node(&mut graph, "a");
         let b = add_node(&mut graph, "b");
         let c = add_node(&mut graph, "c");
         let d = add_node(&mut graph, "d");
-        graph.add_edge(a, b, "a->b".to_owned());
-        graph.add_edge(b, c, "b->c".to_owned());
-        graph.add_edge(c, d, "c->d".to_owned());
-        graph.add_edge(a, d, "..\\A\\A.csproj".to_owned());
+        graph.add_edge(a, b, ProjectRef::new("a->b", true));
+        graph.add_edge(b, c, ProjectRef::new("b->c", true));
+        graph.add_edge(c, d, ProjectRef::new("c->d", true));
+        graph.add_edge(a, d, ProjectRef::new("..\\A\\A.csproj", true));
 
         // Act
         let redundants = Redundants::find_redundants(&graph);
@@ -1744,13 +1804,13 @@ mod tests {
         //   a -> n, b -> n, n -> b
         // There is a path a -> b, but only through n. Removing a -> n breaks
         // that path, so a -> n must not be considered redundant.
-        let mut graph = DiGraph::<PathBuf, String>::new();
+        let mut graph = DiGraph::<PathBuf, ProjectRef>::new();
         let a = add_node(&mut graph, "a");
         let b = add_node(&mut graph, "b");
         let n = add_node(&mut graph, "n");
-        graph.add_edge(a, n, "a->n".to_owned());
-        graph.add_edge(b, n, "b->n".to_owned());
-        graph.add_edge(n, b, "n->b".to_owned());
+        graph.add_edge(a, n, ProjectRef::new("a->n", true));
+        graph.add_edge(b, n, ProjectRef::new("b->n", true));
+        graph.add_edge(n, b, ProjectRef::new("n->b", true));
 
         // Act
         let redundants = Redundants::find_redundants(&graph);
@@ -2271,11 +2331,11 @@ EndGlobal
     #[test]
     fn test_redundants_algorithm_with_self_reference() {
         // Arrange: Graph with self-reference (a -> a)
-        let mut graph = DiGraph::<PathBuf, String>::new();
+        let mut graph = DiGraph::<PathBuf, ProjectRef>::new();
         let a = add_node(&mut graph, "a");
         let b = add_node(&mut graph, "b");
-        graph.add_edge(a, a, "a->a".to_owned()); // self-reference
-        graph.add_edge(a, b, "a->b".to_owned());
+        graph.add_edge(a, a, ProjectRef::new("a->a", true)); // self-reference
+        graph.add_edge(a, b, ProjectRef::new("a->b", true));
 
         // Act
         let redundants = Redundants::find_redundants(&graph);
@@ -2291,14 +2351,14 @@ EndGlobal
     #[test]
     fn test_redundants_algorithm_with_duplicate_edges() {
         // Arrange: Graph with duplicate edges (a -> b twice)
-        let mut graph = DiGraph::<PathBuf, String>::new();
+        let mut graph = DiGraph::<PathBuf, ProjectRef>::new();
         let a = add_node(&mut graph, "a");
         let b = add_node(&mut graph, "b");
         let c = add_node(&mut graph, "c");
-        graph.add_edge(a, b, "a->b1".to_owned());
-        graph.add_edge(a, b, "a->b2".to_owned()); // duplicate with different label
-        graph.add_edge(b, c, "b->c".to_owned());
-        graph.add_edge(a, c, "a->c".to_owned()); // redundant because a->b->c
+        graph.add_edge(a, b, ProjectRef::new("a->b1", true));
+        graph.add_edge(a, b, ProjectRef::new("a->b2", true)); // duplicate with different label
+        graph.add_edge(b, c, ProjectRef::new("b->c", true));
+        graph.add_edge(a, c, ProjectRef::new("a->c", true)); // redundant because a->b->c
 
         // Act
         let redundants = Redundants::find_redundants(&graph);
@@ -2861,6 +2921,112 @@ EndGlobal
             "..\\Shared\\Shared.csproj",
             validator.redundants[0].redundant_reference
         );
+    }
+
+    #[test_case("<Project Sdk=\"Microsoft.NET.Sdk\">", "", "", 1 ; "sdk projects")]
+    #[test_case("<Project ToolsVersion=\"17.0\">", "", "", 0 ; "legacy projects")]
+    #[test_case("<Project Sdk=\"Microsoft.NET.Sdk\">", " PrivateAssets=\"all\"", "", 0 ; "private assets")]
+    #[test_case("<Project Sdk=\"Microsoft.NET.Sdk\">", " ReferenceOutputAssembly=\"false\"", "", 0 ; "no output assembly")]
+    #[test_case("<Project Sdk=\"Microsoft.NET.Sdk\">", " Condition=\"'$(TargetFramework)' == 'net8.0'\"", "", 0 ; "conditional reference")]
+    #[test_case("<Project Sdk=\"Microsoft.NET.Sdk\">", "", " Condition=\"'$(TargetFramework)' == 'net8.0'\"", 0 ; "conditional item group")]
+    fn redundants_respect_transitivity(
+        project: &str,
+        shared_ref_metadata: &str,
+        item_group_metadata: &str,
+        expected: usize,
+    ) {
+        // Arrange
+        let uniq = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("solv-transitive-redundants-{uniq}"));
+        for dir in ["App", "A", "Shared"] {
+            fs::create_dir_all(root.join(dir)).unwrap();
+        }
+        fs::write(
+            root.join("Shared").join("Shared.csproj"),
+            format!("{project}</Project>"),
+        )
+        .unwrap();
+        fs::write(
+            root.join("A").join("A.csproj"),
+            format!(
+                r#"{project}
+  <ItemGroup{item_group_metadata}>
+    <ProjectReference Include="..\Shared\Shared.csproj"{shared_ref_metadata} />
+  </ItemGroup>
+</Project>"#
+            ),
+        )
+        .unwrap();
+        let app = format!(
+            r#"{project}
+  <ItemGroup>
+    <ProjectReference Include="..\A\A.csproj" />
+    <ProjectReference Include="..\Shared\Shared.csproj" />
+  </ItemGroup>
+</Project>"#
+        );
+        fs::write(root.join("App").join("App.csproj"), &app).unwrap();
+        let slnx = r#"<Solution>
+  <Project Path="App/App.csproj" />
+  <Project Path="A/A.csproj" />
+  <Project Path="Shared/Shared.csproj" />
+</Solution>"#;
+        let slnx_path = root.join("test.slnx");
+        fs::write(&slnx_path, slnx).unwrap();
+        let mut fix = ValidateFix::new();
+
+        // Act
+        let result = solp::parse_file(slnx_path.to_str().unwrap(), &mut fix);
+
+        // Assert
+        let actual_app = fs::read_to_string(root.join("App").join("App.csproj")).unwrap();
+        fs::remove_dir_all(&root).unwrap();
+        assert!(result.is_ok());
+        assert_eq!(expected as u64, fix.statistic.removed_refs);
+        assert_eq!(expected == 0, actual_app == app);
+    }
+
+    #[test]
+    fn redundants_not_transitive_path_is_not_redundant() {
+        // Arrange:
+        //   a -> b (not transitive), a -> c, b -> c
+        // 'b' doesn't pass 'a' to its consumers so 'c' needs direct reference to 'a'
+        let mut graph = DiGraph::<PathBuf, ProjectRef>::new();
+        let a = add_node(&mut graph, "a");
+        let b = add_node(&mut graph, "b");
+        let c = add_node(&mut graph, "c");
+        graph.add_edge(a, b, ProjectRef::new("a->b", false));
+        graph.add_edge(a, c, ProjectRef::new("a->c", true));
+        graph.add_edge(b, c, ProjectRef::new("b->c", true));
+
+        // Act
+        let redundants = Redundants::find_redundants(&graph);
+
+        // Assert
+        assert!(redundants.is_empty());
+    }
+
+    #[test]
+    fn redundants_not_transitive_reference_of_other_is_not_redundant() {
+        // Arrange:
+        //   a -> b, a -> c, b -> c (not transitive)
+        // 'c' doesn't get references of 'b' through not transitive reference
+        let mut graph = DiGraph::<PathBuf, ProjectRef>::new();
+        let a = add_node(&mut graph, "a");
+        let b = add_node(&mut graph, "b");
+        let c = add_node(&mut graph, "c");
+        graph.add_edge(a, b, ProjectRef::new("a->b", true));
+        graph.add_edge(a, c, ProjectRef::new("a->c", true));
+        graph.add_edge(b, c, ProjectRef::new("b->c", false));
+
+        // Act
+        let redundants = Redundants::find_redundants(&graph);
+
+        // Assert
+        assert!(redundants.is_empty());
     }
 
     const SLNX_CORRECT: &str = r#"<Solution>

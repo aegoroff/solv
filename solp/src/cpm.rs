@@ -10,6 +10,8 @@
 //! * imported files are evaluated before the importing file content so the importing
 //!   file wins
 //! * conditions are ignored, imports of missing files are skipped
+//! * `PackageReference Update` items from `Directory.Build.props` and `Directory.Packages.props`
+//!   are applied before project items and from `Directory.Build.targets` after them
 
 use std::{
     collections::{HashMap, HashSet},
@@ -97,13 +99,15 @@ impl PropsFile {
     }
 }
 
-/// Packages defined in `Directory.Build.props` and `Directory.Packages.props`
+/// Packages defined in `Directory.Build.props`, `Directory.Packages.props` and `Directory.Build.targets`
 #[derive(Debug, Default)]
 pub struct CentralPackages {
     /// lowercased package name to version map
     versions: HashMap<String, String>,
     global: Vec<PackageReference>,
     references: Vec<PackageReference>,
+    updates_before: Vec<PackageReference>,
+    updates_after: Vec<PackageReference>,
 }
 
 impl CentralPackages {
@@ -113,7 +117,12 @@ impl CentralPackages {
     pub fn load<P: AsRef<Path>>(files: &[P]) -> Self {
         let mut evaluator = Evaluator::default();
         for path in files {
-            evaluator.evaluate(path.as_ref(), 0);
+            let path = path.as_ref();
+            // Directory.Build.targets (and files imported by it) is imported after project content
+            evaluator.after_project = path
+                .file_name()
+                .is_some_and(|name| name.eq_ignore_ascii_case(BUILD_TARGETS));
+            evaluator.evaluate(path, 0);
         }
         evaluator.into_packages()
     }
@@ -135,6 +144,20 @@ impl CentralPackages {
     #[must_use]
     pub fn references(&self) -> &[PackageReference] {
         &self.references
+    }
+
+    /// `PackageReference Update` items that are evaluated before project items
+    /// (defined in `Directory.Build.props` and `Directory.Packages.props`)
+    #[must_use]
+    pub fn updates_before_project(&self) -> &[PackageReference] {
+        &self.updates_before
+    }
+
+    /// `PackageReference Update` items that are evaluated after project items
+    /// (defined in `Directory.Build.targets`)
+    #[must_use]
+    pub fn updates_after_project(&self) -> &[PackageReference] {
+        &self.updates_after
     }
 }
 
@@ -164,14 +187,20 @@ struct RawValue {
     dir: PathBuf,
 }
 
+/// Package name (or updated names), version and version override
+type RawItem = (String, RawValue, Option<RawValue>);
+
 #[derive(Debug, Default)]
 struct Evaluator {
     /// lowercased property name to its value map
     properties: HashMap<String, RawValue>,
     versions: Vec<(String, RawValue)>,
     global: Vec<(String, RawValue)>,
-    /// package name, version, version override
-    references: Vec<(String, RawValue, Option<RawValue>)>,
+    references: Vec<RawItem>,
+    updates_before: Vec<RawItem>,
+    updates_after: Vec<RawItem>,
+    /// whether currently evaluated file is imported after project content
+    after_project: bool,
     visited: HashSet<PathBuf>,
 }
 
@@ -220,20 +249,23 @@ impl Evaluator {
                 .iter()
                 .map(|p| raw_item(p, &dir));
             self.global.extend(global);
-            // Update attribute changes existing references so only Include matters here
-            let references = group
-                .package_reference
-                .iter()
-                .filter(|p| !p.include.is_empty())
-                .map(|p| {
-                    let (name, version) = raw_item(p, &dir);
-                    let version_override = p.version_override.as_ref().map(|v| RawValue {
-                        value: v.clone(),
-                        dir: dir.clone(),
-                    });
-                    (name, version, version_override)
+            for reference in &group.package_reference {
+                let (name, version) = raw_item(reference, &dir);
+                let version_override = reference.version_override.as_ref().map(|v| RawValue {
+                    value: v.clone(),
+                    dir: dir.clone(),
                 });
-            self.references.extend(references);
+                let items = if !reference.include.is_empty() {
+                    &mut self.references
+                } else if reference.update.is_empty() {
+                    continue;
+                } else if self.after_project {
+                    &mut self.updates_after
+                } else {
+                    &mut self.updates_before
+                };
+                items.push((name, version, version_override));
+            }
         }
     }
 
@@ -266,22 +298,26 @@ impl Evaluator {
             .map(|(name, raw)| PackageReference {
                 name: name.clone(),
                 version: self.expand_raw(raw),
-                version_override: None,
+                ..Default::default()
             })
             .collect();
-        let references = self
-            .references
-            .iter()
-            .map(|(name, version, version_override)| PackageReference {
-                name: name.clone(),
-                version: self.expand_raw(version),
-                version_override: version_override.as_ref().map(|v| self.expand_raw(v)),
-            })
-            .collect();
+        let reference = |(name, version, version_override): &RawItem| PackageReference {
+            name: name.clone(),
+            version: self.expand_raw(version),
+            version_override: version_override.as_ref().map(|v| self.expand_raw(v)),
+            ..Default::default()
+        };
+        let update = |item: &RawItem| PackageReference {
+            name: String::new(),
+            update: Some(item.0.clone()),
+            ..reference(item)
+        };
         CentralPackages {
             versions,
             global,
-            references,
+            references: self.references.iter().map(reference).collect(),
+            updates_before: self.updates_before.iter().map(update).collect(),
+            updates_after: self.updates_after.iter().map(update).collect(),
         }
     }
 
@@ -782,6 +818,50 @@ mod tests {
         // Assert
         fs::remove_dir_all(&root).unwrap();
         assert_eq!(Some("1.0.0"), packages.version("a"));
+    }
+
+    #[test]
+    fn load_package_reference_updates() {
+        // Arrange
+        let root = create_tree(
+            "updates",
+            &[
+                (
+                    BUILD_PROPS,
+                    r#"<Project>
+  <PropertyGroup>
+    <Ver>2.0.0</Ver>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Update="a" Version="1.0.0" />
+  </ItemGroup>
+</Project>"#,
+                ),
+                (
+                    BUILD_TARGETS,
+                    r#"<Project>
+  <ItemGroup>
+    <PackageReference Update="b;c" Version="$(Ver)" />
+  </ItemGroup>
+</Project>"#,
+                ),
+            ],
+        );
+
+        // Act
+        let packages = CentralPackages::load(&[&root.join(BUILD_PROPS), &root.join(BUILD_TARGETS)]);
+
+        // Assert
+        fs::remove_dir_all(&root).unwrap();
+        assert!(packages.references().is_empty());
+        let before = packages.updates_before_project();
+        assert_eq!(1, before.len());
+        assert_eq!(Some("a"), before[0].update.as_deref());
+        assert_eq!("1.0.0", before[0].version);
+        let after = packages.updates_after_project();
+        assert_eq!(1, after.len());
+        assert_eq!(Some("b;c"), after[0].update.as_deref());
+        assert_eq!("2.0.0", after[0].version);
     }
 
     #[test]

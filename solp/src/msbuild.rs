@@ -74,19 +74,56 @@ pub struct ImportGroup {
 /// Represents a project reference in an MSBuild project.
 ///
 /// This structure contains the `Include` element, which specifies the path to the referenced project.
-#[derive(Debug, Deserialize)]
+/// Metadata may be set both as attribute and as child element.
+#[derive(Debug, Default, Deserialize)]
 pub struct ProjectReference {
     #[serde(rename = "@Include", default)]
     pub include: String,
+    #[serde(rename = "@Condition", default)]
+    pub condition: Option<String>,
+    #[serde(rename = "@PrivateAssets", default)]
+    pub private_assets_attribute: Option<String>,
+    #[serde(rename = "PrivateAssets", default)]
+    pub private_assets: Option<String>,
+    #[serde(rename = "@ReferenceOutputAssembly", default)]
+    pub reference_output_assembly_attribute: Option<String>,
+    #[serde(rename = "ReferenceOutputAssembly", default)]
+    pub reference_output_assembly: Option<String>,
+}
+
+impl ProjectReference {
+    /// Whether the referenced project flows to projects that reference this one
+    /// (SDK-style transitive project references). It doesn't if all private assets
+    /// are set (`PrivateAssets="all"`) or referenced project output isn't referenced
+    /// (`ReferenceOutputAssembly="false"`).
+    #[must_use]
+    pub fn is_transitive(&self) -> bool {
+        let private_assets = self
+            .private_assets_attribute
+            .iter()
+            .chain(&self.private_assets)
+            .flat_map(|v| v.split(';'))
+            .any(|v| v.trim().eq_ignore_ascii_case("all"));
+        let no_output_assembly = self
+            .reference_output_assembly_attribute
+            .iter()
+            .chain(&self.reference_output_assembly)
+            .any(|v| v.trim().eq_ignore_ascii_case("false"));
+        !private_assets && !no_output_assembly
+    }
 }
 
 /// A Package Reference represents a dependency on an external package.
 ///
 /// This structure contains the name and version of the referenced package.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct PackageReference {
     #[serde(rename = "@Include", default)]
     pub name: String,
+    /// Name(s) of already included packages which metadata is changed by this item
+    /// (`;` separated list). Such item doesn't add a package.
+    #[serde(rename = "@Update", default)]
+    pub update: Option<String>,
     #[serde(rename = "@Version", default)]
     pub version: String,
     /// Overrides centrally managed version (Central Package Management)
@@ -302,6 +339,7 @@ impl PackagesConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use test_case::test_case;
 
     #[test]
     fn read_packages_config_from_reader_test() {
@@ -540,6 +578,51 @@ mod tests {
         assert_eq!("", packs[0].version);
         assert!(packs[0].version_override.is_none());
         assert_eq!(Some("2.0.0"), packs[1].version_override.as_deref());
+    }
+
+    #[test]
+    fn read_project_with_package_update_test() {
+        // Arrange
+        let rdr = r#"<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="a" />
+    <PackageReference Update="a" Version="2.0.0" />
+  </ItemGroup>
+</Project>"#
+            .as_bytes();
+
+        // Act
+        let p = Project::from_reader(rdr).unwrap();
+
+        // Assert
+        let packs = p.item_group.unwrap()[0].package_reference.take().unwrap();
+        assert!(packs[0].update.is_none());
+        assert_eq!("", packs[1].name);
+        assert_eq!(Some("a"), packs[1].update.as_deref());
+        assert_eq!("2.0.0", packs[1].version);
+    }
+
+    #[test_case(r#"<ProjectReference Include="a.csproj" />"#, true ; "plain")]
+    #[test_case(r#"<ProjectReference Include="a.csproj" PrivateAssets="All" />"#, false ; "private assets attribute")]
+    #[test_case(r#"<ProjectReference Include="a.csproj" PrivateAssets="compile;all" />"#, false ; "private assets list")]
+    #[test_case(r#"<ProjectReference Include="a.csproj" PrivateAssets="compile" />"#, true ; "partial private assets")]
+    #[test_case(r#"<ProjectReference Include="a.csproj"><PrivateAssets>all</PrivateAssets></ProjectReference>"#, false ; "private assets element")]
+    #[test_case(r#"<ProjectReference Include="a.csproj" ReferenceOutputAssembly="false" />"#, false ; "no output assembly attribute")]
+    #[test_case(r#"<ProjectReference Include="a.csproj"><ReferenceOutputAssembly>False</ReferenceOutputAssembly></ProjectReference>"#, false ; "no output assembly element")]
+    #[test_case(r#"<ProjectReference Include="a.csproj" ReferenceOutputAssembly="true" />"#, true ; "output assembly")]
+    fn project_reference_is_transitive_test(reference: &str, expected: bool) {
+        // Arrange
+        let content = format!(
+            r#"<Project Sdk="Microsoft.NET.Sdk"><ItemGroup>{reference}</ItemGroup></Project>"#
+        );
+
+        // Act
+        let p = Project::from_reader(content.as_bytes()).unwrap();
+
+        // Assert
+        let refs = p.item_group.unwrap()[0].project_reference.take().unwrap();
+        assert_eq!("a.csproj", refs[0].include);
+        assert_eq!(expected, refs[0].is_transitive());
     }
 
     const PACKAGES_CONFIG: &str = r#"<?xml version="1.0" encoding="utf-8"?>

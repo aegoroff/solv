@@ -537,6 +537,60 @@ EndGlobal
         assert_eq!(configurations[0].tags, vec![api::Tag::Build]);
     }
 
+    #[test_case(
+        "{A61CD222-0F3B-47B6-9F7F-25D658368EEC}",
+        "{a61cd222-0f3b-47b6-9f7f-25d658368eec}" ;
+        "different guid case"
+    )]
+    #[test_case(
+        "{B61CD222-0F3B-47B6-9F7F-25D658368EEC}",
+        "{A61CD222-0F3B-47B6-9F7F-25D658368EEC}" ;
+        "not adjacent entries"
+    )]
+    fn parse_str_sln_merges_project_configurations(middle_id: &str, last_id: &str) {
+        // Arrange
+        let content = format!(
+            r#"
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}}") = "a", "a.csproj", "{{A61CD222-0F3B-47B6-9F7F-25D658368EEC}}"
+EndProject
+Project("{{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}}") = "b", "b.csproj", "{{B61CD222-0F3B-47B6-9F7F-25D658368EEC}}"
+EndProject
+Global
+    GlobalSection(SolutionConfigurationPlatforms) = preSolution
+        Debug|Any CPU = Debug|Any CPU
+        Release|Any CPU = Release|Any CPU
+    EndGlobalSection
+    GlobalSection(ProjectConfigurationPlatforms) = postSolution
+        {{A61CD222-0F3B-47B6-9F7F-25D658368EEC}}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+        {{A61CD222-0F3B-47B6-9F7F-25D658368EEC}}.Debug|Any CPU.Build.0 = Debug|Any CPU
+        {middle_id}.Release|Any CPU.ActiveCfg = Release|Any CPU
+        {last_id}.Release|Any CPU.Build.0 = Release|Any CPU
+    EndGlobalSection
+EndGlobal
+"#
+        );
+
+        // Act
+        let solution = parse_str(&content).unwrap();
+
+        // Assert
+        let configurations: Vec<_> = solution.projects[0]
+            .configurations
+            .as_ref()
+            .unwrap()
+            .iter()
+            .map(|c| (c.solution_configuration, c.tags.clone()))
+            .collect();
+        assert!(configurations.contains(&("Debug", vec![api::Tag::Build])));
+        assert!(
+            configurations
+                .iter()
+                .any(|(name, tags)| *name == "Release" && tags.contains(&api::Tag::Build))
+        );
+        assert!(solution.dangling_project_configurations.is_none());
+    }
+
     #[test_case("sln", vec!["sln"] ; "single extension")]
     #[test_case("slnx", vec!["slnx"] ; "slnx extension")]
     #[test_case("sln,slnx", vec!["sln", "slnx"] ; "multiple extensions")]

@@ -1,8 +1,7 @@
 use crate::ast::Node;
 use crate::ast::{Conf, Prj, PrjConfAggregate, Sol, Ver};
-use itertools::Itertools;
 use miette::{LabeledSpan, SourceSpan, miette};
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, hash_map::Entry};
 use std::option::Option::Some;
 
 const UTF8_BOM: &[u8; 3] = b"\xEF\xBB\xBF";
@@ -258,20 +257,10 @@ impl<'a> Visitor<'a> for AstVisitor<'a> {
                     }
                 }
 
-                let project_config_platform_grp = items
-                    .iter()
-                    .filter_map(|(k, v)| {
-                        PrjConfAggregate::from_project_configuration_platform(k, v)
-                    })
-                    .chunk_by(|x| x.project_id);
-
                 let project_configs_platforms =
-                    project_config_platform_grp
-                        .into_iter()
-                        .map(|(pid, project_configs)| {
-                            let c = project_configs.flat_map(|c| c.configs).collect();
-                            PrjConfAggregate::from_id_and_configs(pid, c)
-                        });
+                    group_by_project(items.iter().filter_map(|(k, v)| {
+                        PrjConfAggregate::from_project_configuration_platform(k, v)
+                    }));
                 self.solution
                     .project_configs
                     .extend(project_configs_platforms);
@@ -288,16 +277,11 @@ impl<'a> Visitor<'a> for AstVisitor<'a> {
                     }
                 }
 
-                let project_configs = items
-                    .iter()
-                    .filter_map(|(k, v)| PrjConfAggregate::from_project_configuration(k, v))
-                    .chunk_by(|x| x.project_id)
-                    .into_iter()
-                    .map(|(pid, project_configs)| {
-                        let c = project_configs.flat_map(|c| c.configs).collect();
-                        PrjConfAggregate::from_id_and_configs(pid, c)
-                    })
-                    .collect_vec();
+                let project_configs = group_by_project(
+                    items
+                        .iter()
+                        .filter_map(|(k, v)| PrjConfAggregate::from_project_configuration(k, v)),
+                );
 
                 if let Some(items) = all_sections.get("SolutionConfiguration") {
                     let solution_configurations =
@@ -363,6 +347,25 @@ impl<'a> Visitor<'a> for AstVisitor<'a> {
             None
         }
     }
+}
+
+/// Groups project configurations by project id keeping the order of the first appearance.
+/// Configurations of the same project may be not adjacent (e.g. after merge) and GUID case may differ.
+fn group_by_project<'a>(
+    aggregates: impl Iterator<Item = PrjConfAggregate<'a>>,
+) -> Vec<PrjConfAggregate<'a>> {
+    let mut indexes: HashMap<String, usize> = HashMap::new();
+    let mut result: Vec<PrjConfAggregate<'a>> = Vec::new();
+    for aggregate in aggregates {
+        match indexes.entry(aggregate.project_id.to_uppercase()) {
+            Entry::Occupied(entry) => result[*entry.get()].configs.extend(aggregate.configs),
+            Entry::Vacant(entry) => {
+                entry.insert(result.len());
+                result.push(aggregate);
+            }
+        }
+    }
+    result
 }
 
 #[cfg(test)]

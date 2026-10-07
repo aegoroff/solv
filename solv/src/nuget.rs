@@ -9,7 +9,7 @@ use crossterm::style::Stylize;
 use itertools::Itertools;
 use solp::{
     cpm::{self, CentralPackages},
-    msbuild::{ItemGroup, PackagesConfig},
+    msbuild::{ItemGroup, Package, PackageReference, PackagesConfig},
 };
 
 use crate::{Consume, MsbuildProject, error::Collector, ux};
@@ -31,7 +31,13 @@ impl Nuget {
     }
 }
 
-fn has_mismatches(versions: &BTreeSet<(Option<&String>, &String)>) -> bool {
+/// Package versions found in solution projects. Key is lowercased package name because
+/// NuGet package ids are case insensitive. Value is the package name as it's met first
+/// and (condition, version) pairs. Condition is optional.
+type Nugets<'a> = HashMap<String, (&'a str, Versions<'a>)>;
+type Versions<'a> = BTreeSet<(Option<&'a str>, &'a str)>;
+
+fn has_mismatches(versions: &Versions) -> bool {
     versions
         .iter()
         .into_group_map_by(|x| x.0)
@@ -43,16 +49,9 @@ impl Consume for Nuget {
     fn ok(&mut self, solution: &solp::api::Solution) {
         let mut projects = crate::collect_msbuild_projects(solution);
         apply_central_packages(&mut projects);
+        let packages_configs = packages_from_packages_configs(&projects);
 
-        let mut nugets = nugets(&projects);
-        let nugets_from_packages_config = nugets_from_packages_configs(&projects);
-
-        let nugets_from_packages_config = nugets_from_packages_config
-            .iter()
-            .map(|(k, v)| (k, v.iter().map(|v1| (None, v1)).collect()));
-
-        // merging packages from packages.config if any
-        nugets.extend(nugets_from_packages_config);
+        let nugets = nugets(&projects, &packages_configs);
 
         if nugets.is_empty() {
             return;
@@ -68,9 +67,9 @@ impl Consume for Nuget {
         let mut solutions_mismatches = false;
         nugets
             .iter()
-            .filter(|(_, versions)| !self.show_only_mismatched || has_mismatches(versions))
-            .sorted_unstable_by(|(a, _), (b, _)| Ord::cmp(&a.to_lowercase(), &b.to_lowercase()))
-            .for_each(|(pkg, versions)| {
+            .filter(|(_, (_, versions))| !self.show_only_mismatched || has_mismatches(versions))
+            .sorted_unstable_by_key(|(key, _)| *key)
+            .for_each(|(_, (pkg, versions))| {
                 let grouped = versions.iter().into_group_map_by(|x| x.0);
                 let rows = grouped
                     .iter()
@@ -78,10 +77,9 @@ impl Consume for Nuget {
                     .map(|(c, v)| {
                         let mismatch = v.len() > 1;
                         let comma_separated = v.iter().map(|(_, v)| v).join(", ");
-                        let line = if c.is_some() {
-                            format!("{comma_separated} if {}", c.as_ref().unwrap())
-                        } else {
-                            comma_separated
+                        let line = match c {
+                            Some(c) => format!("{comma_separated} if {c}"),
+                            None => comma_separated,
                         };
                         let mut line = Cell::new(line).add_attribute(Attribute::Italic);
                         if mismatch {
@@ -129,34 +127,42 @@ impl Display for Nuget {
     }
 }
 
-/// returns hashmap where<br/>
-/// key - package name<br/>
-/// value - (condition, version) tuples set<br/>
-/// condition is optional
-fn nugets(projects: &[MsbuildProject]) -> HashMap<&String, BTreeSet<(Option<&String>, &String)>> {
-    projects
+/// Collects package versions from projects `PackageReference` items and `packages.config` packages
+fn nugets<'a>(projects: &'a [MsbuildProject], packages_configs: &'a [Package]) -> Nugets<'a> {
+    let from_projects = projects
         .iter()
         .filter_map(|p| p.project.as_ref())
         .filter_map(|p| p.item_group.as_ref())
         .flatten()
         .filter_map(|ig| {
-            Some(
-                ig.package_reference
-                    .as_ref()?
-                    .iter()
-                    .map(|p| (ig.condition.as_ref(), p)),
-            )
+            let condition = ig.condition.as_deref();
+            let packs = ig.package_reference.as_ref()?.iter();
+            Some(packs.map(move |p| (condition, p.name.as_str(), p.version.as_str())))
         })
-        .flatten()
-        .into_grouping_map_by(|(_, pack)| &pack.name)
-        .fold(BTreeSet::new(), |mut acc, _key, (cond, val)| {
-            acc.insert((cond, &val.version));
-            acc
-        })
+        .flatten();
+    let from_packages_configs = packages_configs
+        .iter()
+        .map(|p| (None, p.name.as_str(), p.version.as_str()));
+
+    let mut result = Nugets::new();
+    for (condition, name, version) in from_projects.chain(from_packages_configs) {
+        // `Update` items or items without name don't define packages
+        if name.is_empty() {
+            continue;
+        }
+        result
+            .entry(name.to_lowercase())
+            .or_insert_with(|| (name, BTreeSet::new()))
+            .1
+            .insert((condition, version));
+    }
+    result
 }
 
 /// Applies `Directory.Build.props`, `Directory.Packages.props` and `Directory.Build.targets` packages to projects:
 /// * `PackageReference` and `GlobalPackageReference` items from these files are added to every project below
+/// * `PackageReference Update` items from these files and the project change versions of included packages
+///   (props files before project items, `Directory.Build.targets` after them)
 /// * `VersionOverride` wins, otherwise if `Version` is not set the version is taken
 ///   from `PackageVersion` items (Central Package Management)
 /// * exact versions are normalized (see [`normalize_version`])
@@ -192,12 +198,36 @@ fn apply_central_packages(projects: &mut [MsbuildProject]) {
                 });
             }
         }
-        let packs = project
+        // Update items change already included packages and don't define packages themselves
+        let mut own_updates = vec![];
+        let groups = project.item_group.iter_mut().flatten();
+        for packs in groups.filter_map(|ig| ig.package_reference.as_mut()) {
+            let (updates, includes): (Vec<_>, Vec<_>) = std::mem::take(packs)
+                .into_iter()
+                .partition(|p| p.name.is_empty() && p.update.is_some());
+            *packs = includes;
+            own_updates.extend(updates);
+        }
+        let mut packs: Vec<&mut PackageReference> = project
             .item_group
             .iter_mut()
             .flatten()
             .filter_map(|ig| ig.package_reference.as_mut())
-            .flatten();
+            .flatten()
+            .collect();
+        let updates = central
+            .map(CentralPackages::updates_before_project)
+            .unwrap_or_default()
+            .iter()
+            .chain(&own_updates)
+            .chain(
+                central
+                    .map(CentralPackages::updates_after_project)
+                    .unwrap_or_default(),
+            );
+        for update in updates {
+            apply_update(&mut packs, update);
+        }
         for pack in packs {
             if let Some(version_override) = pack.version_override.take() {
                 pack.version = version_override;
@@ -209,6 +239,31 @@ fn apply_central_packages(projects: &mut [MsbuildProject]) {
             if let Some(normalized) = normalize_version(&pack.version) {
                 pack.version = normalized;
             }
+        }
+    }
+}
+
+/// Applies `PackageReference Update` item version metadata to included packages with names
+/// specified (`;` separated list). The last applied update wins like in MSBuild.
+fn apply_update(packs: &mut [&mut PackageReference], update: &PackageReference) {
+    let names = update
+        .update
+        .iter()
+        .flat_map(|names| names.split(';'))
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .collect::<Vec<_>>();
+    let updated = packs.iter_mut().filter(|pack| {
+        names
+            .iter()
+            .any(|name| name.eq_ignore_ascii_case(&pack.name))
+    });
+    for pack in updated {
+        if !update.version.is_empty() {
+            update.version.clone_into(&mut pack.version);
+        }
+        if update.version_override.is_some() {
+            pack.version_override.clone_from(&update.version_override);
         }
     }
 }
@@ -268,7 +323,8 @@ fn normalize_semver(version: &str) -> Option<String> {
     Some(result)
 }
 
-fn nugets_from_packages_configs(projects: &[MsbuildProject]) -> HashMap<String, BTreeSet<String>> {
+/// Packages from `packages.config` files near projects with normalized versions
+fn packages_from_packages_configs(projects: &[MsbuildProject]) -> Vec<Package> {
     projects
         .iter()
         .filter_map(|mp| {
@@ -277,11 +333,13 @@ fn nugets_from_packages_configs(projects: &[MsbuildProject]) -> HashMap<String, 
             PackagesConfig::from_path(packages_config).ok()
         })
         .flat_map(|p| p.packages)
-        .into_grouping_map_by(|p| p.name.clone())
-        .fold(BTreeSet::new(), |mut acc, _key, val| {
-            acc.insert(val.version);
-            acc
+        .map(|mut p| {
+            if let Some(normalized) = normalize_version(&p.version) {
+                p.version = normalized;
+            }
+            p
         })
+        .collect()
 }
 
 #[cfg(test)]
@@ -378,6 +436,7 @@ mod tests {
         let mut projects = vec![create_msbuild_project(
             vec![PackageReference {
                 name: "newtonsoft.json".to_string(),
+                update: None,
                 version: version.to_string(),
                 version_override: version_override.map(str::to_string),
             }],
@@ -390,14 +449,14 @@ mod tests {
 
         // Assert
         fs::remove_dir_all(&root).unwrap();
-        let actual = nugets(&projects);
+        let actual = nugets(&projects, &[]);
         assert_eq!(3, actual.len());
-        let json = &actual[&"newtonsoft.json".to_string()];
+        let json = &actual["newtonsoft.json"].1;
         assert_eq!(1, json.len());
         assert_eq!(expected, json.first().unwrap().1);
-        let global = &actual[&"StyleCop.Analyzers".to_string()];
+        let global = &actual["stylecop.analyzers"].1;
         assert_eq!("1.1.118", global.first().unwrap().1);
-        let inherited = &actual[&"SonarAnalyzer.CSharp".to_string()];
+        let inherited = &actual["sonaranalyzer.csharp"].1;
         assert_eq!("10.15.0", inherited.first().unwrap().1);
     }
 
@@ -432,6 +491,7 @@ mod tests {
         let mut projects = vec![create_msbuild_project(
             vec![PackageReference {
                 name: "StyleCop.Analyzers".to_string(),
+                update: None,
                 version: "1.2.0".to_string(),
                 version_override: None,
             }],
@@ -444,9 +504,9 @@ mod tests {
 
         // Assert
         fs::remove_dir_all(&root).unwrap();
-        let actual = nugets(&projects);
-        assert!(has_mismatches(&actual[&"StyleCop.Analyzers".to_string()]));
-        let from_targets = &actual[&"Roslynator.Analyzers".to_string()];
+        let actual = nugets(&projects, &[]);
+        assert!(has_mismatches(&actual["stylecop.analyzers"].1));
+        let from_targets = &actual["roslynator.analyzers"].1;
         assert_eq!("4.12.0", from_targets.first().unwrap().1);
     }
 
@@ -486,6 +546,7 @@ mod tests {
         // Arrange
         let pack = |version: &str| PackageReference {
             name: "a".to_string(),
+            update: None,
             version: version.to_string(),
             version_override: None,
         };
@@ -499,8 +560,8 @@ mod tests {
         apply_central_packages(&mut projects);
 
         // Assert
-        let actual = nugets(&projects);
-        let versions = &actual[&"a".to_string()];
+        let actual = nugets(&projects, &[]);
+        let versions = &actual["a"].1;
         assert_eq!(1, versions.len());
         assert_eq!("1.6.2", versions.first().unwrap().1);
     }
@@ -512,11 +573,13 @@ mod tests {
         let packs1 = vec![
             PackageReference {
                 name: "a".to_string(),
+                update: None,
                 version: "1.0.0".to_string(),
                 version_override: None,
             },
             PackageReference {
                 name: "b".to_string(),
+                update: None,
                 version: "1.0.0".to_string(),
                 version_override: None,
             },
@@ -524,11 +587,13 @@ mod tests {
         let packs2 = vec![
             PackageReference {
                 name: "c".to_string(),
+                update: None,
                 version: "1.0.0".to_string(),
                 version_override: None,
             },
             PackageReference {
                 name: "d".to_string(),
+                update: None,
                 version: "1.0.0".to_string(),
                 version_override: None,
             },
@@ -537,11 +602,11 @@ mod tests {
         projects.push(create_msbuild_project(packs2, None));
 
         // act
-        let actual = nugets(&projects);
+        let actual = nugets(&projects, &[]);
 
         // assert
         assert_eq!(4, actual.len());
-        let has_mismatches = actual.iter().any(|(_, v)| has_mismatches(v));
+        let has_mismatches = actual.values().any(|(_, v)| has_mismatches(v));
         assert!(!has_mismatches);
     }
 
@@ -552,11 +617,13 @@ mod tests {
         let packs1 = vec![
             PackageReference {
                 name: "a".to_string(),
+                update: None,
                 version: "1.0.0".to_string(),
                 version_override: None,
             },
             PackageReference {
                 name: "b".to_string(),
+                update: None,
                 version: "1.0.0".to_string(),
                 version_override: None,
             },
@@ -564,11 +631,13 @@ mod tests {
         let packs2 = vec![
             PackageReference {
                 name: "c".to_string(),
+                update: None,
                 version: "1.0.0".to_string(),
                 version_override: None,
             },
             PackageReference {
                 name: "a".to_string(),
+                update: None,
                 version: "1.0.0".to_string(),
                 version_override: None,
             },
@@ -577,11 +646,11 @@ mod tests {
         projects.push(create_msbuild_project(packs2, None));
 
         // act
-        let actual = nugets(&projects);
+        let actual = nugets(&projects, &[]);
 
         // assert
         assert_eq!(3, actual.len());
-        let has_mismatches = actual.iter().any(|(_, v)| has_mismatches(v));
+        let has_mismatches = actual.values().any(|(_, v)| has_mismatches(v));
         assert!(!has_mismatches);
     }
 
@@ -592,11 +661,13 @@ mod tests {
         let packs1 = vec![
             PackageReference {
                 name: "a".to_string(),
+                update: None,
                 version: "1.0.0".to_string(),
                 version_override: None,
             },
             PackageReference {
                 name: "b".to_string(),
+                update: None,
                 version: "1.0.0".to_string(),
                 version_override: None,
             },
@@ -604,11 +675,13 @@ mod tests {
         let packs2 = vec![
             PackageReference {
                 name: "c".to_string(),
+                update: None,
                 version: "1.0.0".to_string(),
                 version_override: None,
             },
             PackageReference {
                 name: "a".to_string(),
+                update: None,
                 version: "2.0.0".to_string(),
                 version_override: None,
             },
@@ -617,11 +690,11 @@ mod tests {
         projects.push(create_msbuild_project(packs2, None));
 
         // act
-        let actual = nugets(&projects);
+        let actual = nugets(&projects, &[]);
 
         // assert
         assert_eq!(3, actual.len());
-        let has_mismatches = actual.iter().any(|(_, v)| has_mismatches(v));
+        let has_mismatches = actual.values().any(|(_, v)| has_mismatches(v));
         assert!(has_mismatches);
     }
 
@@ -632,11 +705,13 @@ mod tests {
         let packs1 = vec![
             PackageReference {
                 name: "a".to_string(),
+                update: None,
                 version: "1.0.0".to_string(),
                 version_override: None,
             },
             PackageReference {
                 name: "b".to_string(),
+                update: None,
                 version: "1.0.0".to_string(),
                 version_override: None,
             },
@@ -644,11 +719,13 @@ mod tests {
         let packs2 = vec![
             PackageReference {
                 name: "c".to_string(),
+                update: None,
                 version: "1.0.0".to_string(),
                 version_override: None,
             },
             PackageReference {
                 name: "a".to_string(),
+                update: None,
                 version: "2.0.0".to_string(),
                 version_override: None,
             },
@@ -657,15 +734,138 @@ mod tests {
         projects.push(create_msbuild_project(packs2, Some("1".to_owned())));
 
         // act
-        let actual = nugets(&projects);
+        let actual = nugets(&projects, &[]);
 
         // assert
         assert_eq!(3, actual.len());
-        let has_mismatches = actual.iter().any(|(_, v)| has_mismatches(v));
+        let has_mismatches = actual.values().any(|(_, v)| has_mismatches(v));
         assert!(!has_mismatches);
         let different_vers_key = "a".to_owned();
         assert!(actual.contains_key(&different_vers_key));
-        assert_eq!(2, actual.get(&different_vers_key).unwrap().len());
+        assert_eq!(2, actual[&different_vers_key].1.len());
+    }
+
+    #[test_case("Newtonsoft.Json", "newtonsoft.json", "2.0.0", true ; "different case different versions")]
+    #[test_case("Newtonsoft.Json", "NEWTONSOFT.JSON", "1.0.0", false ; "different case same versions")]
+    fn nugets_package_names_case_insensitive(
+        name: &str,
+        other_name: &str,
+        other_version: &str,
+        expected: bool,
+    ) {
+        // Arrange
+        let projects = vec![
+            create_msbuild_project(vec![pack(name, "1.0.0")], None),
+            create_msbuild_project(vec![pack(other_name, other_version)], None),
+        ];
+
+        // Act
+        let actual = nugets(&projects, &[]);
+
+        // Assert
+        assert_eq!(1, actual.len());
+        let (display_name, versions) = &actual["newtonsoft.json"];
+        assert_eq!(name, *display_name);
+        assert_eq!(expected, has_mismatches(versions));
+    }
+
+    #[test_case("12.0.1", true ; "different versions")]
+    #[test_case("13.0.3", false ; "same versions")]
+    fn nugets_merges_packages_config_with_package_references(config_version: &str, expected: bool) {
+        // Arrange
+        let projects = vec![create_msbuild_project(
+            vec![pack("Newtonsoft.Json", "13.0.3")],
+            None,
+        )];
+        let packages_configs = vec![Package {
+            name: "Newtonsoft.Json".to_string(),
+            version: config_version.to_string(),
+        }];
+
+        // Act
+        let actual = nugets(&projects, &packages_configs);
+
+        // Assert
+        let versions = &actual["newtonsoft.json"].1;
+        assert!(versions.contains(&(None, "13.0.3")));
+        assert!(versions.contains(&(None, config_version)));
+        assert_eq!(expected, has_mismatches(versions));
+    }
+
+    #[test]
+    fn nugets_skips_packages_without_name() {
+        // Arrange
+        let projects = vec![create_msbuild_project(
+            vec![pack("", "1.0.0"), pack("a", "1.0.0")],
+            None,
+        )];
+
+        // Act
+        let actual = nugets(&projects, &[]);
+
+        // Assert
+        assert_eq!(1, actual.len());
+        assert!(actual.contains_key("a"));
+    }
+
+    #[test_case(None, "3.0.0" ; "project update")]
+    #[test_case(Some(r#"<PackageReference Update="serilog" Version="2.0.0" />"#), "2.0.0" ; "targets update wins")]
+    #[test_case(Some(r#"<PackageReference Update="Other;Serilog" VersionOverride="4.0.0" />"#), "4.0.0" ; "targets update list with override")]
+    #[test_case(Some(r#"<PackageReference Update="Other" Version="2.0.0" />"#), "3.0.0" ; "targets update of other package")]
+    fn apply_central_packages_package_updates(targets_item: Option<&str>, expected: &str) {
+        // Arrange
+        let uniq = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("solv-update-nuget-{uniq}"));
+        let project_dir = root.join("App");
+        fs::create_dir_all(&project_dir).unwrap();
+        fs::write(
+            root.join(cpm::BUILD_PROPS),
+            r#"<Project>
+  <ItemGroup>
+    <PackageReference Update="Serilog" Version="1.0.0" />
+  </ItemGroup>
+</Project>"#,
+        )
+        .unwrap();
+        if let Some(item) = targets_item {
+            fs::write(
+                root.join(cpm::BUILD_TARGETS),
+                format!("<Project><ItemGroup>{item}</ItemGroup></Project>"),
+            )
+            .unwrap();
+        }
+        let update = PackageReference {
+            update: Some("Serilog".to_string()),
+            version: "3.0.0".to_string(),
+            ..Default::default()
+        };
+        let mut projects = vec![create_msbuild_project(
+            vec![pack("Serilog", ""), update],
+            None,
+        )];
+        projects[0].path = project_dir.join("App.csproj");
+
+        // Act
+        apply_central_packages(&mut projects);
+
+        // Assert
+        fs::remove_dir_all(&root).unwrap();
+        let actual = nugets(&projects, &[]);
+        assert_eq!(1, actual.len());
+        let versions = &actual["serilog"].1;
+        assert_eq!(1, versions.len());
+        assert_eq!(expected, versions.first().unwrap().1);
+    }
+
+    fn pack(name: &str, version: &str) -> PackageReference {
+        PackageReference {
+            name: name.to_string(),
+            version: version.to_string(),
+            ..Default::default()
+        }
     }
 
     fn create_msbuild_project(

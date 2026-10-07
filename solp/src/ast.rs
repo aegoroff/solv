@@ -152,14 +152,6 @@ pub enum ProjectConfigTag {
 
 impl<'a> PrjConfAggregate<'a> {
     #[must_use]
-    pub fn from_id_and_configs(project_id: &'a str, configs: Vec<PrjConf<'a>>) -> Self {
-        Self {
-            project_id,
-            configs,
-        }
-    }
-
-    #[must_use]
     pub fn from_project_configuration_platform(k: &'a str, v: &'a str) -> Option<Self> {
         let r = PrjConfAggregate::parse_project_configuration_platform(k, v);
         Self::new(r)
