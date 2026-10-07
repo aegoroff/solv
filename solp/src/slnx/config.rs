@@ -188,11 +188,14 @@ fn append_custom_type_rules<'a>(
     project_type: &ProjectType,
     rules: &mut EffectiveRules<'a>,
 ) -> Result<()> {
+    // Like the reference implementation: not buildable type has only "no build" rule
+    // and its own rules are ignored
     if project_type.is_buildable == Some(false) {
         rules.builds.push(ConfigurationRuleBorrowed {
             solution: None,
             project: Some("false"),
         });
+        return Ok(());
     }
     if project_type.supports_platform == Some(false) {
         rules.platforms.push(ConfigurationRulePlatformBorrowed {
@@ -547,6 +550,29 @@ mod tests {
                 .contains(&Tag::Build),
             expected_built
         );
+    }
+
+    #[test]
+    fn not_buildable_type_ignores_own_rules() {
+        // Arrange
+        let slnx = r#"<Solution>
+  <Configurations>
+    <ProjectType Name="Custom" IsBuildable="false">
+      <Build Solution="Debug|*" />
+      <Platform Solution="*|Any CPU" Project="x64" />
+    </ProjectType>
+  </Configurations>
+  <Project Path="A/A.proj" Type="Custom" />
+</Solution>"#;
+
+        // Act
+        let solution = super::super::parse_str(slnx).unwrap();
+
+        // Assert
+        let configurations = solution.projects[0].configurations.as_ref().unwrap();
+        let debug = find(configurations, "Debug", "Any CPU");
+        assert!(debug.tags.is_empty());
+        assert_eq!(debug.project_platform, "Any CPU");
     }
 
     #[test]
