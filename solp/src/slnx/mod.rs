@@ -230,6 +230,24 @@ fn unescape(raw: &str) -> Option<String> {
     Some(result)
 }
 
+/// Splits file name of the path into name without extension (Visual Studio default project name)
+/// and extension e.g. `App.Tests` and `csproj` for `src\App\App.Tests.csproj`
+fn split_file_name(path: &str) -> (&str, Option<&str>) {
+    let file_name = path
+        .rsplit(['/', '\\'])
+        .next()
+        .filter(|name| !name.is_empty())
+        .unwrap_or(path);
+    match file_name.rsplit_once('.') {
+        // Name of dot file (e.g. `.hidden`) is the whole file name
+        Some((stem, extension)) => (
+            if stem.is_empty() { file_name } else { stem },
+            Some(extension).filter(|extension| !extension.is_empty()),
+        ),
+        None => (file_name, None),
+    }
+}
+
 /// Returns `true` when the content looks like an XML `.slnx` solution file.
 #[must_use]
 pub fn is_slnx(contents: &str) -> bool {
@@ -536,6 +554,21 @@ mod tests {
 
         // Assert
         assert!(actual.is_err());
+    }
+
+    #[test_case("src/App/App.csproj", "App", Some("csproj") ; "unix path")]
+    #[test_case("src\\App\\App.Tests.csproj", "App.Tests", Some("csproj") ; "windows path with dots")]
+    #[test_case("App", "App", None ; "without extension")]
+    #[test_case("src/.hidden", ".hidden", Some("hidden") ; "dot file")]
+    #[test_case("src/App.", "App", None ; "empty extension")]
+    fn split_file_name_cases(path: &str, expected_name: &str, expected_extension: Option<&str>) {
+        // Arrange
+
+        // Act
+        let actual = split_file_name(path);
+
+        // Assert
+        assert_eq!(actual, (expected_name, expected_extension));
     }
 
     #[test]

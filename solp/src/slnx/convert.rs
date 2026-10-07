@@ -9,7 +9,7 @@ use super::config::{
     SolutionConfigNames, project_configurations, project_setup, solution_build_types,
     solution_platforms,
 };
-use super::{Folder, Project as RawProject, Properties, SlnxSolution, borrow_in};
+use super::{Folder, Project as RawProject, Properties, SlnxSolution, borrow_in, split_file_name};
 
 const ID_SOLUTION_FOLDER: &str = "{2150E333-8FDC-42A3-9474-1A3956D46DE8}";
 
@@ -111,7 +111,7 @@ pub fn to_api<'a>(slnx: SlnxSolution, contents: &'a str, path: &'a str) -> Resul
             id,
             name: match project.display_name.as_deref() {
                 Some(display_name) => borrow_in(contents, display_name)?,
-                None => project_name(path),
+                None => split_file_name(path).0,
             },
             path_or_uri: path,
             configurations: (!configurations.is_empty()).then_some(configurations),
@@ -310,20 +310,6 @@ fn normalize_project_path(path: &str) -> String {
     path.replace('\\', "/").to_ascii_lowercase()
 }
 
-/// Default project name is the file name without extension like in Visual Studio
-fn project_name(path: &str) -> &str {
-    let file_name = path
-        .rsplit(['/', '\\'])
-        .next()
-        .filter(|name| !name.is_empty())
-        .unwrap_or(path);
-    file_name
-        .rsplit_once('.')
-        .map(|(stem, _)| stem)
-        .filter(|stem| !stem.is_empty())
-        .unwrap_or(file_name)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -485,20 +471,6 @@ mod tests {
 
         // Act
         let actual = parent_folder(path);
-
-        // Assert
-        assert_eq!(actual, expected);
-    }
-
-    #[test_case("src/App/App.csproj", "App" ; "unix path")]
-    #[test_case("src\\App\\App.Tests.csproj", "App.Tests" ; "windows path with dots")]
-    #[test_case("App", "App" ; "without extension")]
-    #[test_case("src/.hidden", ".hidden" ; "dot file")]
-    fn project_name_cases(path: &str, expected: &str) {
-        // Arrange
-
-        // Act
-        let actual = project_name(path);
 
         // Assert
         assert_eq!(actual, expected);

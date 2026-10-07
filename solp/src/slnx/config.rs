@@ -139,7 +139,7 @@ pub fn project_setup<'a>(
 ) -> Result<ProjectSetup<'a>> {
     let resolver = Resolver::new(configs);
     let path = super::borrow_in(contents, &project.path)?;
-    let extension = project_extension(path);
+    let (_, extension) = super::split_file_name(path);
     let explicit_type = project.project_type.as_deref();
     let resolved = resolver.resolve(explicit_type, extension);
 
@@ -175,14 +175,6 @@ pub fn project_setup<'a>(
     };
 
     Ok(ProjectSetup { type_id, rules })
-}
-
-fn project_extension(path: &str) -> Option<&str> {
-    let file_name = path.rsplit(['/', '\\']).next().unwrap_or(path);
-    file_name
-        .rsplit_once('.')
-        .map(|(_, extension)| extension)
-        .filter(|extension| !extension.is_empty())
 }
 
 fn append_type_rules<'a>(
