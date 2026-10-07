@@ -12,9 +12,6 @@ use serde::Deserialize;
 
 use crate::api::Solution;
 
-/// Visual Studio XML solution file extension
-pub const SLNX_SOLUTION_EXT: &str = "slnx";
-
 /// Root element of Solution
 #[derive(Debug, Deserialize)]
 #[serde(rename = "Solution")]

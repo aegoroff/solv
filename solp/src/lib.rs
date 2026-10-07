@@ -102,8 +102,6 @@ lalrpop_mod!(
 /// Default Visual Studio solution file extension
 pub const DEFAULT_SOLUTION_EXT: &str = "sln";
 
-pub use slnx::SLNX_SOLUTION_EXT;
-
 /// Default comma-separated list of solution file extensions to search while scanning directories
 pub const DEFAULT_SOLUTION_EXTENSIONS: &str = "sln,slnx";
 
