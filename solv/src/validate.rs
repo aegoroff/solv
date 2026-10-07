@@ -17,12 +17,37 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 trait Validator {
-    /// does validation
-    fn validate(&mut self, statistic: &mut Statistic);
-    /// will return true if validation succeeded false otherwise
-    fn validation_result(&self) -> bool;
-    /// prints validation results if any
-    fn print_results(&self);
+    /// Returns the problem found if any
+    fn check(&self) -> Option<Problem>;
+}
+
+/// Solution problem found by a [`Validator`]
+#[derive(Debug, PartialEq, Eq)]
+enum Problem {
+    Cycles,
+    /// Dangling project configuration ids
+    Danglings(Vec<String>),
+    /// Project GUID to (name, path) pairs of projects with this GUID
+    DuplicateGuids(BTreeMap<String, Vec<(String, String)>>),
+    DuplicateConfigurations {
+        /// Duplicate `configuration|platform` pairs of solution
+        solution: Option<Vec<String>>,
+        /// Project id, `configuration|platform`, project configuration and tag
+        projects: Option<Vec<[String; 4]>>,
+    },
+    /// Paths of project files that don't exist
+    NotFound(BTreeSet<PathBuf>),
+    /// Project id to `configuration|platform` pairs that are outside solution configurations
+    Missings(BTreeMap<String, Vec<String>>),
+    /// (name, id, path) of projects that are not built in any configuration
+    Orphans(Vec<(String, String, String)>),
+    Redundants(Vec<RedundantRef>),
+}
+
+/// Problems of a solution
+struct SolutionReport {
+    path: String,
+    problems: Vec<Problem>,
 }
 
 pub struct Validate {
@@ -44,6 +69,22 @@ struct Statistic {
     not_parsed: u64,
     redundant_refs: u64,
     total: u64,
+}
+
+impl Statistic {
+    fn add(&mut self, problem: &Problem) {
+        let counter = match problem {
+            Problem::Cycles => &mut self.cycles,
+            Problem::Danglings(_) => &mut self.danglings,
+            Problem::DuplicateGuids(_) => &mut self.duplicate_guids,
+            Problem::DuplicateConfigurations { .. } => &mut self.duplicate_configurations,
+            Problem::NotFound(_) => &mut self.not_found,
+            Problem::Missings(_) => &mut self.missings,
+            Problem::Orphans(_) => &mut self.orphans,
+            Problem::Redundants(_) => &mut self.redundant_refs,
+        };
+        *counter += 1;
+    }
 }
 
 impl Display for Statistic {
@@ -273,12 +314,8 @@ impl Consume for ValidateFix {
     fn ok(&mut self, solution: &Solution) {
         self.statistic.parsed += 1;
 
-        let mut detector = Redundants::new(solution);
-        let mut unused = Statistic::default();
-        detector.validate(&mut unused);
-
         let mut refs_by_project: HashMap<PathBuf, HashSet<String>> = HashMap::new();
-        for redundant in detector.redundants {
+        for redundant in Redundants::new(solution).find() {
             refs_by_project
                 .entry(redundant.project)
                 .or_default()
@@ -337,9 +374,10 @@ impl Display for ValidateFix {
     }
 }
 
-impl Consume for Validate {
-    fn ok(&mut self, solution: &Solution) {
-        let mut validators: [Box<dyn Validator>; 8] = [
+impl Validate {
+    /// Validates the solution, counts its problems and returns the report to show if any
+    fn report(&mut self, solution: &Solution) -> Option<SolutionReport> {
+        let validators: [Box<dyn Validator>; 8] = [
             Box::new(Cycles::new(solution)),
             Box::new(Danglings::new(solution)),
             Box::new(DuplicateGuids::new(solution)),
@@ -350,32 +388,27 @@ impl Consume for Validate {
             Box::new(Redundants::new(solution)),
         ];
 
-        let valid_solution = validators.iter_mut().fold(true, |mut res, validator| {
-            validator.validate(&mut self.statistic);
-            res &= validator.validation_result();
-            res
-        });
-
-        if !self.show_only_problems || !valid_solution {
-            ux::print_solution_path(solution.path);
-        }
-        for v in &validators {
-            if !v.validation_result() {
-                v.print_results();
-            }
-        }
-
-        if !self.show_only_problems && valid_solution {
-            println!(
-                "   {}",
-                "No problems found in solution.".dark_green().bold()
-            );
-            println!();
-        }
-        if !valid_solution {
-            println!();
+        let problems: Vec<Problem> = validators.iter().filter_map(|v| v.check()).collect();
+        for problem in &problems {
+            self.statistic.add(problem);
         }
         self.statistic.total += 1;
+
+        if self.show_only_problems && problems.is_empty() {
+            return None;
+        }
+        Some(SolutionReport {
+            path: solution.path.to_owned(),
+            problems,
+        })
+    }
+}
+
+impl Consume for Validate {
+    fn ok(&mut self, solution: &Solution) {
+        if let Some(report) = self.report(solution) {
+            print!("{report}");
+        }
     }
 
     fn err(&mut self, path: &str) {
@@ -396,6 +429,165 @@ impl Display for Validate {
             Ok(())
         }
     }
+}
+
+impl Display for SolutionReport {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        ux::write_solution_path(f, &self.path)?;
+        for problem in &self.problems {
+            write!(f, "{problem}")?;
+        }
+        if self.problems.is_empty() {
+            writeln!(
+                f,
+                "   {}",
+                "No problems found in solution.".dark_green().bold()
+            )?;
+        }
+        writeln!(f)
+    }
+}
+
+impl Display for Problem {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Problem::Cycles => writeln!(
+                f,
+                "   {}",
+                "Solution contains project dependencies cycles"
+                    .dark_red()
+                    .bold()
+            ),
+            Problem::Danglings(danglings) => ux::write_one_column_table(
+                f,
+                "Dangling project configurations that can be safely removed",
+                Some(comfy_table::Color::DarkYellow),
+                danglings.iter(),
+            ),
+            Problem::DuplicateGuids(duplicates) => {
+                writeln!(
+                    f,
+                    "  {}",
+                    "Solution contains projects with duplicate GUIDs:"
+                        .dark_yellow()
+                        .bold()
+                )?;
+                let mut table = ux::new_table();
+                table.set_header([
+                    Cell::new("Project GUID").add_attribute(Attribute::Bold),
+                    Cell::new("Name").add_attribute(Attribute::Bold),
+                    Cell::new("Path").add_attribute(Attribute::Bold),
+                ]);
+                for (id, projects) in duplicates {
+                    for (name, path) in projects {
+                        table.add_row([Cell::new(id), Cell::new(name), Cell::new(path)]);
+                    }
+                }
+                writeln!(f, "{table}")
+            }
+            Problem::DuplicateConfigurations { solution, projects } => {
+                if let Some(configurations) = solution {
+                    writeln!(
+                        f,
+                        "  {}",
+                        "Solution contains duplicate configuration|platform pairs:"
+                            .dark_yellow()
+                            .bold()
+                    )?;
+                    let mut table = ux::new_table();
+                    table.set_header([
+                        Cell::new("Configuration|Platform").add_attribute(Attribute::Bold)
+                    ]);
+                    for config in configurations {
+                        table.add_row([Cell::new(config)]);
+                    }
+                    writeln!(f, "{table}")?;
+                }
+                if let Some(configurations) = projects {
+                    writeln!(
+                        f,
+                        "  {}",
+                        "Solution contains duplicate project configuration mappings:"
+                            .dark_yellow()
+                            .bold()
+                    )?;
+                    let mut table = ux::new_table();
+                    table.set_header([
+                        Cell::new("Project ID").add_attribute(Attribute::Bold),
+                        Cell::new("Configuration|Platform").add_attribute(Attribute::Bold),
+                        Cell::new("Project configuration").add_attribute(Attribute::Bold),
+                        Cell::new("Tag").add_attribute(Attribute::Bold),
+                    ]);
+                    for row in configurations {
+                        table.add_row(row.iter().map(Cell::new));
+                    }
+                    writeln!(f, "{table}")?;
+                }
+                Ok(())
+            }
+            Problem::NotFound(paths) => ux::write_one_column_table(
+                f,
+                "Unexist project path",
+                Some(comfy_table::Color::DarkYellow),
+                paths.iter().filter_map(|p| p.as_path().to_str()),
+            ),
+            Problem::Missings(missings) => {
+                writeln!(f, "  {}", "Solution contains project configurations that are outside solution's configuration|platform list:".dark_yellow().bold())?;
+                let mut table = ux::new_table();
+                table.set_header([
+                    Cell::new("Project ID").add_attribute(Attribute::Bold),
+                    Cell::new("Configuration|Platform").add_attribute(Attribute::Bold),
+                ]);
+                for (id, configs) in missings {
+                    for config in configs {
+                        table.add_row([Cell::new(id), Cell::new(config)]);
+                    }
+                }
+                writeln!(f, "{table}")
+            }
+            Problem::Orphans(projects) => {
+                writeln!(
+                    f,
+                    "  {}",
+                    "Solution contains projects that are not built in any configuration:"
+                        .dark_yellow()
+                        .bold()
+                )?;
+                let mut table = ux::new_table();
+                table.set_header([
+                    Cell::new("Name").add_attribute(Attribute::Bold),
+                    Cell::new("Project GUID").add_attribute(Attribute::Bold),
+                    Cell::new("Path").add_attribute(Attribute::Bold),
+                ]);
+                for (name, id, path) in projects {
+                    table.add_row([Cell::new(name), Cell::new(id), Cell::new(path)]);
+                }
+                writeln!(f, "{table}")
+            }
+            Problem::Redundants(redundants) => write_redundants(f, redundants),
+        }
+    }
+}
+
+/// Writes redundant references grouped by project. `redundants` must be sorted by
+/// (project, redundant_reference) so a linear pass is enough to build stable project groups.
+fn write_redundants(f: &mut fmt::Formatter<'_>, redundants: &[RedundantRef]) -> fmt::Result {
+    writeln!(
+        f,
+        "  {}",
+        "Solution contains redundant project references that can be replaced by transitive dependencies:"
+            .dark_yellow()
+            .bold()
+    )?;
+    for refs in redundants.chunk_by(|a, b| a.project == b.project) {
+        ux::write_one_column_table(
+            f,
+            &refs[0].project.to_string_lossy(),
+            Some(comfy_table::Color::DarkBlue),
+            refs.iter().map(|r| r.redundant_reference.as_str()),
+        )?;
+    }
+    writeln!(f)
 }
 
 struct DuplicateGuids<'a> {
@@ -426,38 +618,22 @@ impl<'a> DuplicateGuids<'a> {
 }
 
 impl Validator for DuplicateGuids<'_> {
-    fn validate(&mut self, statistic: &mut Statistic) {
-        if !self.validation_result() {
-            statistic.duplicate_guids += 1;
+    fn check(&self) -> Option<Problem> {
+        if self.duplicates.is_empty() {
+            return None;
         }
-    }
-
-    fn validation_result(&self) -> bool {
-        self.duplicates.is_empty()
-    }
-
-    fn print_results(&self) {
-        println!(
-            "  {}",
-            "Solution contains projects with duplicate GUIDs:"
-                .dark_yellow()
-                .bold()
-        );
-
-        let mut table = ux::new_table();
-        table.set_header([
-            Cell::new("Project GUID").add_attribute(Attribute::Bold),
-            Cell::new("Name").add_attribute(Attribute::Bold),
-            Cell::new("Path").add_attribute(Attribute::Bold),
-        ]);
-
-        for (id, projects) in &self.duplicates {
-            for (name, path) in projects {
-                table.add_row([Cell::new(id), Cell::new(*name), Cell::new(*path)]);
-            }
-        }
-
-        println!("{table}");
+        let duplicates = self
+            .duplicates
+            .iter()
+            .map(|(id, projects)| {
+                let projects = projects
+                    .iter()
+                    .map(|(name, path)| ((*name).to_owned(), (*path).to_owned()))
+                    .collect();
+                (id.clone(), projects)
+            })
+            .collect();
+        Some(Problem::DuplicateGuids(duplicates))
     }
 }
 
@@ -472,110 +648,60 @@ impl<'a> DuplicateConfigurations<'a> {
 }
 
 impl Validator for DuplicateConfigurations<'_> {
-    fn validate(&mut self, statistic: &mut Statistic) {
-        if !self.validation_result() {
-            statistic.duplicate_configurations += 1;
+    fn check(&self) -> Option<Problem> {
+        let solution = self
+            .solution
+            .duplicate_solution_configurations
+            .as_ref()
+            .map(|configurations| {
+                configurations
+                    .iter()
+                    .map(|c| format!("{}|{}", c.configuration, c.platform))
+                    .collect()
+            });
+        let projects =
+            self.solution
+                .duplicate_project_configurations
+                .as_ref()
+                .map(|configurations| {
+                    configurations
+                        .iter()
+                        .map(|c| {
+                            [
+                                c.project_id.to_owned(),
+                                format!("{}|{}", c.solution_configuration, c.platform),
+                                c.project_configuration.to_owned(),
+                                c.tag.to_string(),
+                            ]
+                        })
+                        .collect()
+                });
+        if solution.is_none() && projects.is_none() {
+            return None;
         }
-    }
-
-    fn validation_result(&self) -> bool {
-        self.solution.duplicate_solution_configurations.is_none()
-            && self.solution.duplicate_project_configurations.is_none()
-    }
-
-    fn print_results(&self) {
-        if let Some(configurations) = &self.solution.duplicate_solution_configurations {
-            println!(
-                "  {}",
-                "Solution contains duplicate configuration|platform pairs:"
-                    .dark_yellow()
-                    .bold()
-            );
-
-            let mut table = ux::new_table();
-            table.set_header([Cell::new("Configuration|Platform").add_attribute(Attribute::Bold)]);
-
-            for config in configurations {
-                table.add_row([Cell::new(format!(
-                    "{}|{}",
-                    config.configuration, config.platform
-                ))]);
-            }
-
-            println!("{table}");
-        }
-
-        if let Some(configurations) = &self.solution.duplicate_project_configurations {
-            println!(
-                "  {}",
-                "Solution contains duplicate project configuration mappings:"
-                    .dark_yellow()
-                    .bold()
-            );
-
-            let mut table = ux::new_table();
-            table.set_header([
-                Cell::new("Project ID").add_attribute(Attribute::Bold),
-                Cell::new("Configuration|Platform").add_attribute(Attribute::Bold),
-                Cell::new("Project configuration").add_attribute(Attribute::Bold),
-                Cell::new("Tag").add_attribute(Attribute::Bold),
-            ]);
-
-            for config in configurations {
-                table.add_row([
-                    Cell::new(config.project_id),
-                    Cell::new(format!(
-                        "{}|{}",
-                        config.solution_configuration, config.platform
-                    )),
-                    Cell::new(config.project_configuration),
-                    Cell::new(config.tag.to_string()),
-                ]);
-            }
-
-            println!("{table}");
-        }
+        Some(Problem::DuplicateConfigurations { solution, projects })
     }
 }
 
 struct NotFound<'a> {
     solution: &'a Solution<'a>,
-    bad_paths: BTreeSet<PathBuf>,
 }
 
 impl<'a> NotFound<'a> {
     pub fn new(solution: &'a Solution<'a>) -> Self {
-        Self {
-            solution,
-            bad_paths: BTreeSet::new(),
-        }
+        Self { solution }
     }
 }
 
 impl Validator for NotFound<'_> {
-    fn validate(&mut self, statistic: &mut Statistic) {
-        self.bad_paths = project_files::locate(self.solution)
+    fn check(&self) -> Option<Problem> {
+        let bad_paths: BTreeSet<PathBuf> = project_files::locate(self.solution)
             .filter_map(|(_, location)| match location {
                 ProjectLocation::Missing(path) => Some(path),
                 ProjectLocation::Found(_) => None,
             })
             .collect();
-        if !self.validation_result() {
-            statistic.not_found += 1;
-        }
-    }
-
-    fn validation_result(&self) -> bool {
-        self.bad_paths.is_empty()
-    }
-
-    fn print_results(&self) {
-        let items = self.bad_paths.iter().filter_map(|p| p.as_path().to_str());
-        ux::print_one_column_table(
-            "Unexist project path",
-            Some(comfy_table::Color::DarkYellow),
-            items,
-        );
+        (!bad_paths.is_empty()).then_some(Problem::NotFound(bad_paths))
     }
 }
 
@@ -590,44 +716,25 @@ impl<'a> Danglings<'a> {
 }
 
 impl Validator for Danglings<'_> {
-    fn validate(&mut self, statistic: &mut Statistic) {
-        if !self.validation_result() {
-            statistic.danglings += 1;
-        }
-    }
-
-    fn validation_result(&self) -> bool {
-        self.solution.dangling_project_configurations.is_none()
-    }
-
-    fn print_results(&self) {
-        if let Some(danglings) = &self.solution.dangling_project_configurations {
-            ux::print_one_column_table(
-                "Dangling project configurations that can be safely removed",
-                Some(comfy_table::Color::DarkYellow),
-                danglings.iter(),
-            );
-        }
+    fn check(&self) -> Option<Problem> {
+        let danglings = self.solution.dangling_project_configurations.as_ref()?;
+        Some(Problem::Danglings(danglings.clone()))
     }
 }
 
 struct Missings<'a> {
     solution: &'a Solution<'a>,
-    missings: BTreeMap<&'a str, Vec<SolutionConfiguration<'a>>>,
 }
 
 impl<'a> Missings<'a> {
     pub fn new(solution: &'a Solution<'a>) -> Self {
-        Self {
-            solution,
-            missings: BTreeMap::new(),
-        }
+        Self { solution }
     }
 }
 
 impl Validator for Missings<'_> {
-    fn validate(&mut self, statistic: &mut Statistic) {
-        self.missings = self
+    fn check(&self) -> Option<Problem> {
+        let missings: BTreeMap<String, Vec<String>> = self
             .solution
             .projects
             .iter()
@@ -640,45 +747,17 @@ impl Validator for Missings<'_> {
                         platform: c.platform,
                     };
                     if !self.solution.configurations.contains(&solution_conf) {
-                        result.push(solution_conf);
+                        result.push(format!("{}|{}", c.solution_configuration, c.platform));
                     }
                 }
                 if result.is_empty() {
                     None
                 } else {
-                    Some((p.id, result))
+                    Some((p.id.to_owned(), result))
                 }
             })
             .collect();
-
-        if !self.validation_result() {
-            statistic.missings += 1;
-        }
-    }
-
-    fn validation_result(&self) -> bool {
-        self.missings.is_empty()
-    }
-
-    fn print_results(&self) {
-        println!("  {}", "Solution contains project configurations that are outside solution's configuration|platform list:".dark_yellow().bold());
-
-        let mut table = ux::new_table();
-        table.set_header([
-            Cell::new("Project ID").add_attribute(Attribute::Bold),
-            Cell::new("Configuration|Platform").add_attribute(Attribute::Bold),
-        ]);
-
-        for (id, configs) in &self.missings {
-            for config in configs {
-                table.add_row([
-                    Cell::new(*id),
-                    Cell::new(format!("{}|{}", config.configuration, config.platform)),
-                ]);
-            }
-        }
-
-        println!("{table}");
+        (!missings.is_empty()).then_some(Problem::Missings(missings))
     }
 }
 
@@ -710,55 +789,31 @@ impl<'a> Orphans<'a> {
 }
 
 impl Validator for Orphans<'_> {
-    fn validate(&mut self, statistic: &mut Statistic) {
-        if !self.validation_result() {
-            statistic.orphans += 1;
+    fn check(&self) -> Option<Problem> {
+        if self.projects.is_empty() {
+            return None;
         }
-    }
-
-    fn validation_result(&self) -> bool {
-        self.projects.is_empty()
-    }
-
-    fn print_results(&self) {
-        println!(
-            "  {}",
-            "Solution contains projects that are not built in any configuration:"
-                .dark_yellow()
-                .bold()
-        );
-
-        let mut table = ux::new_table();
-        table.set_header([
-            Cell::new("Name").add_attribute(Attribute::Bold),
-            Cell::new("Project GUID").add_attribute(Attribute::Bold),
-            Cell::new("Path").add_attribute(Attribute::Bold),
-        ]);
-
-        for (name, id, path) in &self.projects {
-            table.add_row([Cell::new(*name), Cell::new(*id), Cell::new(*path)]);
-        }
-
-        println!("{table}");
+        let projects = self
+            .projects
+            .iter()
+            .map(|(name, id, path)| ((*name).to_owned(), (*id).to_owned(), (*path).to_owned()))
+            .collect();
+        Some(Problem::Orphans(projects))
     }
 }
 
 struct Cycles<'a> {
     solution: &'a Solution<'a>,
-    cycles_detected: bool,
 }
 
 impl<'a> Cycles<'a> {
     pub fn new(solution: &'a Solution<'a>) -> Self {
-        Self {
-            solution,
-            cycles_detected: false,
-        }
+        Self { solution }
     }
 }
 
 impl<'a> Validator for Cycles<'a> {
-    fn validate(&mut self, statistic: &mut Statistic) {
+    fn check(&self) -> Option<Problem> {
         // Dependencies may use different GUID case so nodes are the first met project ids
         let ids: HashMap<String, &'a str> = self
             .solution
@@ -784,23 +839,9 @@ impl<'a> Validator for Cycles<'a> {
         }
 
         let mut space = DfsSpace::new(&graph);
-        self.cycles_detected = petgraph::algo::toposort(&graph, Some(&mut space)).is_err();
-        if self.cycles_detected {
-            statistic.cycles += 1;
-        }
-    }
-
-    fn validation_result(&self) -> bool {
-        !self.cycles_detected
-    }
-
-    fn print_results(&self) {
-        println!(
-            "   {}",
-            "Solution contains project dependencies cycles"
-                .dark_red()
-                .bold()
-        );
+        petgraph::algo::toposort(&graph, Some(&mut space))
+            .is_err()
+            .then_some(Problem::Cycles)
     }
 }
 
@@ -808,6 +849,7 @@ impl<'a> Validator for Cycles<'a> {
 /// directly references `redundant_reference`, but the same reference is also
 /// reachable transitively through some other direct reference of `project`,
 /// so the direct reference can be safely removed.
+#[derive(Debug, PartialEq, Eq)]
 struct RedundantRef {
     project: PathBuf,
     redundant_reference: String,
@@ -832,15 +874,16 @@ impl ProjectRef {
 
 struct Redundants<'a> {
     solution: &'a Solution<'a>,
-    redundants: Vec<RedundantRef>,
 }
 
 impl<'a> Redundants<'a> {
     pub fn new(solution: &'a Solution<'a>) -> Self {
-        Self {
-            solution,
-            redundants: Vec::new(),
-        }
+        Self { solution }
+    }
+
+    /// Redundant references of solution projects sorted by project and reference
+    fn find(&self) -> Vec<RedundantRef> {
+        Self::find_redundants(&self.build_graph())
     }
 
     /// Builds a directed graph where an edge `from -> to` means
@@ -1025,55 +1068,9 @@ impl<'a> Redundants<'a> {
 }
 
 impl Validator for Redundants<'_> {
-    fn validate(&mut self, statistic: &mut Statistic) {
-        let graph = self.build_graph();
-        self.redundants = Self::find_redundants(&graph);
-        if !self.validation_result() {
-            statistic.redundant_refs += 1;
-        }
-    }
-
-    fn validation_result(&self) -> bool {
-        self.redundants.is_empty()
-    }
-
-    fn print_results(&self) {
-        if self.redundants.is_empty() {
-            return;
-        }
-        println!(
-            "  {}",
-            "Solution contains redundant project references that can be replaced by transitive dependencies:"
-                .dark_yellow()
-                .bold()
-        );
-
-        // `self.redundants` is sorted by (project, redundant_reference), so a
-        // linear pass is enough to build stable project groups.
-        let mut current_project: Option<&Path> = None;
-        let mut current_rows: Vec<String> = Vec::new();
-        for r in &self.redundants {
-            if current_project != Some(r.project.as_path()) {
-                if let Some(project) = current_project {
-                    ux::print_one_column_table(
-                        &project.to_string_lossy(),
-                        Some(comfy_table::Color::DarkBlue),
-                        current_rows.drain(..),
-                    );
-                }
-                current_project = Some(r.project.as_path());
-            }
-            current_rows.push(r.redundant_reference.clone());
-        }
-
-        if let Some(project) = current_project {
-            ux::print_one_column_table(
-                &project.to_string_lossy(),
-                Some(comfy_table::Color::DarkBlue),
-                current_rows.into_iter(),
-            );
-        }
-        println!();
+    fn check(&self) -> Option<Problem> {
+        let redundants = self.find();
+        (!redundants.is_empty()).then_some(Problem::Redundants(redundants))
     }
 }
 
@@ -1374,9 +1371,12 @@ mod tests {
         let mut validator = Validate::new(false);
 
         // Act
-        validator.ok(&solution);
+        let report = validator.report(&solution).unwrap();
 
         // Assert
+        // project files of the solution don't exist in tests
+        assert!(matches!(&report.problems[..], [Problem::NotFound(_)]));
+        assert!(report.to_string().contains("Unexist project path"));
     }
 
     #[test]
@@ -1386,9 +1386,12 @@ mod tests {
         let mut validator = Validate::new(false);
 
         // Act
-        validator.ok(&solution);
+        let report = validator.report(&solution);
 
         // Assert
+        let actual = report.unwrap().to_string();
+        assert!(actual.contains("Dangling project configurations that can be safely removed"));
+        assert_eq!(1, validator.statistic.danglings);
     }
 
     #[test]
@@ -1398,9 +1401,12 @@ mod tests {
         let mut validator = Validate::new(false);
 
         // Act
-        validator.ok(&solution);
+        let report = validator.report(&solution);
 
         // Assert
+        let actual = report.unwrap().to_string();
+        assert!(actual.contains("outside solution's configuration|platform list"));
+        assert_eq!(1, validator.statistic.missings);
     }
 
     #[test]
@@ -1410,38 +1416,71 @@ mod tests {
         let mut validator = Validate::new(false);
 
         // Act
-        validator.ok(&solution);
+        let report = validator.report(&solution);
 
         // Assert
+        let actual = report.unwrap().to_string();
+        assert!(actual.contains("Solution contains project dependencies cycles"));
+        assert_eq!(1, validator.statistic.cycles);
+    }
+
+    #[test_case("<Solution />", 0 ; "correct solution is hidden")]
+    #[test_case(SOLUTION_WITH_CYCLES, 1 ; "solution with problems is shown")]
+    fn only_problems_reports(content: &str, expected: usize) {
+        // Arrange
+        let solution = solp::parse_str(content).unwrap();
+        let mut validator = Validate::new(true);
+
+        // Act
+        let report = validator.report(&solution);
+
+        // Assert
+        assert_eq!(expected, usize::from(report.is_some()));
+        assert_eq!(1, validator.statistic.total);
+    }
+
+    #[test]
+    fn correct_solution_report() {
+        // Arrange
+        let solution = solp::parse_str("<Solution />").unwrap();
+        let mut validator = Validate::new(false);
+
+        // Act
+        let report = validator.report(&solution).unwrap();
+
+        // Assert
+        assert!(report.problems.is_empty());
+        assert!(
+            report
+                .to_string()
+                .contains("No problems found in solution.")
+        );
     }
 
     #[test]
     fn dangling_validation_correct() {
         // Arrange
         let solution = solp::parse_str(CORRECT_SOLUTION).unwrap();
-        let mut validator = Danglings::new(&solution);
-        let mut statistic = Statistic::default();
+        let validator = Danglings::new(&solution);
 
         // Act
-        validator.validate(&mut statistic);
+        let problem = validator.check();
 
         // Assert
-        assert!(validator.validation_result());
+        assert_eq!(None, problem);
     }
 
     #[test]
     fn cycles_validation_correct() {
         // Arrange
         let solution = solp::parse_str(CORRECT_SOLUTION).unwrap();
-        let mut validator = Cycles::new(&solution);
-        let mut statistic = Statistic::default();
+        let validator = Cycles::new(&solution);
 
         // Act
-        validator.validate(&mut statistic);
+        let problem = validator.check();
 
         // Assert
-        assert!(validator.validation_result());
-        assert_eq!(0, statistic.cycles);
+        assert_eq!(None, problem);
     }
 
     #[test_case(SOLUTION_WITH_CYCLES.to_owned() ; "same guid case")]
@@ -1455,30 +1494,26 @@ mod tests {
     fn cycles_validation_incorrect(content: String) {
         // Arrange
         let solution = solp::parse_str(&content).unwrap();
-        let mut validator = Cycles::new(&solution);
-        let mut statistic = Statistic::default();
+        let validator = Cycles::new(&solution);
 
         // Act
-        validator.validate(&mut statistic);
+        let problem = validator.check();
 
         // Assert
-        assert!(!validator.validation_result());
-        assert_eq!(1, statistic.cycles);
+        assert!(matches!(problem, Some(Problem::Cycles)));
     }
 
     #[test]
     fn slnx_cycles_validation_incorrect() {
         // Arrange
         let solution = solp::parse_str(SLNX_WITH_CYCLES).unwrap();
-        let mut validator = Cycles::new(&solution);
-        let mut statistic = Statistic::default();
+        let validator = Cycles::new(&solution);
 
         // Act
-        validator.validate(&mut statistic);
+        let problem = validator.check();
 
         // Assert
-        assert!(!validator.validation_result());
-        assert_eq!(1, statistic.cycles);
+        assert!(matches!(problem, Some(Problem::Cycles)));
     }
 
     #[test]
@@ -1493,75 +1528,65 @@ mod tests {
   </Project>
 </Solution>"#;
         let solution = solp::parse_str(slnx).unwrap();
-        let mut validator = Cycles::new(&solution);
-        let mut statistic = Statistic::default();
+        let validator = Cycles::new(&solution);
 
         // Act
-        validator.validate(&mut statistic);
+        let problem = validator.check();
 
         // Assert
-        assert!(!validator.validation_result());
-        assert_eq!(1, statistic.cycles);
+        assert!(matches!(problem, Some(Problem::Cycles)));
     }
 
     #[test]
     fn slnx_orphans_validation_incorrect() {
         // Arrange
         let solution = solp::parse_str(SLNX_WITH_ORPHAN).unwrap();
-        let mut validator = Orphans::new(&solution);
-        let mut statistic = Statistic::default();
+        let validator = Orphans::new(&solution);
 
         // Act
-        validator.validate(&mut statistic);
+        let problem = validator.check();
 
         // Assert
-        assert!(!validator.validation_result());
-        assert_eq!(1, statistic.orphans);
+        assert!(matches!(problem, Some(Problem::Orphans(_))));
     }
 
     #[test]
     fn slnx_orphans_validation_correct_with_configuration_rules() {
         // Arrange
         let solution = solp::parse_str(SLNX_WITH_CONFIGURATION_RULES).unwrap();
-        let mut validator = Orphans::new(&solution);
-        let mut statistic = Statistic::default();
+        let validator = Orphans::new(&solution);
 
         // Act
-        validator.validate(&mut statistic);
+        let problem = validator.check();
 
         // Assert
-        assert!(validator.validation_result());
-        assert_eq!(0, statistic.orphans);
+        assert_eq!(None, problem);
     }
 
     #[test]
     fn missing_validation_correct() {
         // Arrange
         let solution = solp::parse_str(CORRECT_SOLUTION).unwrap();
-        let mut validator = Missings::new(&solution);
-        let mut statistic = Statistic::default();
+        let validator = Missings::new(&solution);
 
         // Act
-        validator.validate(&mut statistic);
+        let problem = validator.check();
 
         // Assert
-        assert!(validator.validation_result());
-        assert_eq!(0, statistic.missings);
+        assert_eq!(None, problem);
     }
 
     #[test]
     fn missing_validation_incorrect() {
         // Arrange
         let solution = solp::parse_str(SOLUTION_WITH_MISSING_PROJECT_CONFIGS).unwrap();
-        let mut validator = Missings::new(&solution);
-        let mut statistic = Statistic::default();
+        let validator = Missings::new(&solution);
 
         // Act
-        validator.validate(&mut statistic);
+        let problem = validator.check();
 
         // Assert
-        assert!(!validator.validation_result());
-        assert_eq!(1, statistic.missings);
+        assert!(matches!(problem, Some(Problem::Missings(_))));
     }
 
     #[test]
@@ -1598,14 +1623,16 @@ EndGlobal
 "#
         );
         let solution = solp::parse_str(&content).unwrap();
-        let mut validator = Missings::new(&solution);
-        let mut statistic = Statistic::default();
+        let validator = Missings::new(&solution);
 
         // Act
-        validator.validate(&mut statistic);
+        let problem = validator.check();
 
         // Assert
-        let actual: Vec<_> = validator.missings.keys().copied().collect();
+        let Some(Problem::Missings(missings)) = problem else {
+            panic!("missings expected but was {problem:?}");
+        };
+        let actual: Vec<_> = missings.into_keys().collect();
         let mut expected = ids.to_vec();
         expected.sort_unstable();
         assert_eq!(expected, actual);
@@ -1615,75 +1642,68 @@ EndGlobal
     fn dangling_validation_incorrect() {
         // Arrange
         let solution = solp::parse_str(SOLUTION_WITH_DANGLINGS).unwrap();
-        let mut validator = Danglings::new(&solution);
-        let mut statistic = Statistic::default();
+        let validator = Danglings::new(&solution);
 
         // Act
-        validator.validate(&mut statistic);
+        let problem = validator.check();
 
         // Assert
-        assert!(!validator.validation_result());
-        assert_eq!(1, statistic.danglings);
+        assert!(matches!(problem, Some(Problem::Danglings(_))));
     }
 
     #[test]
     fn duplicate_guids_validation_correct() {
         // Arrange
         let solution = solp::parse_str(CORRECT_SOLUTION).unwrap();
-        let mut validator = DuplicateGuids::new(&solution);
-        let mut statistic = Statistic::default();
+        let validator = DuplicateGuids::new(&solution);
 
         // Act
-        validator.validate(&mut statistic);
+        let problem = validator.check();
 
         // Assert
-        assert!(validator.validation_result());
-        assert_eq!(0, statistic.duplicate_guids);
+        assert_eq!(None, problem);
     }
 
     #[test]
     fn duplicate_guids_validation_incorrect() {
         // Arrange
         let solution = solp::parse_str(SOLUTION_WITH_DUPLICATE_GUIDS).unwrap();
-        let mut validator = DuplicateGuids::new(&solution);
-        let mut statistic = Statistic::default();
+        let validator = DuplicateGuids::new(&solution);
 
         // Act
-        validator.validate(&mut statistic);
+        let problem = validator.check();
 
         // Assert
-        assert!(!validator.validation_result());
-        assert_eq!(1, statistic.duplicate_guids);
+        assert!(matches!(problem, Some(Problem::DuplicateGuids(_))));
     }
 
     #[test]
     fn duplicate_configurations_validation_correct() {
         // Arrange
         let solution = solp::parse_str(CORRECT_SOLUTION).unwrap();
-        let mut validator = DuplicateConfigurations::new(&solution);
-        let mut statistic = Statistic::default();
+        let validator = DuplicateConfigurations::new(&solution);
 
         // Act
-        validator.validate(&mut statistic);
+        let problem = validator.check();
 
         // Assert
-        assert!(validator.validation_result());
-        assert_eq!(0, statistic.duplicate_configurations);
+        assert_eq!(None, problem);
     }
 
     #[test]
     fn duplicate_solution_configurations_validation_incorrect() {
         // Arrange
         let solution = solp::parse_str(SOLUTION_WITH_DUPLICATE_SOLUTION_CONFIGURATIONS).unwrap();
-        let mut validator = DuplicateConfigurations::new(&solution);
-        let mut statistic = Statistic::default();
+        let validator = DuplicateConfigurations::new(&solution);
 
         // Act
-        validator.validate(&mut statistic);
+        let problem = validator.check();
 
         // Assert
-        assert!(!validator.validation_result());
-        assert_eq!(1, statistic.duplicate_configurations);
+        assert!(matches!(
+            problem,
+            Some(Problem::DuplicateConfigurations { .. })
+        ));
         assert!(solution.duplicate_solution_configurations.is_some());
         assert!(solution.duplicate_project_configurations.is_none());
     }
@@ -1692,15 +1712,16 @@ EndGlobal
     fn duplicate_project_configurations_validation_incorrect() {
         // Arrange
         let solution = solp::parse_str(SOLUTION_WITH_DUPLICATE_PROJECT_CONFIGURATIONS).unwrap();
-        let mut validator = DuplicateConfigurations::new(&solution);
-        let mut statistic = Statistic::default();
+        let validator = DuplicateConfigurations::new(&solution);
 
         // Act
-        validator.validate(&mut statistic);
+        let problem = validator.check();
 
         // Assert
-        assert!(!validator.validation_result());
-        assert_eq!(1, statistic.duplicate_configurations);
+        assert!(matches!(
+            problem,
+            Some(Problem::DuplicateConfigurations { .. })
+        ));
         assert!(solution.duplicate_solution_configurations.is_none());
         assert!(solution.duplicate_project_configurations.is_some());
     }
@@ -1709,30 +1730,26 @@ EndGlobal
     fn orphans_validation_correct() {
         // Arrange
         let solution = solp::parse_str(CORRECT_SOLUTION).unwrap();
-        let mut validator = Orphans::new(&solution);
-        let mut statistic = Statistic::default();
+        let validator = Orphans::new(&solution);
 
         // Act
-        validator.validate(&mut statistic);
+        let problem = validator.check();
 
         // Assert
-        assert!(validator.validation_result());
-        assert_eq!(0, statistic.orphans);
+        assert_eq!(None, problem);
     }
 
     #[test]
     fn orphans_validation_incorrect() {
         // Arrange
         let solution = solp::parse_str(SOLUTION_WITH_ORPHAN_PROJECT).unwrap();
-        let mut validator = Orphans::new(&solution);
-        let mut statistic = Statistic::default();
+        let validator = Orphans::new(&solution);
 
         // Act
-        validator.validate(&mut statistic);
+        let problem = validator.check();
 
         // Assert
-        assert!(!validator.validation_result());
-        assert_eq!(1, statistic.orphans);
+        assert!(matches!(problem, Some(Problem::Orphans(_))));
     }
 
     #[test]
@@ -1954,19 +1971,18 @@ EndGlobal
             Box::leak(sln_path.to_string_lossy().into_owned().into_boxed_str());
         solution.path = leaked_path;
 
-        let mut validator = Redundants::new(&solution);
+        let validator = Redundants::new(&solution);
 
         // Act
         let graph = validator.build_graph();
-        validator.redundants = Redundants::find_redundants(&graph);
+        let redundants = Redundants::find_redundants(&graph);
 
         // Assert
         assert_eq!(4, graph.node_count());
 
         let app_path = app_dir.join("App.csproj").canonicalize().unwrap();
         assert!(
-            validator
-                .redundants
+            redundants
                 .iter()
                 .any(|r| r.project == app_path
                     && r.redundant_reference == "..\\Shared\\Shared.csproj")
@@ -2800,62 +2816,54 @@ EndGlobal
     fn slnx_missing_validation_correct(slnx: &str) {
         // Arrange
         let solution = solp::parse_str(slnx).unwrap();
-        let mut validator = Missings::new(&solution);
-        let mut statistic = Statistic::default();
+        let validator = Missings::new(&solution);
 
         // Act
-        validator.validate(&mut statistic);
+        let problem = validator.check();
 
         // Assert
-        assert!(validator.validation_result());
-        assert_eq!(0, statistic.missings);
+        assert_eq!(None, problem);
     }
 
     #[test]
     fn slnx_dangling_validation_correct() {
         // Arrange
         let solution = solp::parse_str(SLNX_WITH_CONFIGURATION_RULES).unwrap();
-        let mut validator = Danglings::new(&solution);
-        let mut statistic = Statistic::default();
+        let validator = Danglings::new(&solution);
 
         // Act
-        validator.validate(&mut statistic);
+        let problem = validator.check();
 
         // Assert
-        assert!(validator.validation_result());
-        assert_eq!(0, statistic.danglings);
+        assert_eq!(None, problem);
     }
 
     #[test]
     fn slnx_duplicate_configurations_validation_correct() {
         // Arrange
         let solution = solp::parse_str(SLNX_WITH_CONFIGURATION_RULES).unwrap();
-        let mut validator = DuplicateConfigurations::new(&solution);
-        let mut statistic = Statistic::default();
+        let validator = DuplicateConfigurations::new(&solution);
 
         // Act
-        validator.validate(&mut statistic);
+        let problem = validator.check();
 
         // Assert
-        assert!(validator.validation_result());
-        assert_eq!(0, statistic.duplicate_configurations);
+        assert_eq!(None, problem);
     }
 
-    #[test_case(SLNX_CORRECT, true, 0 ; "unique paths")]
-    #[test_case(SLNX_WITH_DUPLICATE_PATHS, false, 1 ; "duplicate paths")]
-    #[test_case(SLNX_WITH_DUPLICATE_PATHS_DIFFERENT_CASE, false, 1 ; "duplicate paths in different case")]
-    fn slnx_duplicate_guids_validation(slnx: &str, expected_result: bool, expected_count: u64) {
+    #[test_case(SLNX_CORRECT, true ; "unique paths")]
+    #[test_case(SLNX_WITH_DUPLICATE_PATHS, false ; "duplicate paths")]
+    #[test_case(SLNX_WITH_DUPLICATE_PATHS_DIFFERENT_CASE, false ; "duplicate paths in different case")]
+    fn slnx_duplicate_guids_validation(slnx: &str, expected_result: bool) {
         // Arrange
         let solution = solp::parse_str(slnx).unwrap();
-        let mut validator = DuplicateGuids::new(&solution);
-        let mut statistic = Statistic::default();
+        let validator = DuplicateGuids::new(&solution);
 
         // Act
-        validator.validate(&mut statistic);
+        let problem = validator.check();
 
         // Assert
-        assert_eq!(expected_result, validator.validation_result());
-        assert_eq!(expected_count, statistic.duplicate_guids);
+        assert_eq!(expected_result, problem.is_none());
     }
 
     #[test]
@@ -2886,20 +2894,15 @@ EndGlobal
         let leaked_path: &'static str =
             Box::leak(slnx_path.to_string_lossy().into_owned().into_boxed_str());
         solution.path = leaked_path;
-        let mut validator = NotFound::new(&solution);
-        let mut statistic = Statistic::default();
+        let validator = NotFound::new(&solution);
 
         // Act
-        validator.validate(&mut statistic);
+        let problem = validator.check();
 
         // Assert
         fs::remove_dir_all(&root).unwrap();
-        assert!(!validator.validation_result());
-        assert_eq!(1, statistic.not_found);
-        assert_eq!(
-            vec![root.join("Missing").join("Missing.csproj")],
-            validator.bad_paths.into_iter().collect::<Vec<_>>()
-        );
+        let expected = BTreeSet::from([root.join("Missing").join("Missing.csproj")]);
+        assert_eq!(Some(Problem::NotFound(expected)), problem);
     }
 
     #[test]
@@ -2949,22 +2952,19 @@ EndGlobal
         let leaked_path: &'static str =
             Box::leak(slnx_path.to_string_lossy().into_owned().into_boxed_str());
         solution.path = leaked_path;
-        let mut validator = Redundants::new(&solution);
-        let mut statistic = Statistic::default();
+        let validator = Redundants::new(&solution);
 
         // Act
-        validator.validate(&mut statistic);
+        let problem = validator.check();
 
         // Assert
         let app_path = root.join("App").join("App.csproj").canonicalize().unwrap();
         fs::remove_dir_all(&root).unwrap();
-        assert_eq!(1, statistic.redundant_refs);
-        assert_eq!(1, validator.redundants.len());
-        assert_eq!(app_path, validator.redundants[0].project);
-        assert_eq!(
-            "..\\Shared\\Shared.csproj",
-            validator.redundants[0].redundant_reference
-        );
+        let expected = RedundantRef {
+            project: app_path,
+            redundant_reference: "..\\Shared\\Shared.csproj".to_owned(),
+        };
+        assert_eq!(Some(Problem::Redundants(vec![expected])), problem);
     }
 
     #[test_case("<Project Sdk=\"Microsoft.NET.Sdk\">", "", "", 1 ; "sdk projects")]

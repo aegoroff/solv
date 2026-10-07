@@ -17,8 +17,8 @@ use crate::{Consume, error::Collector, ux};
 
 pub struct Nuget {
     show_only_mismatched: bool,
-    pub mismatches_found: bool,
     errors: Collector,
+    mismatches_found: bool,
 }
 
 impl Nuget {
@@ -26,9 +26,109 @@ impl Nuget {
     pub fn new(show_only_mismatched: bool) -> Self {
         Self {
             show_only_mismatched,
-            mismatches_found: false,
             errors: Collector::new(),
+            mismatches_found: false,
         }
+    }
+
+    /// Whether any solution references different versions of the same package
+    #[must_use]
+    pub fn mismatches_found(&self) -> bool {
+        self.mismatches_found
+    }
+
+    /// Collects solution packages and returns the report to show if any
+    fn report(&mut self, solution: &solp::api::Solution) -> Option<SolutionPackages> {
+        let (packages, packages_configs) = load_packages(solution);
+        let nugets = nugets(&packages, &packages_configs);
+
+        if nugets.is_empty() {
+            return None;
+        }
+
+        let report = SolutionPackages::new(solution.path, &nugets, self.show_only_mismatched);
+        let has_mismatches = report.has_mismatches();
+        self.mismatches_found |= has_mismatches;
+        if self.show_only_mismatched && !has_mismatches {
+            return None;
+        }
+        Some(report)
+    }
+}
+
+/// Packages of a solution sorted by name
+struct SolutionPackages {
+    path: String,
+    packages: Vec<PackageVersions>,
+}
+
+/// Package versions grouped by condition (sorted, no condition first)
+struct PackageVersions {
+    name: String,
+    groups: Vec<(Option<String>, Vec<String>)>,
+}
+
+impl SolutionPackages {
+    fn new(path: &str, nugets: &Nugets, show_only_mismatched: bool) -> Self {
+        let packages = nugets
+            .iter()
+            .filter(|(_, (_, versions))| !show_only_mismatched || has_mismatches(versions))
+            .sorted_unstable_by_key(|(key, _)| *key)
+            .map(|(_, (name, versions))| {
+                let groups = versions
+                    .iter()
+                    .into_group_map_by(|x| x.0)
+                    .into_iter()
+                    .sorted_unstable_by_key(|x| x.0)
+                    .map(|(condition, v)| {
+                        let versions = v.iter().map(|(_, v)| (*v).to_owned()).collect();
+                        (condition.map(str::to_owned), versions)
+                    })
+                    .collect();
+                PackageVersions {
+                    name: (*name).to_owned(),
+                    groups,
+                }
+            })
+            .collect();
+        Self {
+            path: path.to_owned(),
+            packages,
+        }
+    }
+
+    fn has_mismatches(&self) -> bool {
+        self.packages
+            .iter()
+            .flat_map(|p| &p.groups)
+            .any(|(_, versions)| versions.len() > 1)
+    }
+}
+
+impl Display for SolutionPackages {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut table = ux::new_table();
+        table.set_header([
+            Cell::new("Package").add_attribute(Attribute::Bold),
+            Cell::new("Version(s)").add_attribute(Attribute::Bold),
+        ]);
+        for package in &self.packages {
+            for (condition, versions) in &package.groups {
+                let comma_separated = versions.join(", ");
+                let line = match condition {
+                    Some(c) => format!("{comma_separated} if {c}"),
+                    None => comma_separated,
+                };
+                let mut line = Cell::new(line).add_attribute(Attribute::Italic);
+                if versions.len() > 1 {
+                    line = line.fg(Color::Red);
+                }
+                table.add_row([Cell::new(&package.name), line]);
+            }
+        }
+        ux::write_solution_path(f, &self.path)?;
+        writeln!(f, "{table}")?;
+        writeln!(f)
     }
 }
 
@@ -48,56 +148,9 @@ fn has_mismatches(versions: &Versions) -> bool {
 
 impl Consume for Nuget {
     fn ok(&mut self, solution: &solp::api::Solution) {
-        let (packages, packages_configs) = load_packages(solution);
-        let nugets = nugets(&packages, &packages_configs);
-
-        if nugets.is_empty() {
-            return;
+        if let Some(report) = self.report(solution) {
+            print!("{report}");
         }
-
-        let mut table = ux::new_table();
-
-        table.set_header([
-            Cell::new("Package").add_attribute(Attribute::Bold),
-            Cell::new("Version(s)").add_attribute(Attribute::Bold),
-        ]);
-
-        let mut solutions_mismatches = false;
-        nugets
-            .iter()
-            .filter(|(_, (_, versions))| !self.show_only_mismatched || has_mismatches(versions))
-            .sorted_unstable_by_key(|(key, _)| *key)
-            .for_each(|(_, (pkg, versions))| {
-                let grouped = versions.iter().into_group_map_by(|x| x.0);
-                let rows = grouped
-                    .iter()
-                    .sorted_unstable_by_key(|x| x.0)
-                    .map(|(c, v)| {
-                        let mismatch = v.len() > 1;
-                        let comma_separated = v.iter().map(|(_, v)| v).join(", ");
-                        let line = match c {
-                            Some(c) => format!("{comma_separated} if {c}"),
-                            None => comma_separated,
-                        };
-                        let mut line = Cell::new(line).add_attribute(Attribute::Italic);
-                        if mismatch {
-                            line = line.fg(Color::Red);
-                        }
-                        solutions_mismatches |= mismatch;
-                        [Cell::new(pkg), line]
-                    });
-                table.add_rows(rows);
-            });
-
-        self.mismatches_found |= solutions_mismatches;
-
-        if self.show_only_mismatched && !solutions_mismatches {
-            return;
-        }
-
-        ux::print_solution_path(solution.path);
-        println!("{table}");
-        println!();
     }
 
     fn err(&mut self, path: &str) {
@@ -305,7 +358,12 @@ mod tests {
         // Assert
         fs::remove_dir_all(&root).unwrap();
         assert!(result.is_ok());
-        assert_eq!(expected, nuget.mismatches_found);
+        assert_eq!(expected, nuget.mismatches_found());
+        let actual = nuget.to_string();
+        assert_eq!(
+            expected,
+            actual.contains("Solutions with nuget packages inconsistency found")
+        );
     }
 
     #[test_case("1.6.2", None ; "plain")]

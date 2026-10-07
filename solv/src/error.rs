@@ -39,12 +39,33 @@ impl Display for Collector {
                 "These solutions cannot be parsed:".dark_red().bold()
             )?;
 
-            ux::print_one_column_table(
+            ux::write_one_column_table(
+                f,
                 "Path",
                 None,
                 self.paths.iter().map(std::string::String::as_str),
-            );
+            )?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display_contains_header_and_paths() {
+        // Arrange
+        let mut collector = Collector::new();
+        collector.add_path("/a/bad.sln");
+
+        // Act
+        let actual = collector.to_string();
+
+        // Assert
+        let header = actual.find("These solutions cannot be parsed:").unwrap();
+        let path = actual.find("/a/bad.sln").unwrap();
+        assert!(header < path);
     }
 }

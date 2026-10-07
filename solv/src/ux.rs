@@ -2,6 +2,7 @@ use comfy_table::{
     Attribute, Cell, ContentArrangement, ContentLineStyle, LineStyle, Row, Table, TableStyle,
 };
 use crossterm::style::{Color, Stylize, style};
+use std::fmt;
 
 const TABLE_STYLE: TableStyle = TableStyle::new()
     .header_lines(ContentLineStyle::new(' ', ' ', ' '))
@@ -18,14 +19,17 @@ pub fn new_table() -> Table {
     table
 }
 
-pub fn print_one_column_table<I: Iterator<Item = S>, S: ToString>(
+/// Writes one column table if there are rows
+pub fn write_one_column_table<I: Iterator<Item = S>, S: ToString>(
+    f: &mut fmt::Formatter<'_>,
     head: &str,
     head_color: Option<comfy_table::Color>,
     rows: I,
-) {
+) -> fmt::Result {
     if let Some(t) = create_one_column_table(head, head_color, rows) {
-        println!("{t}");
+        writeln!(f, "{t}")?;
     }
+    Ok(())
 }
 
 pub fn create_one_column_table<I: Iterator<Item = S>, S: ToString>(
@@ -58,7 +62,8 @@ pub fn create_solution_table(path: &str) -> Table {
     table
 }
 
-pub fn print_solution_path(path: &str) {
+/// Writes solution path line
+pub fn write_solution_path(f: &mut fmt::Formatter<'_>, path: &str) -> fmt::Result {
     let path = style(path)
         .with(Color::Rgb {
             r: 0xAA,
@@ -66,5 +71,5 @@ pub fn print_solution_path(path: &str) {
             b: 0xAA,
         })
         .bold();
-    println!(" {path}");
+    writeln!(f, " {path}")
 }

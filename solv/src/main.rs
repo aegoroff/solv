@@ -101,7 +101,7 @@ fn nuget(cmd: &ArgMatches) -> miette::Result<()> {
 
     let consumer = Nuget::new(only_mismatched);
     let result = scan_path(cmd, consumer)?;
-    if result.mismatches_found && fail_if_mismatched {
+    if result.mismatches_found() && fail_if_mismatched {
         std::process::exit(exitcode::SOFTWARE);
     }
     Ok(())

@@ -36,16 +36,16 @@ The default workspace member is `solv` (see the root `Cargo.toml`).
 
 ### `solv` (CLI)
 - `src/main.rs` — clap command tree. Each subcommand constructs a `Consume` implementation and passes it to `scan_path` / `scan_stream`.
-- `src/validate.rs` — `Validate` consumer: detects problems (duplicate configurations, missing platforms, dangling project refs, etc.) and prints a report.
-- `src/info.rs` — `Info` consumer: prints summary info about a solution (projects, configurations, versions).
-- `src/nuget.rs` — `Nuget` consumer: aggregates NuGet packages referenced by projects in the solution, optionally reporting version mismatches. Returns a `mismatches_found` flag used by `--fail`.
+- `src/validate.rs` — `Validate` consumer: each `Validator` (cycles, danglings, duplicate GUIDs/configurations, not found, missings, orphans, redundant references) returns `Option<Problem>`; problems are collected into per-solution reports and counted in `Statistic`. `ValidateFix` removes redundant references from project files.
+- `src/info.rs` — `Info` consumer: collects summary info about solutions (projects, configurations, versions) and totals.
+- `src/nuget.rs` — `Nuget` consumer: aggregates NuGet packages referenced by projects in the solution, optionally reporting version mismatches. `mismatches_found()` is used by `--fail`.
 - `src/json.rs` — `Json` consumer: serializes the `Solution` to JSON (optionally pretty).
 - `src/ux.rs` — Shared terminal table/colour helpers (`comfy-table`, `crossterm`).
 - `src/error.rs` — Error types / miette diagnostics used by the CLI.
 - `src/lib.rs` — Re-exports to expose consumers for integration tests.
 
 ### Key patterns
-- **Consumer pattern**: every CLI subcommand is a `Consume` impl. Piping into `SolpWalker` gives free recursion, parallelism, and stdin support. When adding a new subcommand, add a new consumer type with `Display` + `Consume`.
+- **Consumer pattern**: every CLI subcommand is a `Consume` impl. Piping into `SolpWalker` gives free recursion, parallelism, and stdin support. When adding a new subcommand, add a new consumer type with `Display` + `Consume`. Keep analysis separate from printing: a consumer's `report(&Solution)` method analyzes the solution, updates totals and returns a per-solution report that implements `Display`; `Consume::ok` only prints that report right away, so results appear while scanning. The consumer's own `Display` writes totals only; `main.rs` prints it after the scan. Tests assert on returned reports and `to_string()`. Use `ux::write_*` helpers that write to a formatter.
 - **Global allocator**: on Linux `solv` uses `mimalloc` as the global allocator (`#[global_allocator]` in `main.rs`).
 - **`unsafe_code = "forbid"`** is set in `[workspace.lints.rust]` — do not introduce `unsafe`.
 - Dependency versions are pinned with `=x.y.z` throughout. Keep this style when adding dependencies.
