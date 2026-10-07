@@ -556,7 +556,9 @@ impl Validator for NotFound<'_> {
         self.bad_paths = self
             .solution
             .iterate_projects_without_web_sites()
-            .filter_map(|p| crate::try_make_local_path(dir, p.path_or_uri))
+            .filter_map(|p| {
+                crate::try_make_local_path(dir, &crate::project_path(self.solution, p.path_or_uri))
+            })
             .filter_map(|full_path| {
                 // we need only not found paths
                 full_path.canonicalize().err()?;

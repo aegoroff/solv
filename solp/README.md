@@ -248,6 +248,8 @@ Will parse solution into structure that may be represented by this json
 - `parent` is the id of the solution folder that contains the project or folder.
 - `OpenWith`, `Version` and `MinimumVersion` properties of `<Properties Name="Visual Studio">`
   become `product`, `VisualStudioVersion` and `MinimumVisualStudioVersion` like in `.sln`.
+- Values are borrowed from the source so values with XML entities are kept escaped
+  (e.g. `R&amp;D/App.csproj`). Use `solp::unescape_xml` to get the unescaped value.
 
 ### Minimum Rust version policy
 

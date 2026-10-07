@@ -7,6 +7,8 @@ mod config;
 mod convert;
 mod types;
 
+use std::borrow::Cow;
+
 use miette::{IntoDiagnostic, WrapErr};
 use serde::Deserialize;
 
@@ -197,6 +199,16 @@ fn find_escaped_attribute<'a>(contents: &'a str, value: &str) -> Option<&'a str>
         (raw.contains(['&', '\t', '\n', '\r']) && unescape(raw).as_deref() == Some(value))
             .then_some(raw)
     })
+}
+
+/// Unescapes raw `.slnx` attribute value kept by [`Solution`] when it contains XML entities
+/// (e.g. `R&amp;D/App.csproj` project path). Value without entities or malformed one is returned as is.
+#[must_use]
+pub fn unescape_xml(raw: &str) -> Cow<'_, str> {
+    if !raw.contains('&') {
+        return Cow::Borrowed(raw);
+    }
+    unescape(raw).map_or(Cow::Borrowed(raw), Cow::Owned)
 }
 
 /// Unescapes predefined XML entities and character references and normalizes literal tabs and
@@ -478,6 +490,19 @@ mod tests {
 
         // Assert
         assert_eq!(actual.as_deref(), expected);
+    }
+
+    #[test_case("R&amp;D/App.csproj", "R&D/App.csproj" ; "entity")]
+    #[test_case("src/App.csproj", "src/App.csproj" ; "without entities")]
+    #[test_case("R&amp D/App.csproj", "R&amp D/App.csproj" ; "malformed")]
+    fn unescape_xml_cases(raw: &str, expected: &str) {
+        // Arrange
+
+        // Act
+        let actual = unescape_xml(raw);
+
+        // Assert
+        assert_eq!(actual, expected);
     }
 
     #[test_case(r#"<Folder Name="/R&amp;D/" />"#, "/R&D/", "/R&amp;D/" ; "double quoted")]

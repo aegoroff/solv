@@ -80,6 +80,8 @@ pub mod msbuild;
 mod parser;
 mod slnx;
 
+pub use slnx::unescape_xml;
+
 #[macro_use]
 extern crate lalrpop_util;
 
