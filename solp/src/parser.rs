@@ -235,6 +235,10 @@ impl<'a> Visitor<'a> for AstVisitor<'a> {
                 .filter_map(|sect| self.visit_section(sect))
                 .collect();
 
+            if let Some(items) = all_sections.get("NestedProjects") {
+                self.solution.nested_projects.extend(items.iter().copied());
+            }
+
             if let Some(items) = all_sections.get("SolutionConfigurationPlatforms") {
                 let new_solution_configs =
                     items.iter().map(|(k, _v)| <&str as Into<Conf>>::into(*k));

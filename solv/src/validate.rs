@@ -1423,6 +1423,29 @@ mod tests {
     }
 
     #[test]
+    fn slnx_cycles_validation_incorrect_with_ids() {
+        // Arrange
+        let slnx = r#"<Solution>
+  <Project Path="src/App/App.csproj" Id="aaaaaaaa-0000-0000-0000-000000000000">
+    <BuildDependency Project="src/Lib/Lib.csproj" />
+  </Project>
+  <Project Path="src/Lib/Lib.csproj" Id="bbbbbbbb-0000-0000-0000-000000000000">
+    <BuildDependency Project="src\App\App.csproj" />
+  </Project>
+</Solution>"#;
+        let solution = solp::parse_str(slnx).unwrap();
+        let mut validator = Cycles::new(&solution);
+        let mut statistic = Statistic::default();
+
+        // Act
+        validator.validate(&mut statistic);
+
+        // Assert
+        assert!(!validator.validation_result());
+        assert_eq!(1, statistic.cycles);
+    }
+
+    #[test]
     fn slnx_orphans_validation_incorrect() {
         // Arrange
         let solution = solp::parse_str(SLNX_WITH_ORPHAN).unwrap();

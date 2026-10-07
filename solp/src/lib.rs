@@ -422,6 +422,47 @@ EndGlobal
     }
 
     #[test]
+    fn parse_str_sln_keeps_nested_projects() {
+        // Arrange
+        let content = r#"
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{11111111-1111-1111-1111-111111111111}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "lib", "lib", "{22222222-2222-2222-2222-222222222222}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "app", "app.csproj", "{A61CD222-0F3B-47B6-9F7F-25D658368EEC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "root", "root.csproj", "{B61CD222-0F3B-47B6-9F7F-25D658368EEC}"
+EndProject
+Global
+    GlobalSection(NestedProjects) = preSolution
+        {22222222-2222-2222-2222-222222222222} = {11111111-1111-1111-1111-111111111111}
+        {a61cd222-0f3b-47b6-9f7f-25d658368eec} = {22222222-2222-2222-2222-222222222222}
+    EndGlobalSection
+EndGlobal
+"#;
+
+        // Act
+        let solution = parse_str(content).unwrap();
+
+        // Assert
+        let parents = solution
+            .projects
+            .iter()
+            .map(|project| (project.name, project.parent))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            parents,
+            vec![
+                ("src", None),
+                ("lib", Some("{11111111-1111-1111-1111-111111111111}")),
+                ("app", Some("{22222222-2222-2222-2222-222222222222}")),
+                ("root", None),
+            ]
+        );
+    }
+
+    #[test]
     fn parse_str_sln_keeps_solution_and_project_platforms() {
         // Arrange
         let content = r#"

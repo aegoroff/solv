@@ -41,6 +41,8 @@ pub struct Sol<'a> {
     pub project_configs: Vec<PrjConfAggregate<'a>>,
     pub solution_configuration_platform_entries: Vec<Conf<'a>>,
     pub project_configuration_entries: Vec<PrjConf<'a>>,
+    /// Child project id to parent solution folder id pairs from `NestedProjects` section
+    pub nested_projects: Vec<(&'a str, &'a str)>,
 }
 
 /// Solution version descriptor

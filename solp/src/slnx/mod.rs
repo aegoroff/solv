@@ -101,6 +101,8 @@ pub struct Folder {
 
     #[serde(rename = "@Name")]
     pub name: String,
+    #[serde(rename = "@Id", default)]
+    pub id: Option<String>,
 }
 
 /// File reference in a folder
@@ -134,6 +136,8 @@ pub struct Project {
     pub project_type: Option<String>,
     #[serde(rename = "@DisplayName", default)]
     pub display_name: Option<String>,
+    #[serde(rename = "@Id", default)]
+    pub id: Option<String>,
 }
 
 /// Build dependency (reference to another project)

@@ -53,6 +53,9 @@ pub struct Project<'a> {
     pub items: Option<Vec<&'a str>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub depends_from: Option<Vec<&'a str>>,
+    /// Id of the solution folder that contains the project (or folder) if any
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent: Option<&'a str>,
 }
 
 /// Represents solution configuration/platform pair
@@ -208,6 +211,11 @@ impl<'a> Solution<'a> {
                 )
             })
             .collect::<HashMap<&str, BTreeSet<ProjectConfiguration>>>();
+        let parents = solution
+            .nested_projects
+            .iter()
+            .map(|(child, parent)| (child.to_uppercase(), *parent))
+            .collect::<HashMap<String, &str>>();
         solution
             .projects
             .iter()
@@ -231,6 +239,7 @@ impl<'a> Solution<'a> {
                     configurations: project_configs.get(p.id).cloned(),
                     items,
                     depends_from,
+                    parent: parents.get(&p.id.to_uppercase()).copied(),
                 }
             })
             .collect()
