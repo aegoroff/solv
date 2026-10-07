@@ -53,6 +53,9 @@ pub struct Project<'a> {
     pub items: Option<Vec<&'a str>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub depends_from: Option<Vec<&'a str>>,
+    /// Id of the solution folder that contains the project (or folder) if any
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent: Option<&'a str>,
 }
 
 /// Represents solution configuration/platform pair
@@ -71,8 +74,10 @@ pub struct ProjectConfiguration<'a> {
     pub configuration: &'a str,
     /// Solution's configuration this project config belongs to
     pub solution_configuration: &'a str,
-    /// Platform i.e. Any CPU, Win32, x86 etc.
+    /// Solution's platform this project config belongs to i.e. Any CPU, Win32, x86 etc.
     pub platform: &'a str,
+    /// Project platform the solution's platform is mapped to i.e. Any CPU, Win32, x64 etc.
+    pub project_platform: &'a str,
     /// Configuration tag
     pub tags: Vec<Tag>,
 }
@@ -177,14 +182,20 @@ impl<'a> Solution<'a> {
                     c.configs
                         .iter()
                         .into_grouping_map_by(|pc| {
-                            (pc.project_config, pc.solution_config, pc.platform)
+                            (
+                                pc.project_config,
+                                pc.solution_config,
+                                pc.platform,
+                                pc.project_platform,
+                            )
                         })
                         .fold(
                             ProjectConfiguration::default(),
-                            |mut pc, (p, s, plat), val| {
+                            |mut pc, (p, s, plat, project_plat), val| {
                                 pc.configuration = p;
                                 pc.solution_configuration = s;
                                 pc.platform = plat;
+                                pc.project_platform = project_plat;
                                 match val.tag {
                                     crate::ast::ProjectConfigTag::ActiveCfg => {}
                                     crate::ast::ProjectConfigTag::Build => pc.tags.push(Tag::Build),
@@ -200,6 +211,21 @@ impl<'a> Solution<'a> {
                 )
             })
             .collect::<HashMap<&str, BTreeSet<ProjectConfiguration>>>();
+        // Parent is reported as id of the parent project itself because
+        // NestedProjects section may use different GUID case
+        let ids = solution
+            .projects
+            .iter()
+            .map(|p| (p.id.to_uppercase(), p.id))
+            .collect::<HashMap<String, &str>>();
+        let parents = solution
+            .nested_projects
+            .iter()
+            .map(|(child, parent)| {
+                let parent = ids.get(&parent.to_uppercase()).copied().unwrap_or(parent);
+                (child.to_uppercase(), parent)
+            })
+            .collect::<HashMap<String, &str>>();
         solution
             .projects
             .iter()
@@ -223,6 +249,7 @@ impl<'a> Solution<'a> {
                     configurations: project_configs.get(p.id).cloned(),
                     items,
                     depends_from,
+                    parent: parents.get(&p.id.to_uppercase()).copied(),
                 }
             })
             .collect()
@@ -251,7 +278,9 @@ impl<'a> Solution<'a> {
         }
     }
 
-    fn duplicate_solution_configurations(solution: &Sol<'a>) -> Option<Vec<SolutionConfiguration<'a>>> {
+    fn duplicate_solution_configurations(
+        solution: &Sol<'a>,
+    ) -> Option<Vec<SolutionConfiguration<'a>>> {
         let mut seen = HashSet::new();
         let mut duplicates = BTreeSet::new();
         for config in &solution.solution_configuration_platform_entries {

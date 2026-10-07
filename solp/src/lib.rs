@@ -1,8 +1,10 @@
 /*!
-A library for parsing Microsoft Visual Studio solution file
+A library for parsing Microsoft Visual Studio solution files.
 
+Both classic text (`.sln`) and XML (`.slnx`) formats are supported. The format is detected
+by content, and both formats are parsed into the same [`api::Solution`] model.
 
-## Example: parsing solution from [&str]
+## Example: parsing `.sln` solution from [&str]
 
 ```
 use solp::parse_str;
@@ -33,6 +35,33 @@ assert_eq!(solution.configurations.len(), 2);
 assert_eq!(solution.format, "12.00");
 
 ```
+
+## Example: parsing `.slnx` solution from [&str]
+
+```
+use solp::parse_str;
+
+const SOLUTION: &str = r#"<Solution>
+  <Folder Name="/tests/">
+    <Project Path="tests/Tests.csproj">
+      <BuildDependency Project="src/App.csproj" />
+    </Project>
+  </Folder>
+  <Project Path="src/App.csproj" />
+</Solution>"#;
+
+let solution = parse_str(SOLUTION).unwrap();
+// solution folder and two projects
+assert_eq!(solution.projects.len(), 3);
+// Debug and Release for Any CPU by default
+assert_eq!(solution.configurations.len(), 2);
+assert_eq!(solution.format, "slnx");
+
+let tests = &solution.projects[1];
+assert_eq!(tests.name, "Tests");
+assert_eq!(tests.parent, Some("/tests/"));
+assert_eq!(tests.depends_from.as_deref(), Some(&["src/App.csproj"][..]));
+```
 */
 
 #![warn(unused_extern_crates)]
@@ -49,6 +78,9 @@ mod ast;
 mod lex;
 pub mod msbuild;
 mod parser;
+mod slnx;
+
+pub use slnx::unescape_xml;
 
 #[macro_use]
 extern crate lalrpop_util;
@@ -71,6 +103,9 @@ lalrpop_mod!(
 
 /// Default Visual Studio solution file extension
 pub const DEFAULT_SOLUTION_EXT: &str = "sln";
+
+/// Default comma-separated list of solution file extensions to search while scanning directories
+pub const DEFAULT_SOLUTION_EXTENSIONS: &str = "sln,slnx";
 
 /// Consume provides parsed [`Solution`] consumer
 pub trait Consume {
@@ -216,8 +251,12 @@ pub fn parse_file(path: &str, consumer: &mut dyn Consume) -> miette::Result<()> 
 /// This function uses the `parser::parse_str` function to perform the actual parsing and then
 /// constructs a [`Solution`] object from the parsed data.
 pub fn parse_str(contents: &'_ str) -> miette::Result<Solution<'_>> {
-    let parsed = parser::parse_str(contents)?;
-    Ok(Solution::from(&parsed))
+    if slnx::is_slnx(contents) {
+        slnx::parse_str(contents)
+    } else {
+        let parsed = parser::parse_str(contents)?;
+        Ok(Solution::from(&parsed))
+    }
 }
 
 impl<'a, C: Consume> SolpWalker<'a, C> {
@@ -225,13 +264,14 @@ impl<'a, C: Consume> SolpWalker<'a, C> {
     pub fn new(consumer: C) -> Self {
         Self {
             consumer,
-            extension: DEFAULT_SOLUTION_EXT,
+            extension: DEFAULT_SOLUTION_EXTENSIONS,
             show_errors: false,
             recursively: false,
         }
     }
 
-    /// Setting Visual Studio solution file extension. sln by default.
+    /// Setting Visual Studio solution file extension. May be a comma-separated list.
+    /// [`DEFAULT_SOLUTION_EXTENSIONS`] (sln and slnx) by default.
     #[must_use]
     pub fn with_extension(mut self, extension: &'a str) -> Self {
         self.extension = extension;
@@ -259,11 +299,13 @@ impl<'a, C: Consume> SolpWalker<'a, C> {
     /// ## Remarks
     /// Any errors occurred during parsing of found files will be ignored (so parsing won't stopped)
     /// but error paths will be added into error files list (using err function of [`Consume`] trait)
+    ///
+    /// Extension may be a comma-separated list, for example `sln,slnx`.
     pub fn walk_and_parse(&mut self, path: &str) -> usize {
+        let extensions = parse_extensions(self.extension);
         let root = decorate_path(path);
         let recursively = self.recursively;
         let threads = num_cpus::get_physical().max(1);
-        let ext = self.extension.trim_start_matches('.');
 
         walk(
             Path::new(&root),
@@ -275,7 +317,10 @@ impl<'a, C: Consume> SolpWalker<'a, C> {
         .filter_map(Result::ok)
         .filter(|f| f.file_type.is_file())
         .map(|f| f.path())
-        .filter(|p| p.extension().is_some_and(|s| s == ext))
+        .filter(|p| {
+            p.extension()
+                .is_some_and(|extension| extensions.iter().any(|expected| extension == *expected))
+        })
         .filter_map(|fp| {
             let p = fp.to_str()?;
             if let Err(e) = parse_file(p, &mut self.consumer) {
@@ -289,6 +334,14 @@ impl<'a, C: Consume> SolpWalker<'a, C> {
         })
         .count()
     }
+}
+
+fn parse_extensions(extension: &str) -> Vec<&str> {
+    extension
+        .split(',')
+        .map(|part| part.trim().trim_start_matches('.'))
+        .filter(|part| !part.is_empty())
+        .collect()
 }
 
 /// On Windows trailing backslash (\) to be added if volume and colon passed (like c:).
@@ -327,13 +380,21 @@ Global
 EndGlobal
 "#;
 
+    const MINIMAL_SLNX_SOLUTION: &str = r#"<Solution>
+  <Project Path="test.csproj" />
+</Solution>"#;
+
     struct CountingConsumer {
         ok_count: usize,
+        err_count: usize,
     }
 
     impl CountingConsumer {
         fn new() -> Self {
-            Self { ok_count: 0 }
+            Self {
+                ok_count: 0,
+                err_count: 0,
+            }
         }
     }
 
@@ -342,47 +403,151 @@ EndGlobal
             self.ok_count += 1;
         }
 
-        fn err(&mut self, _path: &str) {}
+        fn err(&mut self, _path: &str) {
+            self.err_count += 1;
+        }
     }
 
+    /// Creates root.sln, root.slnx, nested/nested.sln and nested/nested.slnx
     fn create_walk_fixture(name: &str) -> std::path::PathBuf {
         let dir = std::env::temp_dir().join(format!("solp_walk_{name}_{}", std::process::id()));
         let nested = dir.join("nested");
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&nested).unwrap();
         fs::write(dir.join("root.sln"), MINIMAL_SOLUTION).unwrap();
+        fs::write(dir.join("root.slnx"), MINIMAL_SLNX_SOLUTION).unwrap();
         fs::write(nested.join("nested.sln"), MINIMAL_SOLUTION).unwrap();
+        fs::write(nested.join("nested.slnx"), MINIMAL_SLNX_SOLUTION).unwrap();
         dir
     }
 
-    #[test]
-    fn walk_and_parse_non_recursive_finds_only_root_solutions() {
+    #[test_case("default_non_recursive", None, false, 2 ; "default extensions non recursive")]
+    #[test_case("default_recursive", None, true, 4 ; "default extensions recursive")]
+    #[test_case("sln_recursive", Some("sln"), true, 2 ; "only sln recursive")]
+    #[test_case("slnx_non_recursive", Some("slnx"), false, 1 ; "only slnx non recursive")]
+    #[test_case("both_explicit_recursive", Some("sln, .slnx"), true, 4 ; "explicit list recursive")]
+    fn walk_and_parse_finds_solutions(
+        name: &str,
+        extension: Option<&str>,
+        recursively: bool,
+        expected: usize,
+    ) {
         // Arrange
-        let dir = create_walk_fixture("non_recursive");
-        let mut walker = SolpWalker::new(CountingConsumer::new());
+        let dir = create_walk_fixture(name);
+        let walker = SolpWalker::new(CountingConsumer::new()).recursively(recursively);
+        let mut walker = match extension {
+            Some(extension) => walker.with_extension(extension),
+            None => walker,
+        };
 
         // Act
         let scanned = walker.walk_and_parse(dir.to_str().unwrap());
 
         // Assert
-        assert_eq!(scanned, 1);
-        assert_eq!(walker.consumer.ok_count, 1);
-        let _ = fs::remove_dir_all(dir);
+        let _ = fs::remove_dir_all(&dir);
+        assert_eq!(scanned, expected);
+        assert_eq!(walker.consumer.ok_count, expected);
+        assert_eq!(walker.consumer.err_count, 0);
     }
 
     #[test]
-    fn walk_and_parse_recursive_finds_nested_solutions() {
+    fn parse_str_sln_keeps_nested_projects() {
         // Arrange
-        let dir = create_walk_fixture("recursive");
-        let mut walker = SolpWalker::new(CountingConsumer::new()).recursively(true);
+        let content = r#"
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{11111111-1111-1111-1111-111111111111}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "lib", "lib", "{22222222-2222-2222-2222-222222222222}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "app", "app.csproj", "{A61CD222-0F3B-47B6-9F7F-25D658368EEC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "root", "root.csproj", "{B61CD222-0F3B-47B6-9F7F-25D658368EEC}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "other", "other", "{AAAAAAAA-1111-1111-1111-111111111111}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "lower", "lower.csproj", "{C61CD222-0F3B-47B6-9F7F-25D658368EEC}"
+EndProject
+Global
+    GlobalSection(NestedProjects) = preSolution
+        {22222222-2222-2222-2222-222222222222} = {11111111-1111-1111-1111-111111111111}
+        {a61cd222-0f3b-47b6-9f7f-25d658368eec} = {22222222-2222-2222-2222-222222222222}
+        {B61CD222-0F3B-47B6-9F7F-25D658368EEC} = {33333333-3333-3333-3333-333333333333}
+        {c61cd222-0f3b-47b6-9f7f-25d658368eec} = {aaaaaaaa-1111-1111-1111-111111111111}
+    EndGlobalSection
+EndGlobal
+"#;
 
         // Act
-        let scanned = walker.walk_and_parse(dir.to_str().unwrap());
+        let solution = parse_str(content).unwrap();
 
         // Assert
-        assert_eq!(scanned, 2);
-        assert_eq!(walker.consumer.ok_count, 2);
-        let _ = fs::remove_dir_all(dir);
+        let parents = solution
+            .projects
+            .iter()
+            .map(|project| (project.name, project.parent))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            parents,
+            vec![
+                ("src", None),
+                ("lib", Some("{11111111-1111-1111-1111-111111111111}")),
+                ("app", Some("{22222222-2222-2222-2222-222222222222}")),
+                // parent that isn't in the solution is kept as is
+                ("root", Some("{33333333-3333-3333-3333-333333333333}")),
+                ("other", None),
+                // parent GUID case is taken from the parent project itself
+                ("lower", Some("{AAAAAAAA-1111-1111-1111-111111111111}")),
+            ]
+        );
+    }
+
+    #[test]
+    fn parse_str_sln_keeps_solution_and_project_platforms() {
+        // Arrange
+        let content = r#"
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "native", "native.vcxproj", "{A61CD222-0F3B-47B6-9F7F-25D658368EEC}"
+EndProject
+Global
+    GlobalSection(SolutionConfigurationPlatforms) = preSolution
+        Debug|Any CPU = Debug|Any CPU
+    EndGlobalSection
+    GlobalSection(ProjectConfigurationPlatforms) = postSolution
+        {A61CD222-0F3B-47B6-9F7F-25D658368EEC}.Debug|Any CPU.ActiveCfg = Debug|Win32
+        {A61CD222-0F3B-47B6-9F7F-25D658368EEC}.Debug|Any CPU.Build.0 = Debug|Win32
+    EndGlobalSection
+EndGlobal
+"#;
+
+        // Act
+        let solution = parse_str(content).unwrap();
+
+        // Assert
+        let configurations: Vec<_> = solution.projects[0]
+            .configurations
+            .as_ref()
+            .unwrap()
+            .iter()
+            .collect();
+        assert_eq!(configurations.len(), 1);
+        assert_eq!(configurations[0].solution_configuration, "Debug");
+        assert_eq!(configurations[0].platform, "Any CPU");
+        assert_eq!(configurations[0].project_platform, "Win32");
+        assert_eq!(configurations[0].tags, vec![api::Tag::Build]);
+    }
+
+    #[test_case("sln", vec!["sln"] ; "single extension")]
+    #[test_case("slnx", vec!["slnx"] ; "slnx extension")]
+    #[test_case("sln,slnx", vec!["sln", "slnx"] ; "multiple extensions")]
+    #[test_case(".sln,.slnx", vec!["sln", "slnx"] ; "dotted extensions")]
+    fn parse_extensions_tests(extension: &str, expected: Vec<&str>) {
+        // Arrange
+
+        // Act
+        let actual = parse_extensions(extension);
+
+        // Assert
+        assert_eq!(actual, expected);
     }
 
     #[cfg(not(target_os = "windows"))]

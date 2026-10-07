@@ -134,7 +134,7 @@ pub struct Import {
     pub label: Option<String>,
 }
 
-const ID_SOLUTION_FOLDER: &str = "{2150E333-8FDC-42A3-9474-1A3956D46DE8}";
+pub(crate) const ID_SOLUTION_FOLDER: &str = "{2150E333-8FDC-42A3-9474-1A3956D46DE8}";
 const ID_WEB_SITE_PROJECT: &str = "{E24C65DC-7377-472B-9ABA-BC803B73C61A}";
 
 // all project guids from here https://github.com/JamesW75/visual-studio-project-type-guid
@@ -241,6 +241,14 @@ static PROJECT_TYPES: phf::Map<&'static str, &'static str> = phf::phf_map! {
     "{C7167F0D-BC9F-4E6E-AFE1-012C56B48DB5}" => "Windows Application Packaging Project (MSIX)",
     "{B7DD6F7E-DEF8-4E67-B5B7-07EF123DB6F0}" => "Windows Installer XML Toolset (WiX)",
     "{D399B71A-8929-442A-A9AC-8BEC78BB2433}" => "XNA (Zune)",
+    // project types known by .slnx persistence library
+    "{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}" => "F# (.Net Core)",
+    "{911E67C6-3D85-4FCE-B560-20A9C3E3FF48}" => "Exe",
+    "{54A90642-561A-4BB1-A94E-469ADEE60C69}" => "JavaScript (esproj)",
+    "{151D2E53-A2C4-4D7D-83FE-D05416EBD58E}" => "Azure Resource Group (Deploy)",
+    "{0C603C2C-620A-423B-A800-4F3E2F6281F1}" => "U-SQL Database",
+    "{182E2583-ECAD-465B-BB50-91101D7C24CE}" => "U-SQL",
+    "{A07B5EB6-E848-4116-A8D0-A826331D98C6}" => "Service Fabric",
 };
 
 impl Project {

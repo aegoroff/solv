@@ -11,9 +11,9 @@ Microsoft Visual Studio **SOL**ution **V**alidation console tool and parsing lib
 The repository contains two crates:
 
 - [`solv`](https://crates.io/crates/solv) — the command-line tool that validates and analyzes
-  Visual Studio solution (`.sln`) files.
+  Visual Studio solution files (`.sln` and `.slnx`).
 - [`solp`](https://crates.io/crates/solp) — the underlying parsing library that `solv` is built on.
-  It can be used independently to parse `.sln` files from your own Rust code.
+  It can be used independently to parse `.sln` and `.slnx` files from your own Rust code.
 
 ## Features
 
@@ -25,7 +25,10 @@ The repository contains two crates:
 - Show detailed information about solutions and their projects.
 - Inspect NuGet packages referenced by a solution and find version mismatches.
 - Convert a solution to JSON for further processing.
-- Scan a single `.sln` file, read from standard input, or recursively scan a directory.
+- Support both classic text (`.sln`) and XML (`.slnx`) solution formats. The format is
+  detected by file content, so standard input works for both.
+- Scan a single solution file, read from standard input, or recursively scan a directory.
+  Both `.sln` and `.slnx` files are found when scanning a directory by default.
 - Generate shell auto-completion scripts.
 
 ## Install the pre-compiled binary
@@ -125,7 +128,7 @@ Common options accepted by `validate`, `validate fix`, `info`, `nuget` and `json
 
 | Option                    | Description                                                                |
 | ------------------------- | -------------------------------------------------------------------------- |
-| `-e, --ext <EXTENSION>`   | Visual Studio solution extension (default: `sln`)                          |
+| `-e, --ext <EXTENSION>`   | Visual Studio solution extension, comma-separated (default: `sln,slnx`)    |
 | `-r, --recursively`       | Scan the directory recursively (default: `false`)                          |
 | `--showerrors`            | Output solution parsing errors while scanning directories (default: `false`) |
 | `-t, --time`              | Show scanning time when scanning a directory (default: `false`)            |
@@ -139,7 +142,7 @@ Subcommand-specific options:
 | `nuget` | `-f, --fail` | Exit with a non-zero code if mismatches are found |
 | `json` | `-p, --pretty` | Pretty-print JSON output |
 
-The `PATH` argument can be either a path to a single `.sln` file or to a
+The `PATH` argument can be either a path to a single `.sln` or `.slnx` file or to a
 directory. For the `info` and `json` subcommands, if `PATH` is omitted the
 solution is read from standard input. `validate`, `validate fix`, and `nuget`
 require `PATH`.
@@ -150,6 +153,12 @@ Validate a single solution file:
 
 ```sh
 solv validate path/to/MySolution.sln
+```
+
+Validate a single XML solution file:
+
+```sh
+solv validate path/to/MySolution.slnx
 ```
 
 Recursively validate all solutions in a directory, showing only the ones with problems:
@@ -168,6 +177,12 @@ Find NuGet package version mismatches and fail (non-zero exit code) if any are f
 
 ```sh
 solv nuget -r -m -f path/to/sources
+```
+
+Scan only `.slnx` solutions in a directory:
+
+```sh
+solv info -r -e slnx path/to/sources
 ```
 
 Fix redundant project references recursively in a directory:

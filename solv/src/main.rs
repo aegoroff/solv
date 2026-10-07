@@ -48,7 +48,7 @@ const PROBLEMS_FLAG: &str = "problems";
 const FAIL_FLAG: &str = "fail";
 const MISMATCH_FLAG: &str = "mismatch";
 
-const EXT_DESCR: &str = "Visual Studio solution extension";
+const EXT_DESCR: &str = "Visual Studio solution extension, comma-separated for multiple values";
 const RECURSIVELY_DESCR: &str = "Scan directory recursively. False by default";
 const SHOW_ERROR_ON_DIR_SCAN_DESCR: &str =
     "Output solution parsing errors while scanning directories. False by default";
@@ -340,7 +340,7 @@ fn extension_arg() -> Arg {
         .value_name("EXTENSION")
         .required(false)
         .requires(PATH)
-        .default_value(solp::DEFAULT_SOLUTION_EXT)
+        .default_value(solp::DEFAULT_SOLUTION_EXTENSIONS)
         .help(EXT_DESCR)
 }
 
@@ -361,4 +361,21 @@ fn show_errors_on_dir_scan_arg() -> Arg {
         .requires(PATH)
         .action(ArgAction::SetTrue)
         .help(SHOW_ERROR_ON_DIR_SCAN_DESCR)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extension_arg_defaults_to_sln_and_slnx() {
+        // Arrange
+        let arg = extension_arg();
+
+        // Act
+        let defaults = arg.get_default_values();
+
+        // Assert
+        assert_eq!(defaults, ["sln,slnx"]);
+    }
 }

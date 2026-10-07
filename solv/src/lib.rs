@@ -9,6 +9,7 @@ pub mod validate;
 
 use solp::msbuild::{self};
 use solp::{Consume, api::Solution, msbuild::Project};
+use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 use url::Url;
 
@@ -26,6 +27,20 @@ use url::Url;
 #[must_use]
 pub fn parent_of(path: &str) -> &Path {
     Path::new(path).parent().unwrap_or_else(|| Path::new(""))
+}
+
+/// Returns project path to look for on disk. `.slnx` keeps XML entities in paths
+/// (e.g. `R&amp;D/App.csproj`) so they are unescaped.
+#[must_use]
+pub fn project_path<'a>(solution: &Solution, path: &'a str) -> Cow<'a, str> {
+    let is_slnx = Path::new(solution.path)
+        .extension()
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("slnx"));
+    if is_slnx {
+        solp::unescape_xml(path)
+    } else {
+        Cow::Borrowed(path)
+    }
 }
 
 #[must_use]
@@ -71,7 +86,7 @@ pub fn collect_msbuild_projects(solution: &Solution) -> Vec<MsbuildProject> {
 
     solution
         .iterate_projects_without_web_sites()
-        .filter_map(|p| try_make_local_path(dir, p.path_or_uri))
+        .filter_map(|p| try_make_local_path(dir, &project_path(solution, p.path_or_uri)))
         .filter_map(|path| match Project::from_path(&path) {
             Ok(project) => Some(MsbuildProject {
                 path,
@@ -116,6 +131,21 @@ pub mod tests {
 
         // Act
         let actual = try_make_local_path(d, path);
+
+        // Assert
+        assert_eq!(actual, expected);
+    }
+
+    #[test_case("/base/a.slnx", "R&amp;D/App.csproj", "R&D/App.csproj" ; "slnx")]
+    #[test_case("/base/a.SLNX", "R&amp;D/App.csproj", "R&D/App.csproj" ; "slnx upper case")]
+    #[test_case("/base/a.sln", "R&amp;D/App.csproj", "R&amp;D/App.csproj" ; "sln")]
+    fn project_path_tests(solution_path: &str, path: &str, expected: &str) {
+        // Arrange
+        let mut solution = solp::parse_str("<Solution />").unwrap();
+        solution.path = solution_path;
+
+        // Act
+        let actual = project_path(&solution, path);
 
         // Assert
         assert_eq!(actual, expected);

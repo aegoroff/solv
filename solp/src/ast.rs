@@ -41,6 +41,8 @@ pub struct Sol<'a> {
     pub project_configs: Vec<PrjConfAggregate<'a>>,
     pub solution_configuration_platform_entries: Vec<Conf<'a>>,
     pub project_configuration_entries: Vec<PrjConf<'a>>,
+    /// Child project id to parent solution folder id pairs from `NestedProjects` section
+    pub nested_projects: Vec<(&'a str, &'a str)>,
 }
 
 /// Solution version descriptor
@@ -113,7 +115,8 @@ impl<'a> Ver<'a> {
 
 impl<'a> From<&'a str> for Conf<'a> {
     fn from(s: &'a str) -> Self {
-        pipe_terminated.parse_peek(s)
+        pipe_terminated
+            .parse_peek(s)
             .map(|(platform, config)| Self { config, platform })
             .unwrap_or_default()
     }
@@ -135,6 +138,7 @@ pub struct PrjConf<'a> {
     pub solution_config: &'a str,
     pub project_config: &'a str,
     pub platform: &'a str,
+    pub project_platform: &'a str,
     pub tag: ProjectConfigTag,
 }
 
@@ -192,6 +196,7 @@ impl<'a> PrjConfAggregate<'a> {
                 solution_config,
                 project_config: project_conf.config,
                 platform,
+                project_platform: project_conf.platform,
                 tag: define_tag(key),
             },
         ))
@@ -209,6 +214,7 @@ impl<'a> PrjConfAggregate<'a> {
                 solution_config,
                 project_config: project_conf.config,
                 platform: project_conf.platform,
+                project_platform: project_conf.platform,
                 tag: define_tag(key),
             },
         ))
@@ -373,10 +379,11 @@ mod tests {
         assert_eq!(result, Ok(("", expected)));
     }
 
-    #[test_case("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.Build.0", "Release|.NET", PrjConf { id: "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", solution_config: "Release", project_config: "Release", platform: ".NET", tag: ProjectConfigTag::Build })]
-    #[test_case("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.SolutionRelease|.NET.Build.0", "ProjectRelease|.NET", PrjConf { id: "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", solution_config: "SolutionRelease", project_config: "ProjectRelease", platform: ".NET", tag: ProjectConfigTag::Build })]
-    #[test_case("{60BB14A5-0871-4656-BC38-4F0958230F9A}.Debug|ARM.Deploy.0", "Debug|ARM", PrjConf { id: "{60BB14A5-0871-4656-BC38-4F0958230F9A}", solution_config: "Debug", project_config: "Debug", platform: "ARM", tag: ProjectConfigTag::Deploy })]
-    #[test_case("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.ActiveCfg", "Release|.NET", PrjConf { id: "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", solution_config: "Release", project_config: "Release", platform: ".NET", tag: ProjectConfigTag::ActiveCfg })]
+    #[test_case("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.Build.0", "Release|.NET", PrjConf { id: "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", solution_config: "Release", project_config: "Release", platform: ".NET", project_platform: ".NET", tag: ProjectConfigTag::Build })]
+    #[test_case("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.SolutionRelease|.NET.Build.0", "ProjectRelease|.NET", PrjConf { id: "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", solution_config: "SolutionRelease", project_config: "ProjectRelease", platform: ".NET", project_platform: ".NET", tag: ProjectConfigTag::Build })]
+    #[test_case("{60BB14A5-0871-4656-BC38-4F0958230F9A}.Debug|ARM.Deploy.0", "Debug|ARM", PrjConf { id: "{60BB14A5-0871-4656-BC38-4F0958230F9A}", solution_config: "Debug", project_config: "Debug", platform: "ARM", project_platform: "ARM", tag: ProjectConfigTag::Deploy })]
+    #[test_case("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Debug|Any CPU.ActiveCfg", "Debug|Win32", PrjConf { id: "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", solution_config: "Debug", project_config: "Debug", platform: "Any CPU", project_platform: "Win32", tag: ProjectConfigTag::ActiveCfg })]
+    #[test_case("{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}.Release|.NET.ActiveCfg", "Release|.NET", PrjConf { id: "{7C2EF610-BCA0-4D1F-898A-DE9908E4970C}", solution_config: "Release", project_config: "Release", platform: ".NET", project_platform: ".NET", tag: ProjectConfigTag::ActiveCfg })]
     fn project_configs_parse_project_configuration_platform_tests(
         k: &str,
         v: &str,
@@ -391,7 +398,7 @@ mod tests {
         assert_eq!(result, Ok(("", expected)));
     }
 
-    #[test_case("{5228E9CE-A216-422F-A5E6-58E95E2DD71D}.DLL Debug.ActiveCfg", "Debug|x64", PrjConf { id: "{5228E9CE-A216-422F-A5E6-58E95E2DD71D}", solution_config: "DLL Debug", project_config: "Debug", platform: "x64", tag: ProjectConfigTag::ActiveCfg })]
+    #[test_case("{5228E9CE-A216-422F-A5E6-58E95E2DD71D}.DLL Debug.ActiveCfg", "Debug|x64", PrjConf { id: "{5228E9CE-A216-422F-A5E6-58E95E2DD71D}", solution_config: "DLL Debug", project_config: "Debug", platform: "x64", project_platform: "x64", tag: ProjectConfigTag::ActiveCfg })]
     fn project_configs_parse_project_configuration_tests(k: &str, v: &str, expected: PrjConf) {
         // Arrange
 

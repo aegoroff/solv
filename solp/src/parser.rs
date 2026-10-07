@@ -144,12 +144,11 @@ pub fn parse_str(contents: &'_ str) -> miette::Result<Sol<'_>> {
     }
 }
 
-fn strip_utf8_bom(contents: &str) -> (&str, usize) {
-    let cb = contents.as_bytes();
-    if &cb[0..UTF8_BOM.len()] == UTF8_BOM {
-        (&contents[UTF8_BOM.len()..], UTF8_BOM.len())
-    } else {
-        (contents, 0)
+/// Strips UTF-8 BOM if any. Returns content without BOM and BOM length in bytes (0 if there is no BOM)
+pub(crate) fn strip_utf8_bom(contents: &str) -> (&str, usize) {
+    match contents.strip_prefix('\u{feff}') {
+        Some(rest) => (rest, UTF8_BOM.len()),
+        None => (contents, 0),
     }
 }
 
@@ -234,6 +233,10 @@ impl<'a> Visitor<'a> for AstVisitor<'a> {
                 .iter()
                 .filter_map(|sect| self.visit_section(sect))
                 .collect();
+
+            if let Some(items) = all_sections.get("NestedProjects") {
+                self.solution.nested_projects.extend(items.iter().copied());
+            }
 
             if let Some(items) = all_sections.get("SolutionConfigurationPlatforms") {
                 let new_solution_configs =
@@ -503,6 +506,22 @@ mod tests {
             first_label_offset(&err_with),
             offset_without + UTF8_BOM.len()
         );
+    }
+
+    #[test_case("", "", 0 ; "empty")]
+    #[test_case("a", "a", 0 ; "shorter than bom")]
+    #[test_case("\u{feff}", "", 3 ; "only bom")]
+    #[test_case("\u{feff}abc", "abc", 3 ; "with bom")]
+    #[test_case("abcd", "abcd", 0 ; "without bom")]
+    fn strip_utf8_bom_cases(contents: &str, expected: &str, expected_offset: usize) {
+        // Arrange
+
+        // Act
+        let (actual, offset) = strip_utf8_bom(contents);
+
+        // Assert
+        assert_eq!(actual, expected);
+        assert_eq!(offset, expected_offset);
     }
 
     fn first_label_offset(err: &miette::Report) -> usize {
