@@ -341,7 +341,7 @@ mod tests {
         // Assert
         assert_eq!(solution.projects.len(), 1);
         assert_eq!(solution.projects[0].path_or_uri, "src/App/App.csproj");
-        assert_eq!(solution.projects[0].name, "App.csproj");
+        assert_eq!(solution.projects[0].name, "App");
         assert_eq!(solution.configurations.len(), 2);
     }
 

@@ -336,11 +336,18 @@ fn raw_project_to_api<'a>(
     })
 }
 
+/// Default project name is the file name without extension like in Visual Studio
 fn project_name(path: &str) -> &str {
-    path.rsplit(['/', '\\'])
+    let file_name = path
+        .rsplit(['/', '\\'])
         .next()
         .filter(|name| !name.is_empty())
-        .unwrap_or(path)
+        .unwrap_or(path);
+    file_name
+        .rsplit_once('.')
+        .map(|(stem, _)| stem)
+        .filter(|stem| !stem.is_empty())
+        .unwrap_or(file_name)
 }
 
 #[cfg(test)]
@@ -480,6 +487,20 @@ mod tests {
 
         // Act
         let actual = parent_folder(path);
+
+        // Assert
+        assert_eq!(actual, expected);
+    }
+
+    #[test_case("src/App/App.csproj", "App" ; "unix path")]
+    #[test_case("src\\App\\App.Tests.csproj", "App.Tests" ; "windows path with dots")]
+    #[test_case("App", "App" ; "without extension")]
+    #[test_case("src/.hidden", ".hidden" ; "dot file")]
+    fn project_name_cases(path: &str, expected: &str) {
+        // Arrange
+
+        // Act
+        let actual = project_name(path);
 
         // Assert
         assert_eq!(actual, expected);
