@@ -9,6 +9,7 @@ use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::prelude::DiGraphMap;
 use petgraph::visit::EdgeRef;
 use solp::api::{Solution, SolutionConfiguration, Tag};
+use solp::project_files::{self, ProjectLocation};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fmt;
 use std::fmt::Display;
@@ -553,17 +554,10 @@ impl<'a> NotFound<'a> {
 
 impl Validator for NotFound<'_> {
     fn validate(&mut self, statistic: &mut Statistic) {
-        let dir = crate::parent_of(self.solution.path);
-        self.bad_paths = self
-            .solution
-            .iterate_projects_without_web_sites()
-            .filter_map(|p| {
-                crate::try_make_local_path(dir, &crate::project_path(self.solution, p.path_or_uri))
-            })
-            .filter_map(|full_path| {
-                // we need only not found paths
-                full_path.canonicalize().err()?;
-                Some(full_path)
+        self.bad_paths = project_files::locate(self.solution)
+            .filter_map(|(_, location)| match location {
+                ProjectLocation::Missing(path) => Some(path),
+                ProjectLocation::Found(_) => None,
             })
             .collect();
         if !self.validation_result() {
@@ -858,22 +852,25 @@ impl<'a> Redundants<'a> {
     /// don't flow to consumers (`PrivateAssets="all"`, `ReferenceOutputAssembly="false"`)
     /// or are conditional aren't transitive.
     fn build_graph(&self) -> DiGraph<PathBuf, ProjectRef> {
-        let projects = crate::collect_msbuild_projects(self.solution);
         let mut graph = DiGraph::<PathBuf, ProjectRef>::new();
         let mut nodes: HashMap<PathBuf, NodeIndex> = HashMap::new();
 
-        for prj in projects {
-            let to_path = prj.path.canonicalize().unwrap_or_else(|_| prj.path.clone());
-            let to = Self::ensure_node(&mut graph, &mut nodes, &to_path);
+        let files =
+            project_files::locate(self.solution).filter_map(|(_, location)| match location {
+                ProjectLocation::Found(file) => Some(file),
+                ProjectLocation::Missing(_) => None,
+            });
+        for file in files {
+            let Ok(project) = file.load() else { continue };
+            let to = Self::ensure_node(&mut graph, &mut nodes, file.path());
 
-            let Some(project) = prj.project else { continue };
             if !project.is_sdk_project() {
                 continue;
             }
             let Some(item_groups) = project.item_group else {
                 continue;
             };
-            let Some(parent) = prj.path.parent() else {
+            let Some(parent) = file.path().parent() else {
                 continue;
             };
 

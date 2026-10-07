@@ -249,7 +249,8 @@ Will parse solution into structure that may be represented by this json
 - `OpenWith`, `Version` and `MinimumVersion` properties of `<Properties Name="Visual Studio">`
   become `product`, `VisualStudioVersion` and `MinimumVisualStudioVersion` like in `.sln`.
 - Values are borrowed from the source so values with XML entities are kept escaped
-  (e.g. `R&amp;D/App.csproj`). Use `solp::unescape_xml` to get the unescaped value.
+  (e.g. `R&amp;D/App.csproj`). `Solution::kind` tells the detected format.
+  Use `solp::project_files::locate` to get project files on disk with unescaped paths.
 
 ### Minimum Rust version policy
 

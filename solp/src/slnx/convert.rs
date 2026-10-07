@@ -2,7 +2,7 @@ use std::collections::{BTreeSet, HashMap};
 
 use miette::Result;
 
-use crate::api::{Project, Solution, SolutionConfiguration, Version};
+use crate::api::{Project, Solution, SolutionConfiguration, SolutionKind, Version};
 use crate::msbuild::{self, ID_SOLUTION_FOLDER};
 
 use super::config::{
@@ -121,6 +121,7 @@ pub fn to_api<'a>(slnx: SlnxSolution, contents: &'a str) -> Result<Solution<'a>>
 
     Ok(Solution {
         path: "",
+        kind: SolutionKind::Slnx,
         format,
         product,
         versions,

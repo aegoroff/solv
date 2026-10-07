@@ -204,7 +204,7 @@ fn find_escaped_attribute<'a>(contents: &'a str, value: &str) -> Option<&'a str>
 /// Unescapes raw `.slnx` attribute value kept by [`Solution`] when it contains XML entities
 /// (e.g. `R&amp;D/App.csproj` project path). Value without entities or malformed one is returned as is.
 #[must_use]
-pub fn unescape_xml(raw: &str) -> Cow<'_, str> {
+pub(crate) fn unescape_xml(raw: &str) -> Cow<'_, str> {
     if !raw.contains('&') {
         return Cow::Borrowed(raw);
     }

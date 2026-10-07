@@ -79,9 +79,8 @@ pub mod cpm;
 mod lex;
 pub mod msbuild;
 mod parser;
+pub mod project_files;
 mod slnx;
-
-pub use slnx::unescape_xml;
 
 #[macro_use]
 extern crate lalrpop_util;

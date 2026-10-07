@@ -8,11 +8,36 @@ use comfy_table::{Attribute, Cell, Color};
 use crossterm::style::Stylize;
 use itertools::Itertools;
 use solp::{
+    api::Solution,
     cpm::{self, CentralPackages},
-    msbuild::{ItemGroup, Package, PackageReference, PackagesConfig},
+    msbuild::{self, ItemGroup, Package, PackageReference, PackagesConfig},
+    project_files::{self, ProjectLocation},
 };
 
-use crate::{Consume, MsbuildProject, error::Collector, ux};
+use crate::{Consume, error::Collector, ux};
+
+/// MSBuild project with a canonical path to the project file
+struct MsbuildProject {
+    project: msbuild::Project,
+    path: PathBuf,
+}
+
+/// Loads project files of the solution. Missing and not parsable project files are skipped.
+fn load_projects(solution: &Solution) -> Vec<MsbuildProject> {
+    project_files::locate(solution)
+        .filter_map(|(_, location)| match location {
+            ProjectLocation::Found(file) => Some(file),
+            ProjectLocation::Missing(_) => None,
+        })
+        .filter_map(|file| {
+            let project = file.load().ok()?;
+            Some(MsbuildProject {
+                project,
+                path: file.path().to_path_buf(),
+            })
+        })
+        .collect()
+}
 
 pub struct Nuget {
     show_only_mismatched: bool,
@@ -47,7 +72,7 @@ fn has_mismatches(versions: &Versions) -> bool {
 
 impl Consume for Nuget {
     fn ok(&mut self, solution: &solp::api::Solution) {
-        let mut projects = crate::collect_msbuild_projects(solution);
+        let mut projects = load_projects(solution);
         apply_central_packages(&mut projects);
         let packages_configs = packages_from_packages_configs(&projects);
 
@@ -131,8 +156,7 @@ impl Display for Nuget {
 fn nugets<'a>(projects: &'a [MsbuildProject], packages_configs: &'a [Package]) -> Nugets<'a> {
     let from_projects = projects
         .iter()
-        .filter_map(|p| p.project.as_ref())
-        .filter_map(|p| p.item_group.as_ref())
+        .filter_map(|p| p.project.item_group.as_ref())
         .flatten()
         .filter_map(|ig| {
             let condition = ig.condition.as_deref();
@@ -170,9 +194,7 @@ fn apply_central_packages(projects: &mut [MsbuildProject]) {
     // key - Directory.Build.props, Directory.Packages.props, Directory.Build.targets paths
     let mut cache: HashMap<Vec<PathBuf>, CentralPackages> = HashMap::new();
     for mp in projects.iter_mut() {
-        let Some(project) = mp.project.as_mut() else {
-            continue;
-        };
+        let project = &mut mp.project;
         let central = mp.path.parent().and_then(|dir| {
             let files = cpm::find_implicit_imports(dir);
             if files.is_empty() {
@@ -873,7 +895,7 @@ mod tests {
         condition: Option<String>,
     ) -> MsbuildProject {
         MsbuildProject {
-            project: Some(Project {
+            project: Project {
                 sdk: Some("5".to_owned()),
                 item_group: Some(vec![ItemGroup {
                     project_reference: None,
@@ -882,7 +904,7 @@ mod tests {
                 }]),
                 imports: None,
                 import_group: None,
-            }),
+            },
             path: PathBuf::new(),
         }
     }

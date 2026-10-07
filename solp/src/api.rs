@@ -11,6 +11,8 @@ use crate::{ast::Sol, msbuild};
 pub struct Solution<'a> {
     /// Full path to solution file
     pub path: &'a str,
+    /// Solution file format detected by content
+    pub kind: SolutionKind,
     /// Solution format
     pub format: &'a str,
     /// Solution product like Visual Studio 15 etc
@@ -30,6 +32,17 @@ pub struct Solution<'a> {
     /// Duplicate project configuration mappings
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duplicate_project_configurations: Option<Vec<DuplicateProjectConfiguration<'a>>>,
+}
+
+/// Solution file format
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SolutionKind {
+    /// Classic text `.sln` format
+    #[default]
+    Sln,
+    /// XML `.slnx` format
+    Slnx,
 }
 
 /// Represents [`Solution`] version. NOTE: [`Solution`] may have several versions.
@@ -126,6 +139,7 @@ impl<'a> Solution<'a> {
     pub fn from(solution: &Sol<'a>) -> Self {
         Self {
             path: solution.path,
+            kind: SolutionKind::Sln,
             format: solution.format,
             product: solution.product,
             versions: Self::versions(solution),
