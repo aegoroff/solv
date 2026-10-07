@@ -421,6 +421,41 @@ EndGlobal
         assert_eq!(walker.consumer.err_count, 0);
     }
 
+    #[test]
+    fn parse_str_sln_keeps_solution_and_project_platforms() {
+        // Arrange
+        let content = r#"
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "native", "native.vcxproj", "{A61CD222-0F3B-47B6-9F7F-25D658368EEC}"
+EndProject
+Global
+    GlobalSection(SolutionConfigurationPlatforms) = preSolution
+        Debug|Any CPU = Debug|Any CPU
+    EndGlobalSection
+    GlobalSection(ProjectConfigurationPlatforms) = postSolution
+        {A61CD222-0F3B-47B6-9F7F-25D658368EEC}.Debug|Any CPU.ActiveCfg = Debug|Win32
+        {A61CD222-0F3B-47B6-9F7F-25D658368EEC}.Debug|Any CPU.Build.0 = Debug|Win32
+    EndGlobalSection
+EndGlobal
+"#;
+
+        // Act
+        let solution = parse_str(content).unwrap();
+
+        // Assert
+        let configurations: Vec<_> = solution.projects[0]
+            .configurations
+            .as_ref()
+            .unwrap()
+            .iter()
+            .collect();
+        assert_eq!(configurations.len(), 1);
+        assert_eq!(configurations[0].solution_configuration, "Debug");
+        assert_eq!(configurations[0].platform, "Any CPU");
+        assert_eq!(configurations[0].project_platform, "Win32");
+        assert_eq!(configurations[0].tags, vec![api::Tag::Build]);
+    }
+
     #[test_case("sln", vec!["sln"] ; "single extension")]
     #[test_case("slnx", vec!["slnx"] ; "slnx extension")]
     #[test_case("sln,slnx", vec!["sln", "slnx"] ; "multiple extensions")]

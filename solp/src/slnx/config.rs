@@ -95,7 +95,7 @@ pub fn project_configurations<'a>(
                 solution_platform,
                 &rules.build_types,
             );
-            let platform =
+            let project_platform =
                 map_platform(solution_configuration, solution_platform, &rules.platforms);
             let mut tags = Vec::new();
 
@@ -120,7 +120,8 @@ pub fn project_configurations<'a>(
             configurations.insert(ProjectConfiguration {
                 configuration,
                 solution_configuration,
-                platform,
+                platform: solution_platform,
+                project_platform,
                 tags,
             });
         }
@@ -483,11 +484,9 @@ mod tests {
             .as_ref()
             .expect("project configurations");
         assert_eq!(configurations.len(), 2);
-        assert!(
-            configurations
-                .iter()
-                .all(|configuration| configuration.platform == "x64")
-        );
+        assert!(configurations.iter().all(|configuration| {
+            configuration.platform == "Any CPU" && configuration.project_platform == "x64"
+        }));
     }
 
     #[test]
@@ -509,15 +508,15 @@ mod tests {
         assert!(find(configurations, "Release", "Any CPU").tags.is_empty());
     }
 
-    // Project configuration doesn't keep solution platform so mapped platform identifies it
-    #[test_case("Debug", "Win32", "Debug", vec![Tag::Build] ; "debug any cpu")]
-    #[test_case("Debug", "x64", "Debug", vec![] ; "debug x64 not built")]
-    #[test_case("Release", "Win32", "Debug", vec![Tag::Build] ; "release any cpu")]
-    #[test_case("Release", "x64", "Debug", vec![Tag::Build, Tag::Deploy] ; "release x64 deployed")]
+    #[test_case("Debug", "Any CPU", "Debug", "Win32", vec![Tag::Build] ; "debug any cpu")]
+    #[test_case("Debug", "x64", "Debug", "x64", vec![] ; "debug x64 not built")]
+    #[test_case("Release", "Any CPU", "Debug", "Win32", vec![Tag::Build] ; "release any cpu")]
+    #[test_case("Release", "x64", "Debug", "x64", vec![Tag::Build, Tag::Deploy] ; "release x64 deployed")]
     fn full_rules_are_applied(
         solution_configuration: &str,
-        platform: &str,
+        solution_platform: &str,
         expected_configuration: &str,
+        expected_project_platform: &str,
         expected_tags: Vec<Tag>,
     ) {
         // Arrange
@@ -528,11 +527,12 @@ mod tests {
             .expect("project configurations");
 
         // Act
-        let actual = find(configurations, solution_configuration, platform);
+        let actual = find(configurations, solution_configuration, solution_platform);
 
         // Assert
         assert_eq!(configurations.len(), 4);
         assert_eq!(actual.configuration, expected_configuration);
+        assert_eq!(actual.project_platform, expected_project_platform);
         assert_eq!(actual.tags, expected_tags);
     }
 

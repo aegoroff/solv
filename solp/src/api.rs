@@ -71,8 +71,10 @@ pub struct ProjectConfiguration<'a> {
     pub configuration: &'a str,
     /// Solution's configuration this project config belongs to
     pub solution_configuration: &'a str,
-    /// Platform i.e. Any CPU, Win32, x86 etc.
+    /// Solution's platform this project config belongs to i.e. Any CPU, Win32, x86 etc.
     pub platform: &'a str,
+    /// Project platform the solution's platform is mapped to i.e. Any CPU, Win32, x64 etc.
+    pub project_platform: &'a str,
     /// Configuration tag
     pub tags: Vec<Tag>,
 }
@@ -177,14 +179,20 @@ impl<'a> Solution<'a> {
                     c.configs
                         .iter()
                         .into_grouping_map_by(|pc| {
-                            (pc.project_config, pc.solution_config, pc.platform)
+                            (
+                                pc.project_config,
+                                pc.solution_config,
+                                pc.platform,
+                                pc.project_platform,
+                            )
                         })
                         .fold(
                             ProjectConfiguration::default(),
-                            |mut pc, (p, s, plat), val| {
+                            |mut pc, (p, s, plat, project_plat), val| {
                                 pc.configuration = p;
                                 pc.solution_configuration = s;
                                 pc.platform = plat;
+                                pc.project_platform = project_plat;
                                 match val.tag {
                                     crate::ast::ProjectConfigTag::ActiveCfg => {}
                                     crate::ast::ProjectConfigTag::Build => pc.tags.push(Tag::Build),
