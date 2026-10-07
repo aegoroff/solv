@@ -83,12 +83,15 @@ pub struct ProjectReference {
 /// A Package Reference represents a dependency on an external package.
 ///
 /// This structure contains the name and version of the referenced package.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct PackageReference {
     #[serde(rename = "@Include", default)]
     pub name: String,
     #[serde(rename = "@Version", default)]
     pub version: String,
+    /// Overrides centrally managed version (Central Package Management)
+    #[serde(rename = "@VersionOverride", default)]
+    pub version_override: Option<String>,
 }
 
 /// Represents the configuration of packages used by a project.
@@ -517,6 +520,27 @@ mod tests {
       </PackageReference>
     </ItemGroup>
   </Project>"#;
+
+    #[test]
+    fn read_project_with_version_override_test() {
+        // Arrange
+        let rdr = r#"<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="a" />
+    <PackageReference Include="b" VersionOverride="2.0.0" />
+  </ItemGroup>
+</Project>"#
+            .as_bytes();
+
+        // Act
+        let p = Project::from_reader(rdr).unwrap();
+
+        // Assert
+        let packs = p.item_group.unwrap()[0].package_reference.take().unwrap();
+        assert_eq!("", packs[0].version);
+        assert!(packs[0].version_override.is_none());
+        assert_eq!(Some("2.0.0"), packs[1].version_override.as_deref());
+    }
 
     const PACKAGES_CONFIG: &str = r#"<?xml version="1.0" encoding="utf-8"?>
     <packages>

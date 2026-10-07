@@ -75,6 +75,7 @@ use miette::{IntoDiagnostic, WrapErr};
 
 pub mod api;
 mod ast;
+pub mod cpm;
 mod lex;
 pub mod msbuild;
 mod parser;

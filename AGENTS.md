@@ -20,6 +20,7 @@ The default workspace member is `solv` (see the root `Cargo.toml`).
 - `src/ast.rs` — Internal AST produced by the grammar.
 - `src/api.rs` — Public `Solution`, `Project`, `Configuration`, etc. types exposed to consumers.
 - `src/msbuild.rs` — MSBuild-specific helpers (parsing referenced `.csproj`/`.vcxproj` metadata, packages, etc.).
+- `src/cpm.rs` — Central Package Management: simplified evaluation of `Directory.Build.props` + `Directory.Packages.props` + `Directory.Build.targets` (imports, `$(Property)` expansion, `GetPathOfFileAbove`/`GetDirectoryNameOfFileAbove`, `PackageVersion`, `GlobalPackageReference`, `PackageReference` inherited by projects). Used by `solv nuget`.
 - `src/lib.rs` — Entry point. Defines:
   - `parse_str(&str) -> Result<Solution, ...>` — detects the format by content (`slnx::is_slnx`) and routes to `.sln` or `.slnx` parser
   - `parse_file(path, &mut impl Consume) -> Result<...>`
