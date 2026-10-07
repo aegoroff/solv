@@ -619,14 +619,14 @@ impl Validator for Danglings<'_> {
 
 struct Missings<'a> {
     solution: &'a Solution<'a>,
-    missings: HashMap<&'a str, Vec<SolutionConfiguration<'a>>>,
+    missings: BTreeMap<&'a str, Vec<SolutionConfiguration<'a>>>,
 }
 
 impl<'a> Missings<'a> {
     pub fn new(solution: &'a Solution<'a>) -> Self {
         Self {
             solution,
-            missings: HashMap::new(),
+            missings: BTreeMap::new(),
         }
     }
 }
@@ -1565,6 +1565,53 @@ mod tests {
         // Assert
         assert!(!validator.validation_result());
         assert_eq!(1, statistic.missings);
+    }
+
+    #[test]
+    fn missing_validation_sorted_by_project_id() {
+        // Arrange
+        let ids = [
+            "{C0000000-0000-0000-0000-000000000000}",
+            "{A0000000-0000-0000-0000-000000000000}",
+            "{B0000000-0000-0000-0000-000000000000}",
+        ];
+        let projects: String = ids
+            .iter()
+            .enumerate()
+            .map(|(i, id)| {
+                format!(
+                    "Project(\"{{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}}\") = \"p{i}\", \"p{i}.csproj\", \"{id}\"\nEndProject\n"
+                )
+            })
+            .collect();
+        let configs: String = ids
+            .iter()
+            .map(|id| format!("        {id}.Release|Any CPU.ActiveCfg = Release|Any CPU\n"))
+            .collect();
+        let content = format!(
+            r#"
+Microsoft Visual Studio Solution File, Format Version 12.00
+{projects}Global
+    GlobalSection(SolutionConfigurationPlatforms) = preSolution
+        Debug|Any CPU = Debug|Any CPU
+    EndGlobalSection
+    GlobalSection(ProjectConfigurationPlatforms) = postSolution
+{configs}    EndGlobalSection
+EndGlobal
+"#
+        );
+        let solution = solp::parse_str(&content).unwrap();
+        let mut validator = Missings::new(&solution);
+        let mut statistic = Statistic::default();
+
+        // Act
+        validator.validate(&mut statistic);
+
+        // Assert
+        let actual: Vec<_> = validator.missings.keys().copied().collect();
+        let mut expected = ids.to_vec();
+        expected.sort_unstable();
+        assert_eq!(expected, actual);
     }
 
     #[test]

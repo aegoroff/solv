@@ -301,7 +301,7 @@ impl<'a, C: Consume> SolpWalker<'a, C> {
     /// Any errors occurred during parsing of found files will be ignored (so parsing won't stopped)
     /// but error paths will be added into error files list (using err function of [`Consume`] trait)
     ///
-    /// Extension may be a comma-separated list, for example `sln,slnx`.
+    /// Extension may be a comma-separated list, for example `sln,slnx`. Extensions are case insensitive.
     pub fn walk_and_parse(&mut self, path: &str) -> usize {
         let extensions = parse_extensions(self.extension);
         let root = decorate_path(path);
@@ -319,8 +319,11 @@ impl<'a, C: Consume> SolpWalker<'a, C> {
         .filter(|f| f.file_type.is_file())
         .map(|f| f.path())
         .filter(|p| {
-            p.extension()
-                .is_some_and(|extension| extensions.iter().any(|expected| extension == *expected))
+            p.extension().is_some_and(|extension| {
+                extensions
+                    .iter()
+                    .any(|expected| extension.eq_ignore_ascii_case(expected))
+            })
         })
         .filter_map(|fp| {
             let p = fp.to_str()?;
@@ -449,6 +452,42 @@ EndGlobal
         assert_eq!(scanned, expected);
         assert_eq!(walker.consumer.ok_count, expected);
         assert_eq!(walker.consumer.err_count, 0);
+    }
+
+    #[test_case("upper_default", None, &["ROOT.SLN", "Root.Slnx"], 2 ; "default extensions")]
+    #[test_case("upper_option", Some("SLN"), &["root.sln", "ROOT.Sln"], 2 ; "upper case option")]
+    #[test_case("upper_only_sln", Some("sln"), &["ROOT.SLN", "root.SLNX"], 1 ; "other extension skipped")]
+    fn walk_and_parse_ignores_extension_case(
+        name: &str,
+        extension: Option<&str>,
+        files: &[&str],
+        expected: usize,
+    ) {
+        // Arrange
+        let dir = std::env::temp_dir().join(format!("solp_walk_{name}_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        for file in files {
+            let content = if file.to_lowercase().ends_with("slnx") {
+                MINIMAL_SLNX_SOLUTION
+            } else {
+                MINIMAL_SOLUTION
+            };
+            fs::write(dir.join(file), content).unwrap();
+        }
+        let walker = SolpWalker::new(CountingConsumer::new());
+        let mut walker = match extension {
+            Some(extension) => walker.with_extension(extension),
+            None => walker,
+        };
+
+        // Act
+        let scanned = walker.walk_and_parse(dir.to_str().unwrap());
+
+        // Assert
+        let _ = fs::remove_dir_all(&dir);
+        assert_eq!(expected, scanned);
+        assert_eq!(expected, walker.consumer.ok_count);
     }
 
     #[test]
