@@ -24,6 +24,24 @@ pub struct EffectiveRules<'a> {
     pub deploys: Vec<ConfigurationRuleBorrowed<'a>>,
 }
 
+impl<'a> EffectiveRules<'a> {
+    /// Appends `BuildType`, `Platform`, `Build` and `Deploy` rules (in this order)
+    fn append(&mut self, contents: &'a str, sources: [&[ConfigurationRule]; 4]) -> Result<()> {
+        let [build_types, platforms, builds, deploys] = sources;
+        for (target, source) in [
+            (&mut self.build_types, build_types),
+            (&mut self.platforms, platforms),
+            (&mut self.builds, builds),
+            (&mut self.deploys, deploys),
+        ] {
+            for rule in source {
+                target.push(borrow_rule(contents, rule)?);
+            }
+        }
+        Ok(())
+    }
+}
+
 /// Project type id and configuration rules that apply to a project
 #[derive(Debug)]
 pub struct ProjectSetup<'a> {
@@ -134,7 +152,15 @@ pub fn project_setup<'a>(
     for project_type in resolver.solution_defaults() {
         append_custom_type_rules(contents, project_type, &mut rules)?;
     }
-    append_project_rules(contents, project, &mut rules)?;
+    rules.append(
+        contents,
+        [
+            &project.build_types,
+            &project.platforms,
+            &project.builds,
+            &project.deploys,
+        ],
+    )?;
 
     // Unknown type is described by Type attribute or by extension like unknown GUID in .sln
     let type_id = match resolved.and_then(|project_type| resolver.type_id(project_type)) {
@@ -195,41 +221,15 @@ fn append_custom_type_rules<'a>(
         });
     }
 
-    for rule in &project_type.build_types {
-        rules.build_types.push(borrow_rule(contents, rule)?);
-    }
-    for rule in &project_type.platforms {
-        rules.platforms.push(borrow_rule(contents, rule)?);
-    }
-    for rule in &project_type.builds {
-        rules.builds.push(borrow_rule(contents, rule)?);
-    }
-    for rule in &project_type.deploys {
-        rules.deploys.push(borrow_rule(contents, rule)?);
-    }
-
-    Ok(())
-}
-
-fn append_project_rules<'a>(
-    contents: &'a str,
-    project: &RawProject,
-    rules: &mut EffectiveRules<'a>,
-) -> Result<()> {
-    for rule in &project.build_types {
-        rules.build_types.push(borrow_rule(contents, rule)?);
-    }
-    for rule in &project.platforms {
-        rules.platforms.push(borrow_rule(contents, rule)?);
-    }
-    for rule in &project.builds {
-        rules.builds.push(borrow_rule(contents, rule)?);
-    }
-    for rule in &project.deploys {
-        rules.deploys.push(borrow_rule(contents, rule)?);
-    }
-
-    Ok(())
+    rules.append(
+        contents,
+        [
+            &project_type.build_types,
+            &project_type.platforms,
+            &project_type.builds,
+            &project_type.deploys,
+        ],
+    )
 }
 
 fn borrow_rule<'a>(
