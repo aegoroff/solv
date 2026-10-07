@@ -340,7 +340,7 @@ fn extension_arg() -> Arg {
         .value_name("EXTENSION")
         .required(false)
         .requires(PATH)
-        .default_value(solp::DEFAULT_SOLUTION_EXT)
+        .default_value(solp::DEFAULT_SOLUTION_EXTENSIONS)
         .help(EXT_DESCR)
 }
 
@@ -361,4 +361,21 @@ fn show_errors_on_dir_scan_arg() -> Arg {
         .requires(PATH)
         .action(ArgAction::SetTrue)
         .help(SHOW_ERROR_ON_DIR_SCAN_DESCR)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extension_arg_defaults_to_sln_and_slnx() {
+        // Arrange
+        let arg = extension_arg();
+
+        // Act
+        let defaults = arg.get_default_values();
+
+        // Assert
+        assert_eq!(defaults, ["sln,slnx"]);
+    }
 }

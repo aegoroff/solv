@@ -125,7 +125,7 @@ Common options accepted by `validate`, `validate fix`, `info`, `nuget` and `json
 
 | Option                    | Description                                                                |
 | ------------------------- | -------------------------------------------------------------------------- |
-| `-e, --ext <EXTENSION>`   | Visual Studio solution extension (default: `sln`)                          |
+| `-e, --ext <EXTENSION>`   | Visual Studio solution extension, comma-separated (default: `sln,slnx`)    |
 | `-r, --recursively`       | Scan the directory recursively (default: `false`)                          |
 | `--showerrors`            | Output solution parsing errors while scanning directories (default: `false`) |
 | `-t, --time`              | Show scanning time when scanning a directory (default: `false`)            |

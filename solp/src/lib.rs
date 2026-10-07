@@ -75,6 +75,9 @@ pub const DEFAULT_SOLUTION_EXT: &str = "sln";
 
 pub use slnx::SLNX_SOLUTION_EXT;
 
+/// Default comma-separated list of solution file extensions to search while scanning directories
+pub const DEFAULT_SOLUTION_EXTENSIONS: &str = "sln,slnx";
+
 /// Consume provides parsed [`Solution`] consumer
 pub trait Consume {
     /// Called in case of success parsing
@@ -232,13 +235,14 @@ impl<'a, C: Consume> SolpWalker<'a, C> {
     pub fn new(consumer: C) -> Self {
         Self {
             consumer,
-            extension: DEFAULT_SOLUTION_EXT,
+            extension: DEFAULT_SOLUTION_EXTENSIONS,
             show_errors: false,
             recursively: false,
         }
     }
 
-    /// Setting Visual Studio solution file extension. sln by default.
+    /// Setting Visual Studio solution file extension. May be a comma-separated list.
+    /// [`DEFAULT_SOLUTION_EXTENSIONS`] (sln and slnx) by default.
     #[must_use]
     pub fn with_extension(mut self, extension: &'a str) -> Self {
         self.extension = extension;
@@ -332,6 +336,90 @@ fn decorate_path(path: &str) -> String {
 mod tests {
     use super::*;
     use test_case::test_case;
+
+    const MINIMAL_SOLUTION: &str = r#"
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "test", "test.csproj", "{A61CD222-0F3B-47B6-9F7F-25D658368EEC}"
+EndProject
+Global
+    GlobalSection(SolutionConfigurationPlatforms) = preSolution
+        Debug|Any CPU = Debug|Any CPU
+    EndGlobalSection
+    GlobalSection(ProjectConfigurationPlatforms) = postSolution
+        {A61CD222-0F3B-47B6-9F7F-25D658368EEC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+    EndGlobalSection
+EndGlobal
+"#;
+
+    const MINIMAL_SLNX_SOLUTION: &str = r#"<Solution>
+  <Project Path="test.csproj" />
+</Solution>"#;
+
+    struct CountingConsumer {
+        ok_count: usize,
+        err_count: usize,
+    }
+
+    impl CountingConsumer {
+        fn new() -> Self {
+            Self {
+                ok_count: 0,
+                err_count: 0,
+            }
+        }
+    }
+
+    impl Consume for CountingConsumer {
+        fn ok(&mut self, _solution: &Solution) {
+            self.ok_count += 1;
+        }
+
+        fn err(&mut self, _path: &str) {
+            self.err_count += 1;
+        }
+    }
+
+    /// Creates root.sln, root.slnx, nested/nested.sln and nested/nested.slnx
+    fn create_walk_fixture(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("solp_walk_{name}_{}", std::process::id()));
+        let nested = dir.join("nested");
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&nested).unwrap();
+        fs::write(dir.join("root.sln"), MINIMAL_SOLUTION).unwrap();
+        fs::write(dir.join("root.slnx"), MINIMAL_SLNX_SOLUTION).unwrap();
+        fs::write(nested.join("nested.sln"), MINIMAL_SOLUTION).unwrap();
+        fs::write(nested.join("nested.slnx"), MINIMAL_SLNX_SOLUTION).unwrap();
+        dir
+    }
+
+    #[test_case("default_non_recursive", None, false, 2 ; "default extensions non recursive")]
+    #[test_case("default_recursive", None, true, 4 ; "default extensions recursive")]
+    #[test_case("sln_recursive", Some("sln"), true, 2 ; "only sln recursive")]
+    #[test_case("slnx_non_recursive", Some("slnx"), false, 1 ; "only slnx non recursive")]
+    #[test_case("both_explicit_recursive", Some("sln, .slnx"), true, 4 ; "explicit list recursive")]
+    fn walk_and_parse_finds_solutions(
+        name: &str,
+        extension: Option<&str>,
+        recursively: bool,
+        expected: usize,
+    ) {
+        // Arrange
+        let dir = create_walk_fixture(name);
+        let walker = SolpWalker::new(CountingConsumer::new()).recursively(recursively);
+        let mut walker = match extension {
+            Some(extension) => walker.with_extension(extension),
+            None => walker,
+        };
+
+        // Act
+        let scanned = walker.walk_and_parse(dir.to_str().unwrap());
+
+        // Assert
+        let _ = fs::remove_dir_all(&dir);
+        assert_eq!(scanned, expected);
+        assert_eq!(walker.consumer.ok_count, expected);
+        assert_eq!(walker.consumer.err_count, 0);
+    }
 
     #[test_case("sln", vec!["sln"] ; "single extension")]
     #[test_case("slnx", vec!["slnx"] ; "slnx extension")]
