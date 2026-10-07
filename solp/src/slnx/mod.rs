@@ -11,6 +11,7 @@ use miette::{IntoDiagnostic, WrapErr};
 use serde::Deserialize;
 
 use crate::api::Solution;
+use crate::parser::strip_utf8_bom;
 
 /// Root element of Solution
 #[derive(Debug, Deserialize)]
@@ -232,19 +233,15 @@ fn unescape(raw: &str) -> Option<String> {
 /// Returns `true` when the content looks like an XML `.slnx` solution file.
 #[must_use]
 pub fn is_slnx(contents: &str) -> bool {
-    let trimmed = strip_bom(contents).trim_start();
+    let trimmed = strip_utf8_bom(contents).0.trim_start();
     trimmed.starts_with('<') && !trimmed.starts_with("Microsoft Visual Studio")
-}
-
-fn strip_bom(contents: &str) -> &str {
-    contents.strip_prefix('\u{feff}').unwrap_or(contents)
 }
 
 /// Returns `true` if the first element of XML document is `<Solution>`.
 /// XML declaration, processing instructions, comments and DOCTYPE before it are skipped.
 fn has_solution_root(contents: &str) -> bool {
     const ROOT: &str = "<Solution";
-    let mut rest = strip_bom(contents).trim_start();
+    let mut rest = strip_utf8_bom(contents).0.trim_start();
     loop {
         let skip_until = if rest.starts_with("<?") {
             "?>"
@@ -281,7 +278,8 @@ pub fn parse_str(contents: &str) -> miette::Result<Solution<'_>> {
 
 fn deserialize_xml(contents: &str) -> miette::Result<SlnxSolution> {
     let config = serde_xml_rs::SerdeXml::new().overlapping_sequences(true);
-    let mut de = serde_xml_rs::Deserializer::from_config(config, strip_bom(contents).as_bytes());
+    let mut de =
+        serde_xml_rs::Deserializer::from_config(config, strip_utf8_bom(contents).0.as_bytes());
     SlnxSolution::deserialize(&mut de)
         .into_diagnostic()
         .wrap_err("Failed to deserialize .slnx solution file")
