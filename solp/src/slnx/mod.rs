@@ -251,8 +251,7 @@ fn split_file_name(path: &str) -> (&str, Option<&str>) {
 /// Returns `true` when the content looks like an XML `.slnx` solution file.
 #[must_use]
 pub fn is_slnx(contents: &str) -> bool {
-    let trimmed = strip_utf8_bom(contents).0.trim_start();
-    trimmed.starts_with('<') && !trimmed.starts_with("Microsoft Visual Studio")
+    strip_utf8_bom(contents).0.trim_start().starts_with('<')
 }
 
 /// Returns `true` if the first element of XML document is `<Solution>`.
