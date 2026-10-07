@@ -463,10 +463,16 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "app", "app.csproj", "{A61CD
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "root", "root.csproj", "{B61CD222-0F3B-47B6-9F7F-25D658368EEC}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "other", "other", "{AAAAAAAA-1111-1111-1111-111111111111}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "lower", "lower.csproj", "{C61CD222-0F3B-47B6-9F7F-25D658368EEC}"
+EndProject
 Global
     GlobalSection(NestedProjects) = preSolution
         {22222222-2222-2222-2222-222222222222} = {11111111-1111-1111-1111-111111111111}
         {a61cd222-0f3b-47b6-9f7f-25d658368eec} = {22222222-2222-2222-2222-222222222222}
+        {B61CD222-0F3B-47B6-9F7F-25D658368EEC} = {33333333-3333-3333-3333-333333333333}
+        {c61cd222-0f3b-47b6-9f7f-25d658368eec} = {aaaaaaaa-1111-1111-1111-111111111111}
     EndGlobalSection
 EndGlobal
 "#;
@@ -486,7 +492,11 @@ EndGlobal
                 ("src", None),
                 ("lib", Some("{11111111-1111-1111-1111-111111111111}")),
                 ("app", Some("{22222222-2222-2222-2222-222222222222}")),
-                ("root", None),
+                // parent that isn't in the solution is kept as is
+                ("root", Some("{33333333-3333-3333-3333-333333333333}")),
+                ("other", None),
+                // parent GUID case is taken from the parent project itself
+                ("lower", Some("{AAAAAAAA-1111-1111-1111-111111111111}")),
             ]
         );
     }

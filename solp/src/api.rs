@@ -211,10 +211,20 @@ impl<'a> Solution<'a> {
                 )
             })
             .collect::<HashMap<&str, BTreeSet<ProjectConfiguration>>>();
+        // Parent is reported as id of the parent project itself because
+        // NestedProjects section may use different GUID case
+        let ids = solution
+            .projects
+            .iter()
+            .map(|p| (p.id.to_uppercase(), p.id))
+            .collect::<HashMap<String, &str>>();
         let parents = solution
             .nested_projects
             .iter()
-            .map(|(child, parent)| (child.to_uppercase(), *parent))
+            .map(|(child, parent)| {
+                let parent = ids.get(&parent.to_uppercase()).copied().unwrap_or(parent);
+                (child.to_uppercase(), parent)
+            })
             .collect::<HashMap<String, &str>>();
         solution
             .projects
