@@ -5,10 +5,7 @@ use miette::Result;
 use crate::api::{ProjectConfiguration, Tag};
 
 use super::types::{MISSING_PLATFORM, Resolver, TypeRef, built_in_type_id};
-use super::{
-    ConfigurationRule, ConfigurationRulePlatform, Configurations, Project as RawProject,
-    ProjectType,
-};
+use super::{ConfigurationRule, Configurations, Project as RawProject, ProjectType};
 
 const DEFAULT_BUILD_TYPES: &[&str] = &["Debug", "Release"];
 const DEFAULT_PLATFORMS: &[&str] = &["Any CPU"];
@@ -22,7 +19,7 @@ pub struct SolutionConfigNames<'a> {
 #[derive(Debug, Default)]
 pub struct EffectiveRules<'a> {
     pub build_types: Vec<ConfigurationRuleBorrowed<'a>>,
-    pub platforms: Vec<ConfigurationRulePlatformBorrowed<'a>>,
+    pub platforms: Vec<ConfigurationRuleBorrowed<'a>>,
     pub builds: Vec<ConfigurationRuleBorrowed<'a>>,
     pub deploys: Vec<ConfigurationRuleBorrowed<'a>>,
 }
@@ -38,12 +35,6 @@ pub struct ProjectSetup<'a> {
 pub struct ConfigurationRuleBorrowed<'a> {
     pub solution: Option<&'a str>,
     pub project: Option<&'a str>,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct ConfigurationRulePlatformBorrowed<'a> {
-    pub solution: Option<&'a str>,
-    pub project: &'a str,
 }
 
 pub fn solution_build_types<'a>(
@@ -198,9 +189,9 @@ fn append_custom_type_rules<'a>(
         return Ok(());
     }
     if project_type.supports_platform == Some(false) {
-        rules.platforms.push(ConfigurationRulePlatformBorrowed {
+        rules.platforms.push(ConfigurationRuleBorrowed {
             solution: None,
-            project: MISSING_PLATFORM,
+            project: Some(MISSING_PLATFORM),
         });
     }
 
@@ -208,7 +199,7 @@ fn append_custom_type_rules<'a>(
         rules.build_types.push(borrow_rule(contents, rule)?);
     }
     for rule in &project_type.platforms {
-        rules.platforms.push(borrow_platform_rule(contents, rule)?);
+        rules.platforms.push(borrow_rule(contents, rule)?);
     }
     for rule in &project_type.builds {
         rules.builds.push(borrow_rule(contents, rule)?);
@@ -229,7 +220,7 @@ fn append_project_rules<'a>(
         rules.build_types.push(borrow_rule(contents, rule)?);
     }
     for rule in &project.platforms {
-        rules.platforms.push(borrow_platform_rule(contents, rule)?);
+        rules.platforms.push(borrow_rule(contents, rule)?);
     }
     for rule in &project.builds {
         rules.builds.push(borrow_rule(contents, rule)?);
@@ -257,19 +248,6 @@ fn borrow_rule<'a>(
     })
 }
 
-fn borrow_platform_rule<'a>(
-    contents: &'a str,
-    rule: &ConfigurationRulePlatform,
-) -> Result<ConfigurationRulePlatformBorrowed<'a>> {
-    Ok(ConfigurationRulePlatformBorrowed {
-        solution: match rule.solution.as_deref() {
-            Some(value) => Some(super::borrow_in(contents, value)?),
-            None => None,
-        },
-        project: super::borrow_in(contents, &rule.project)?,
-    })
-}
-
 fn map_build_type<'a>(
     solution_build_type: &'a str,
     solution_platform: &str,
@@ -293,12 +271,12 @@ fn map_build_type<'a>(
 fn map_platform<'a>(
     solution_build_type: &str,
     solution_platform: &'a str,
-    rules: &[ConfigurationRulePlatformBorrowed<'a>],
+    rules: &[ConfigurationRuleBorrowed<'a>],
 ) -> &'a str {
     rules
         .iter()
         .rev()
-        .find(|rule| {
+        .filter(|rule| {
             rule_matches_solution(
                 rule.solution,
                 Dimension::Platform,
@@ -306,7 +284,8 @@ fn map_platform<'a>(
                 solution_platform,
             )
         })
-        .map_or(solution_platform, |rule| rule.project)
+        .find_map(|rule| rule.project)
+        .unwrap_or(solution_platform)
 }
 
 /// Returns the value of the last matching `Build`/`Deploy` rule or `default` when no rule matches.
@@ -549,6 +528,26 @@ mod tests {
                 .tags
                 .contains(&Tag::Build),
             expected_built
+        );
+    }
+
+    #[test]
+    fn platform_rule_without_project_is_ignored() {
+        // Arrange
+        let slnx = r#"<Solution>
+  <Project Path="Native/Native.vcxproj">
+    <Platform Solution="*|Any CPU" />
+  </Project>
+</Solution>"#;
+
+        // Act
+        let solution = super::super::parse_str(slnx).unwrap();
+
+        // Assert
+        let configurations = solution.projects[0].configurations.as_ref().unwrap();
+        assert_eq!(
+            find(configurations, "Debug", "Any CPU").project_platform,
+            "x64"
         );
     }
 

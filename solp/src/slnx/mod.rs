@@ -69,7 +69,7 @@ pub struct ProjectType {
     #[serde(rename = "BuildType", default)]
     pub build_types: Vec<ConfigurationRule>,
     #[serde(rename = "Platform", default)]
-    pub platforms: Vec<ConfigurationRulePlatform>,
+    pub platforms: Vec<ConfigurationRule>,
     #[serde(rename = "Build", default)]
     pub builds: Vec<ConfigurationRule>,
     #[serde(rename = "Deploy", default)]
@@ -121,7 +121,7 @@ pub struct Project {
     #[serde(rename = "BuildType", default)]
     pub build_types: Vec<ConfigurationRule>,
     #[serde(rename = "Platform", default)]
-    pub platforms: Vec<ConfigurationRulePlatform>,
+    pub platforms: Vec<ConfigurationRule>,
     #[serde(rename = "Build", default)]
     pub builds: Vec<ConfigurationRule>,
     #[serde(rename = "Deploy", default)]
@@ -147,22 +147,13 @@ pub struct BuildDependency {
     pub project: String,
 }
 
-/// Common configuration rule (BuildType, Build, Deploy)
+/// Configuration rule (BuildType, Platform, Build, Deploy)
 #[derive(Debug, Deserialize)]
 pub struct ConfigurationRule {
     #[serde(rename = "@Solution", default)]
     pub solution: Option<String>,
     #[serde(rename = "@Project", default)]
     pub project: Option<String>,
-}
-
-/// Configuration rule for Platform (Project is required)
-#[derive(Debug, Deserialize)]
-pub struct ConfigurationRulePlatform {
-    #[serde(rename = "@Solution", default)]
-    pub solution: Option<String>,
-    #[serde(rename = "@Project")]
-    pub project: String,
 }
 
 /// Properties group (PropertiesGroup)

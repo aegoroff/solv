@@ -4,7 +4,7 @@
 //! (Microsoft.VisualStudio.SolutionPersistence): built-in types with their implicit
 //! configuration rules and solution defined `ProjectType` elements that may be based on each other.
 
-use super::config::{ConfigurationRuleBorrowed, ConfigurationRulePlatformBorrowed};
+use super::config::ConfigurationRuleBorrowed;
 use super::{Configurations, ProjectType};
 
 /// Max `BasedOn` chain length. Protects from cycles in malformed solutions.
@@ -195,31 +195,29 @@ const NO_BUILD_RULES: &[ConfigurationRuleBorrowed<'static>] = &[ConfigurationRul
     project: Some("false"),
 }];
 
-const CLR_PLATFORM_RULES: &[ConfigurationRulePlatformBorrowed<'static>] =
-    &[ConfigurationRulePlatformBorrowed {
-        solution: None,
-        project: "Any CPU",
-    }];
+const CLR_PLATFORM_RULES: &[ConfigurationRuleBorrowed<'static>] = &[ConfigurationRuleBorrowed {
+    solution: None,
+    project: Some("Any CPU"),
+}];
 
-const VC_PLATFORM_RULES: &[ConfigurationRulePlatformBorrowed<'static>] = &[
-    ConfigurationRulePlatformBorrowed {
+const VC_PLATFORM_RULES: &[ConfigurationRuleBorrowed<'static>] = &[
+    ConfigurationRuleBorrowed {
         solution: Some("*|Any CPU"),
-        project: "x64",
+        project: Some("x64"),
     },
-    ConfigurationRulePlatformBorrowed {
+    ConfigurationRuleBorrowed {
         solution: Some("*|x86"),
-        project: "Win32",
+        project: Some("Win32"),
     },
 ];
 
-const NO_PLATFORMS_RULES: &[ConfigurationRulePlatformBorrowed<'static>] =
-    &[ConfigurationRulePlatformBorrowed {
-        solution: None,
-        project: MISSING_PLATFORM,
-    }];
+const NO_PLATFORMS_RULES: &[ConfigurationRuleBorrowed<'static>] = &[ConfigurationRuleBorrowed {
+    solution: None,
+    project: Some(MISSING_PLATFORM),
+}];
 
 impl BuiltInType {
-    pub fn platform_rules(&self) -> &'static [ConfigurationRulePlatformBorrowed<'static>] {
+    pub fn platform_rules(&self) -> &'static [ConfigurationRuleBorrowed<'static>] {
         match self.rules {
             BuiltInRules::Clr => CLR_PLATFORM_RULES,
             BuiltInRules::Vc => VC_PLATFORM_RULES,
