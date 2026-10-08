@@ -9,6 +9,8 @@ use super::{ConfigurationRule, Configurations, Project as RawProject, ProjectTyp
 
 const DEFAULT_BUILD_TYPES: &[&str] = &["Debug", "Release"];
 const DEFAULT_PLATFORMS: &[&str] = &["Any CPU"];
+/// Rule value that means any solution value in `Solution` and the solution value itself in `Project`.
+const ANY_VALUE: &str = "*";
 
 #[derive(Debug, Default)]
 pub struct SolutionConfigNames<'a> {
@@ -257,6 +259,7 @@ fn map_build_type<'a>(
             )
         })
         .find_map(|rule| rule.project)
+        .filter(|value| *value != ANY_VALUE)
         .unwrap_or(solution_build_type)
 }
 
@@ -277,6 +280,7 @@ fn map_platform<'a>(
             )
         })
         .find_map(|rule| rule.project)
+        .filter(|value| *value != ANY_VALUE)
         .unwrap_or(solution_platform)
 }
 
@@ -328,8 +332,8 @@ fn rule_matches_solution(
     };
     let (build_type, platform) = match rule_solution.split_once('|') {
         Some((build_type, platform)) => (build_type, platform),
-        None if dimension == Dimension::Platform => ("*", rule_solution),
-        None => (rule_solution, "*"),
+        None if dimension == Dimension::Platform => (ANY_VALUE, rule_solution),
+        None => (rule_solution, ANY_VALUE),
     };
     part_matches(build_type, solution_build_type) && part_matches(platform, solution_platform)
 }
@@ -337,7 +341,7 @@ fn rule_matches_solution(
 fn part_matches(pattern: &str, value: &str) -> bool {
     let pattern = pattern.trim();
     pattern.is_empty()
-        || pattern == "*"
+        || pattern == ANY_VALUE
         || canonical_platform(pattern).eq_ignore_ascii_case(canonical_platform(value))
 }
 
@@ -767,6 +771,30 @@ mod tests {
 
         // Assert
         assert_eq!(actual, "Second");
+    }
+
+    #[test_case("Debug", "x64" ; "debug x64")]
+    #[test_case("Release", "Any CPU" ; "release any cpu")]
+    fn any_project_value_means_solution_value(solution_build_type: &str, solution_platform: &str) {
+        // Arrange
+        let rules = [
+            ConfigurationRuleBorrowed {
+                solution: None,
+                project: Some("Fixed"),
+            },
+            ConfigurationRuleBorrowed {
+                solution: None,
+                project: Some("*"),
+            },
+        ];
+
+        // Act
+        let build_type = map_build_type(solution_build_type, solution_platform, &rules);
+        let platform = map_platform(solution_build_type, solution_platform, &rules);
+
+        // Assert
+        assert_eq!(build_type, solution_build_type);
+        assert_eq!(platform, solution_platform);
     }
 
     #[test_case(None, true, true ; "no rules uses default true")]
