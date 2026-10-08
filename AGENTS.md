@@ -37,7 +37,7 @@ The default workspace member is `solv` (see the root `Cargo.toml`).
 
 ### `solv` (CLI)
 - `src/main.rs` — clap command tree. Each subcommand constructs a `Consume` implementation and passes it to `scan_path` / `scan_stream`.
-- `src/validate.rs` — `Validate` consumer: each `Validator` (cycles, danglings, duplicate GUIDs/configurations, not found, missings, orphans, redundant references) returns `Option<Problem>`; problems are collected into per-solution reports and counted in `Statistic`. `ValidateFix` removes redundant references from project files.
+- `src/validate.rs` — `Validate` consumer: each `Validator` (cycles, danglings, duplicate GUIDs/configurations, not found, missings, orphans, redundant references) returns `Option<Problem>`; problems are collected into per-solution reports and counted in `Statistic`. `ValidateFix` removes redundant references from project files; its `report` returns removed/failed project files of the solution.
 - `src/info.rs` — `Info` consumer: collects summary info about solutions (projects, configurations, versions) and totals.
 - `src/nuget.rs` — `Nuget` consumer: aggregates NuGet packages referenced by projects in the solution, optionally reporting version mismatches. `mismatches_found()` is used by `--fail`.
 - `src/json.rs` — `Json` consumer: serializes the `Solution` to JSON (optionally pretty).

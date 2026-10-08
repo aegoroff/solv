@@ -291,6 +291,14 @@ impl Display for FixStatistic {
 pub struct ValidateFix {
     errors: Collector,
     statistic: FixStatistic,
+}
+
+/// Redundant references removed from projects of a solution
+struct FixReport {
+    path: String,
+    /// Paths of fixed project files with the number of removed references
+    fixed: Vec<(PathBuf, usize)>,
+    /// Paths of project files that failed to update with the error
     failed: Vec<(PathBuf, String)>,
 }
 
@@ -300,8 +308,45 @@ impl ValidateFix {
         Self {
             errors: Collector::new(),
             statistic: FixStatistic::default(),
-            failed: Vec::new(),
         }
+    }
+
+    /// Removes redundant references from solution projects, counts the result
+    /// and returns the report to show if any project was changed or failed to update
+    fn report(&mut self, solution: &Solution) -> Option<FixReport> {
+        self.statistic.parsed += 1;
+
+        let mut refs_by_project: BTreeMap<PathBuf, HashSet<String>> = BTreeMap::new();
+        for redundant in Redundants::new(solution).find() {
+            refs_by_project
+                .entry(redundant.project)
+                .or_default()
+                .insert(redundant.redundant_reference.clone());
+        }
+
+        let mut report = FixReport {
+            path: solution.path.to_owned(),
+            fixed: vec![],
+            failed: vec![],
+        };
+        for (project_path, refs) in refs_by_project {
+            match remove_redundant_reference_lines(&project_path, &refs) {
+                Ok(0) => {}
+                Ok(removed) => {
+                    self.statistic.fixed_projects += 1;
+                    self.statistic.removed_refs += removed as u64;
+                    report.fixed.push((project_path, removed));
+                }
+                Err(err) => {
+                    self.statistic.failed_projects += 1;
+                    report.failed.push((project_path, err.to_string()));
+                }
+            }
+        }
+        if !report.fixed.is_empty() {
+            self.statistic.fixed_solutions += 1;
+        }
+        (!report.fixed.is_empty() || !report.failed.is_empty()).then_some(report)
     }
 }
 
@@ -313,34 +358,8 @@ impl Default for ValidateFix {
 
 impl Consume for ValidateFix {
     fn ok(&mut self, solution: &Solution) {
-        self.statistic.parsed += 1;
-
-        let mut refs_by_project: HashMap<PathBuf, HashSet<String>> = HashMap::new();
-        for redundant in Redundants::new(solution).find() {
-            refs_by_project
-                .entry(redundant.project)
-                .or_default()
-                .insert(redundant.redundant_reference.clone());
-        }
-
-        let mut solution_was_fixed = false;
-        for (project_path, refs) in refs_by_project {
-            match remove_redundant_reference_lines(&project_path, &refs) {
-                Ok(removed) => {
-                    if removed > 0 {
-                        self.statistic.fixed_projects += 1;
-                        self.statistic.removed_refs += removed as u64;
-                        solution_was_fixed = true;
-                    }
-                }
-                Err(err) => {
-                    self.statistic.failed_projects += 1;
-                    self.failed.push((project_path, err.to_string()));
-                }
-            }
-        }
-        if solution_was_fixed {
-            self.statistic.fixed_solutions += 1;
+        if let Some(report) = self.report(solution) {
+            print!("{report}");
         }
     }
 
@@ -356,22 +375,33 @@ impl Display for ValidateFix {
         statistic.total = statistic.parsed + statistic.not_parsed;
         write!(f, "{statistic}")?;
 
-        if !self.failed.is_empty() {
-            writeln!(f)?;
-            writeln!(
-                f,
-                " {}",
-                "Failed to update project files:".dark_red().bold()
-            )?;
-            for (path, error) in &self.failed {
-                writeln!(f, "   {}: {}", path.to_string_lossy(), error)?;
-            }
-        }
-
         if self.errors.count() > 0 {
             write!(f, "{}", self.errors)?;
         }
         Ok(())
+    }
+}
+
+impl Display for FixReport {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        ux::write_solution_path(f, &self.path)?;
+        ux::write_one_column_table(
+            f,
+            "Removed redundant project references",
+            Some(comfy_table::Color::DarkGreen),
+            self.fixed
+                .iter()
+                .map(|(path, removed)| format!("{}: {removed}", path.to_string_lossy())),
+        )?;
+        ux::write_one_column_table(
+            f,
+            "Failed to update project files",
+            Some(comfy_table::Color::DarkRed),
+            self.failed
+                .iter()
+                .map(|(path, error)| format!("{}: {error}", path.to_string_lossy())),
+        )?;
+        writeln!(f)
     }
 }
 
@@ -2227,9 +2257,13 @@ EndGlobal
 
         // Act
         let mut validator = ValidateFix::new();
-        validator.ok(&solution);
+        let report = validator.report(&solution).expect("fix report");
 
         // Assert
+        assert_eq!(report.fixed.len(), 1);
+        assert_eq!(report.fixed[0].1, 1);
+        assert!(report.fixed[0].0.ends_with("App.csproj"));
+        assert!(report.failed.is_empty());
         // the redundant reference was removed from App.csproj
         let app_updated = fs::read_to_string(app_dir.join("App.csproj")).unwrap();
         assert!(
@@ -2253,6 +2287,39 @@ EndGlobal
 
         // Cleanup
         fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn fix_report_display_contains_fixed_and_failed_projects() {
+        // Arrange
+        let report = FixReport {
+            path: "test.sln".to_owned(),
+            fixed: vec![(PathBuf::from("App.csproj"), 2)],
+            failed: vec![(PathBuf::from("Lib.csproj"), "access denied".to_owned())],
+        };
+
+        // Act
+        let actual = report.to_string();
+
+        // Assert
+        assert!(actual.contains("test.sln"));
+        assert!(actual.contains("App.csproj: 2"));
+        assert!(actual.contains("Lib.csproj: access denied"));
+    }
+
+    #[test]
+    fn fix_report_is_none_without_redundant_references() {
+        // Arrange
+        let solution = solp::parse_str(CORRECT_SOLUTION).unwrap();
+        let mut validator = ValidateFix::new();
+
+        // Act
+        let report = validator.report(&solution);
+
+        // Assert
+        assert!(report.is_none());
+        assert_eq!(validator.statistic.parsed, 1);
+        assert_eq!(validator.statistic.fixed_solutions, 0);
     }
 
     #[test]
@@ -2350,9 +2417,11 @@ EndGlobal
 
         // Act
         let mut validator = ValidateFix::new();
-        validator.ok(&solution);
+        let report = validator.report(&solution);
 
-        // Assert: Should have 1 fixed project (App.csproj) and 1 removed ref (Lib.csproj)
+        // Assert
+        assert!(report.is_some());
+        // Should have 1 fixed project (App.csproj) and 1 removed ref (Lib.csproj)
         // Note: Even though Lib is redundant through both A and B, it's only one reference
         let stat = validator.statistic;
         assert_eq!(stat.fixed_projects, 1, "Should be one fixed project");
