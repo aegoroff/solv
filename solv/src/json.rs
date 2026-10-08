@@ -34,20 +34,12 @@ impl Consume for Json {
 
 impl Display for Json {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let many_solutions = self.serialized.len() > 1;
-        if many_solutions {
-            write!(f, "[")?;
+        let joined = self.serialized.join(",");
+        if self.serialized.len() > 1 {
+            writeln!(f, "[{joined}]")
+        } else {
+            writeln!(f, "{joined}")
         }
-        for (ix, s) in self.serialized.iter().enumerate() {
-            write!(f, "{s}")?;
-            if ix < self.serialized.len() - 1 {
-                write!(f, ",")?;
-            }
-        }
-        if many_solutions {
-            write!(f, "]")?;
-        }
-        Ok(writeln!(f)?)
     }
 }
 

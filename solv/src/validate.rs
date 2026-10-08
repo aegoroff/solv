@@ -4,10 +4,10 @@ use comfy_table::{Attribute, Cell};
 use crossterm::style::Stylize;
 use num_format::{Locale, ToFormattedString};
 use petgraph::Direction;
-use petgraph::algo::DfsSpace;
+use petgraph::algo::{has_path_connecting, is_cyclic_directed};
 use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::prelude::DiGraphMap;
-use petgraph::visit::EdgeRef;
+use petgraph::visit::{EdgeFiltered, EdgeRef};
 use solp::api::{Project, Solution, SolutionConfiguration, Tag};
 use solp::msbuild;
 use solp::project_files::{self, ProjectLocation};
@@ -233,7 +233,7 @@ impl Validate {
     pub fn new(show_only_problems: bool) -> Self {
         Self {
             show_only_problems,
-            errors: Collector::new(),
+            errors: Collector::default(),
             statistic: Statistic::default(),
         }
     }
@@ -315,6 +315,7 @@ impl Display for FixStatistic {
     }
 }
 
+#[derive(Default)]
 pub struct ValidateFix {
     errors: Collector,
     statistic: FixStatistic,
@@ -330,14 +331,6 @@ struct FixReport {
 }
 
 impl ValidateFix {
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            errors: Collector::new(),
-            statistic: FixStatistic::default(),
-        }
-    }
-
     /// Removes redundant references from solution projects, counts the result
     /// and returns the report to show if any project was changed or failed to update
     fn report(&mut self, solution: &Solution) -> Option<FixReport> {
@@ -374,12 +367,6 @@ impl ValidateFix {
             self.statistic.fixed_solutions += 1;
         }
         (!report.fixed.is_empty() || !report.failed.is_empty()).then_some(report)
-    }
-}
-
-impl Default for ValidateFix {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -522,73 +509,44 @@ impl Display for Problem {
                 Some(comfy_table::Color::DarkYellow),
                 danglings.iter(),
             ),
-            Problem::DuplicateGuids(duplicates) => {
-                writeln!(
-                    f,
-                    "  {}",
-                    "Solution contains projects with duplicate GUIDs:"
-                        .dark_yellow()
-                        .bold()
-                )?;
-                let mut table = ux::new_table();
-                table.set_header([
-                    Cell::new("Project GUID").add_attribute(Attribute::Bold),
-                    Cell::new("Name").add_attribute(Attribute::Bold),
-                    Cell::new("Path").add_attribute(Attribute::Bold),
-                ]);
-                for (id, projects) in duplicates {
-                    for project in projects {
-                        table.add_row([
-                            Cell::new(id),
-                            Cell::new(&project.name),
-                            Cell::new(&project.path),
-                        ]);
-                    }
-                }
-                writeln!(f, "{table}")
-            }
+            Problem::DuplicateGuids(duplicates) => ux::write_titled_table(
+                f,
+                "Solution contains projects with duplicate GUIDs:",
+                ["Project GUID", "Name", "Path"],
+                duplicates.iter().flat_map(|(id, projects)| {
+                    projects
+                        .iter()
+                        .map(move |p| [id.as_str(), p.name.as_str(), p.path.as_str()])
+                }),
+            ),
             Problem::DuplicateConfigurations { solution, projects } => {
                 if let Some(configurations) = solution {
-                    writeln!(
+                    ux::write_titled_table(
                         f,
-                        "  {}",
-                        "Solution contains duplicate configuration|platform pairs:"
-                            .dark_yellow()
-                            .bold()
+                        "Solution contains duplicate configuration|platform pairs:",
+                        ["Configuration|Platform"],
+                        configurations.iter().map(|c| [c.as_str()]),
                     )?;
-                    let mut table = ux::new_table();
-                    table.set_header([
-                        Cell::new("Configuration|Platform").add_attribute(Attribute::Bold)
-                    ]);
-                    for config in configurations {
-                        table.add_row([Cell::new(config)]);
-                    }
-                    writeln!(f, "{table}")?;
                 }
                 if let Some(configurations) = projects {
-                    writeln!(
+                    ux::write_titled_table(
                         f,
-                        "  {}",
-                        "Solution contains duplicate project configuration mappings:"
-                            .dark_yellow()
-                            .bold()
+                        "Solution contains duplicate project configuration mappings:",
+                        [
+                            "Project ID",
+                            "Configuration|Platform",
+                            "Project configuration",
+                            "Tag",
+                        ],
+                        configurations.iter().map(|c| {
+                            [
+                                c.project_id.as_str(),
+                                c.solution_configuration.as_str(),
+                                c.project_configuration.as_str(),
+                                c.tag.as_str(),
+                            ]
+                        }),
                     )?;
-                    let mut table = ux::new_table();
-                    table.set_header([
-                        Cell::new("Project ID").add_attribute(Attribute::Bold),
-                        Cell::new("Configuration|Platform").add_attribute(Attribute::Bold),
-                        Cell::new("Project configuration").add_attribute(Attribute::Bold),
-                        Cell::new("Tag").add_attribute(Attribute::Bold),
-                    ]);
-                    for c in configurations {
-                        table.add_row([
-                            Cell::new(&c.project_id),
-                            Cell::new(&c.solution_configuration),
-                            Cell::new(&c.project_configuration),
-                            Cell::new(&c.tag),
-                        ]);
-                    }
-                    writeln!(f, "{table}")?;
                 }
                 Ok(())
             }
@@ -598,43 +556,22 @@ impl Display for Problem {
                 Some(comfy_table::Color::DarkYellow),
                 paths.iter().filter_map(|p| p.as_path().to_str()),
             ),
-            Problem::Missings(missings) => {
-                writeln!(f, "  {}", "Solution contains project configurations that are outside solution's configuration|platform list:".dark_yellow().bold())?;
-                let mut table = ux::new_table();
-                table.set_header([
-                    Cell::new("Project ID").add_attribute(Attribute::Bold),
-                    Cell::new("Configuration|Platform").add_attribute(Attribute::Bold),
-                ]);
-                for (id, configs) in missings {
-                    for config in configs {
-                        table.add_row([Cell::new(id), Cell::new(config)]);
-                    }
-                }
-                writeln!(f, "{table}")
-            }
-            Problem::Orphans(projects) => {
-                writeln!(
-                    f,
-                    "  {}",
-                    "Solution contains projects that are not built in any configuration:"
-                        .dark_yellow()
-                        .bold()
-                )?;
-                let mut table = ux::new_table();
-                table.set_header([
-                    Cell::new("Name").add_attribute(Attribute::Bold),
-                    Cell::new("Project GUID").add_attribute(Attribute::Bold),
-                    Cell::new("Path").add_attribute(Attribute::Bold),
-                ]);
-                for project in projects {
-                    table.add_row([
-                        Cell::new(&project.name),
-                        Cell::new(&project.id),
-                        Cell::new(&project.path),
-                    ]);
-                }
-                writeln!(f, "{table}")
-            }
+            Problem::Missings(missings) => ux::write_titled_table(
+                f,
+                "Solution contains project configurations that are outside solution's configuration|platform list:",
+                ["Project ID", "Configuration|Platform"],
+                missings.iter().flat_map(|(id, configs)| {
+                    configs.iter().map(move |c| [id.as_str(), c.as_str()])
+                }),
+            ),
+            Problem::Orphans(projects) => ux::write_titled_table(
+                f,
+                "Solution contains projects that are not built in any configuration:",
+                ["Name", "Project GUID", "Path"],
+                projects
+                    .iter()
+                    .map(|p| [p.name.as_str(), p.id.as_str(), p.path.as_str()]),
+            ),
             Problem::Redundants(redundants) => write_redundants(f, redundants),
         }
     }
@@ -886,19 +823,11 @@ impl<'a> Validator for Cycles<'a> {
         // Dependencies are resolved to project ids by solp
         let mut graph = DiGraphMap::<&'a str, ()>::new();
         for to in &self.solution.projects {
-            graph.add_node(to.id);
             for from in to.depends_from.iter().flatten() {
-                if !graph.contains_node(from) {
-                    graph.add_node(from);
-                }
                 graph.add_edge(from, to.id, ());
             }
         }
-
-        let mut space = DfsSpace::new(&graph);
-        petgraph::algo::toposort(&graph, Some(&mut space))
-            .is_err()
-            .then_some(Problem::Cycles)
+        is_cyclic_directed(&graph).then_some(Problem::Cycles)
     }
 }
 
@@ -906,7 +835,7 @@ impl<'a> Validator for Cycles<'a> {
 /// directly references `redundant_reference`, but the same reference is also
 /// reachable transitively through some other direct reference of `project`,
 /// so the direct reference can be safely removed.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct RedundantRef {
     project: PathBuf,
     redundant_reference: String,
@@ -1000,13 +929,9 @@ impl<'a> Redundants<'a> {
         nodes: &mut HashMap<PathBuf, NodeIndex>,
         path: &Path,
     ) -> NodeIndex {
-        if let Some(ix) = nodes.get(path) {
-            *ix
-        } else {
-            let ix = graph.add_node(path.to_path_buf());
-            nodes.insert(path.to_path_buf(), ix);
-            ix
-        }
+        *nodes
+            .entry(path.to_path_buf())
+            .or_insert_with(|| graph.add_node(path.to_path_buf()))
     }
 
     /// Returns true if `target` is reachable from `start` by transitive references
@@ -1019,38 +944,12 @@ impl<'a> Redundants<'a> {
         target: NodeIndex,
         forbidden: NodeIndex,
     ) -> bool {
-        if start == forbidden || target == forbidden {
-            return false;
-        }
-        if start == target {
-            return true;
-        }
-
-        let mut visited: HashSet<NodeIndex> = HashSet::new();
-        let mut stack: Vec<NodeIndex> = vec![start];
-
-        while let Some(current) = stack.pop() {
-            if !visited.insert(current) {
-                continue;
-            }
-            let transitive = graph
-                .edges_directed(current, Direction::Outgoing)
-                .filter(|edge| edge.weight().transitive)
-                .map(|edge| edge.target());
-            for next in transitive {
-                if next == forbidden {
-                    continue;
-                }
-                if next == target {
-                    return true;
-                }
-                if !visited.contains(&next) {
-                    stack.push(next);
-                }
-            }
-        }
-
-        false
+        let transitive = EdgeFiltered::from_fn(graph, |edge| {
+            edge.weight().transitive && edge.source() != forbidden && edge.target() != forbidden
+        });
+        start != forbidden
+            && target != forbidden
+            && has_path_connecting(&transitive, start, target, None)
     }
 
     /// For each node N, looks at all its direct predecessors P (i.e., projects
@@ -1100,11 +999,7 @@ impl<'a> Redundants<'a> {
             }
         }
 
-        result.sort_by(|a, b| {
-            a.project
-                .cmp(&b.project)
-                .then_with(|| a.redundant_reference.cmp(&b.redundant_reference))
-        });
+        result.sort();
         result
     }
 }
@@ -1130,32 +1025,16 @@ fn remove_redundant_reference_lines(
         return Ok(0);
     }
 
-    // Build effective spans and compute output size in a single pass.
-    // Each effective span extends the original span to also remove surrounding
-    // whitespace/newlines that would otherwise leave blank lines.
-    let mut effective_spans: Vec<(usize, usize)> = Vec::with_capacity(spans.len());
-    let mut output_size = input.len();
-    let mut prev_end = 0usize;
-    for (start, end) in &spans {
-        let extended_start = expand_start_over_line_whitespace(&input, *start, prev_end);
-        let extended_end = expand_end_over_line_whitespace(&input, *end);
-        output_size -= extended_end.saturating_sub(extended_start);
-        effective_spans.push((extended_start, extended_end));
-        prev_end = extended_end;
-    }
-
-    // Build output by copying kept regions.
-    let mut output = Vec::with_capacity(output_size);
+    // Each span is extended to also remove surrounding whitespace/newlines
+    // that would otherwise leave blank lines.
+    let mut output = Vec::with_capacity(input.len());
     let mut cursor = 0usize;
-    for (start, end) in &effective_spans {
-        if cursor < *start {
-            output.extend_from_slice(&input[cursor..*start]);
-        }
-        cursor = *end;
+    for &(start, end) in &spans {
+        let start = expand_start_over_line_whitespace(&input, start, cursor);
+        output.extend_from_slice(&input[cursor..start]);
+        cursor = expand_end_over_line_whitespace(&input, end);
     }
-    if cursor < input.len() {
-        output.extend_from_slice(&input[cursor..]);
-    }
+    output.extend_from_slice(&input[cursor..]);
 
     fs::write(path, &output)?;
     Ok(spans.len())
@@ -1216,131 +1095,61 @@ fn find_redundant_reference_spans(
     redundant_refs: &HashSet<String>,
 ) -> Vec<(usize, usize)> {
     const TAG: &[u8] = b"<ProjectReference";
-    const TAG_FIRST: u8 = TAG[0]; // '<'
-    const TAG_NEXT: u8 = TAG[1]; // 'P'
-    const TAG_LEN: usize = TAG.len();
     const CLOSE_TAG: &[u8] = b"</ProjectReference>";
-    const CLOSE_TAG_LEN: usize = CLOSE_TAG.len();
-    let len = input.len();
-    let mut spans: Vec<(usize, usize)> = Vec::with_capacity(4);
+    let mut spans: Vec<(usize, usize)> = vec![];
     let mut i = 0usize;
 
-    while i + TAG_LEN <= len {
-        // Fast path: check first two bytes before doing a full slice comparison.
-        // This eliminates ~99% of positions without allocating any slice.
-        if input[i] != TAG_FIRST || input.get(i + 1) != Some(&TAG_NEXT) {
-            i += 1;
-            continue;
-        }
-        // Quick check: the character after `<ProjectReference` must NOT be
-        // alphanumeric or underscore (to reject `<ProjectReferenceCore>`, etc.).
-        let after = input.get(i + TAG_LEN).copied().unwrap_or(0);
-        if after.is_ascii_alphanumeric() || after == b'_' {
-            i += 1;
-            continue;
-        }
-        // Full slice comparison for the remaining candidates.
-        if &input[i..i + TAG_LEN] != TAG {
-            i += 1;
-            continue;
-        }
-
+    while let Some(pos) = find_bytes(&input[i..], TAG) {
+        let start = i + pos;
+        let attrs_start = start + TAG.len();
         // The tag name must be terminated by whitespace, '/', or '>' to avoid
         // matching things like `<ProjectReferenceXxx`.
-        let after = input.get(i + TAG_LEN).copied().unwrap_or(0);
-        if !(after == b' '
-            || after == b'\t'
-            || after == b'\n'
-            || after == b'\r'
-            || after == b'/'
-            || after == b'>')
-        {
-            i += 1;
+        if !matches!(
+            input.get(attrs_start),
+            Some(b' ' | b'\t' | b'\n' | b'\r' | b'/' | b'>')
+        ) {
+            i = attrs_start;
             continue;
         }
 
         // Find end of opening tag, accounting for quoted attribute values that
         // may contain '>' characters.
-        let mut j = i + TAG_LEN;
         let mut in_quote: Option<u8> = None;
-        let mut self_closing = false;
-        let mut found_close = false;
-        while j < len {
-            let c = input[j];
-            if let Some(q) = in_quote {
+        let closing = input[attrs_start..].iter().position(|&c| match in_quote {
+            Some(q) => {
                 if c == q {
                     in_quote = None;
                 }
-                j += 1;
-            } else if c == b'"' || c == b'\'' {
-                in_quote = Some(c);
-                j += 1;
-            } else if c == b'>' {
-                // Look backwards over whitespace to see if a '/' precedes the '>'
-                let mut k = j.saturating_sub(1);
-                while k > i && (input[k] == b' ' || input[k] == b'\t' || input[k] == b'\r') {
-                    k -= 1;
-                }
-                if input.get(k) == Some(&b'/') {
-                    self_closing = true;
-                }
-                j += 1;
-                found_close = true;
-                break;
-            } else {
-                j += 1;
+                false
             }
-        }
-        if !found_close {
+            None if c == b'"' || c == b'\'' => {
+                in_quote = Some(c);
+                false
+            }
+            None => c == b'>',
+        });
+        let Some(closing) = closing else {
             // malformed input – stop scanning
             break;
-        }
-        let opening_tag_end = j; // one past '>'
-
-        // Extract the Include attribute value from the opening tag
-        let attrs_start = i + TAG_LEN;
-        let attrs_end = if self_closing {
-            // `.../>` – drop the trailing "/"
-            opening_tag_end - 2
-        } else {
-            // `...>`
-            opening_tag_end - 1
         };
-        let include = extract_include_value(&input[attrs_start..attrs_end]);
+        let attrs = &input[attrs_start..attrs_start + closing];
+        let opening_tag_end = attrs_start + closing + 1; // one past '>'
 
-        // Find the overall span of the element
-        let span_end = if self_closing {
+        // Find the overall span of the element. MSBuild project files do not nest
+        // `<ProjectReference>` inside another `<ProjectReference>`, so a plain
+        // forward scan for the closing tag is sufficient.
+        let span_end = if attrs.trim_ascii_end().ends_with(b"/") {
             opening_tag_end
+        } else if let Some(p) = find_bytes(&input[opening_tag_end..], CLOSE_TAG) {
+            opening_tag_end + p + CLOSE_TAG.len()
         } else {
-            // Find matching `</ProjectReference>`. MSBuild project files do
-            // not nest `<ProjectReference>` inside another `<ProjectReference>`,
-            // so a plain forward scan is sufficient.
-            let mut k = opening_tag_end;
-            let mut close_pos = None;
-            while k + CLOSE_TAG_LEN <= len {
-                // Fast path: check first byte '<' and last byte '>' before full comparison.
-                if input[k] == b'<'
-                    && input[k + CLOSE_TAG_LEN - 1] == b'>'
-                    && &input[k..k + CLOSE_TAG_LEN] == CLOSE_TAG
-                {
-                    close_pos = Some(k + CLOSE_TAG_LEN);
-                    break;
-                }
-                k += 1;
-            }
-            if let Some(p) = close_pos {
-                p
-            } else {
-                // malformed – skip this opening tag
-                i = opening_tag_end;
-                continue;
-            }
+            // malformed – skip this opening tag
+            i = opening_tag_end;
+            continue;
         };
 
-        if let Some(inc) = include
-            && redundant_refs.contains(inc)
-        {
-            spans.push((i, span_end));
+        if extract_include_value(attrs).is_some_and(|include| redundant_refs.contains(include)) {
+            spans.push((start, span_end));
         }
 
         i = span_end;
@@ -1348,48 +1157,28 @@ fn find_redundant_reference_spans(
     spans
 }
 
-fn extract_include_value(line: &[u8]) -> Option<&str> {
-    let len = line.len();
-    let include_bytes: &[u8] = b"Include";
-    let mut i = 0;
+fn find_bytes(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    haystack.windows(needle.len()).position(|w| w == needle)
+}
 
-    // Find "Include" without creating intermediate slices
-    while i + include_bytes.len() <= len {
-        // Fast path: check first byte 'I' before full comparison
-        if line[i] == b'I' && &line[i..i + include_bytes.len()] == include_bytes {
-            i += include_bytes.len();
-
-            // Skip whitespace after "Include"
-            while i < len && line[i].is_ascii_whitespace() {
-                i += 1;
-            }
-            // Must be followed by '='
-            if i < len && line[i] == b'=' {
-                i += 1;
-
-                // Skip whitespace after "="
-                while i < len && line[i].is_ascii_whitespace() {
-                    i += 1;
-                }
-                // Must be followed by a quote
-                if i < len {
-                    let quote = line[i];
-                    if quote == b'"' || quote == b'\'' {
-                        i += 1;
-                        let value_start = i;
-                        // Find closing quote
-                        while i < len && line[i] != quote {
-                            i += 1;
-                        }
-                        if i < len {
-                            return std::str::from_utf8(&line[value_start..i]).ok();
-                        }
-                    }
-                }
-            }
-            // Not a valid Include="..." pattern, continue searching
+/// Value of `Include="..."` (or single-quoted) attribute
+fn extract_include_value(attrs: &[u8]) -> Option<&str> {
+    const INCLUDE: &[u8] = b"Include";
+    let mut rest = attrs;
+    while let Some(pos) = find_bytes(rest, INCLUDE) {
+        rest = &rest[pos + INCLUDE.len()..];
+        let Some(value) = rest.trim_ascii_start().strip_prefix(b"=") else {
+            continue;
+        };
+        let Some((&quote, value)) = value.trim_ascii_start().split_first() else {
+            continue;
+        };
+        if quote != b'"' && quote != b'\'' {
+            continue;
         }
-        i += 1;
+        if let Some(end) = value.iter().position(|&c| c == quote) {
+            return std::str::from_utf8(&value[..end]).ok();
+        }
     }
     None
 }
@@ -2288,7 +2077,7 @@ EndGlobal
         solution.path = leaked_path;
 
         // Act
-        let mut validator = ValidateFix::new();
+        let mut validator = ValidateFix::default();
         let report = validator.report(&solution).expect("fix report");
 
         // Assert
@@ -2343,7 +2132,7 @@ EndGlobal
     fn fix_report_is_none_without_redundant_references() {
         // Arrange
         let solution = solp::parse_str(CORRECT_SOLUTION).unwrap();
-        let mut validator = ValidateFix::new();
+        let mut validator = ValidateFix::default();
 
         // Act
         let report = validator.report(&solution);
@@ -2448,7 +2237,7 @@ EndGlobal
         solution.path = leaked_path;
 
         // Act
-        let mut validator = ValidateFix::new();
+        let mut validator = ValidateFix::default();
         let report = validator.report(&solution);
 
         // Assert
@@ -3200,7 +2989,7 @@ EndGlobal
 </Solution>"#;
         let slnx_path = root.join("test.slnx");
         fs::write(&slnx_path, slnx).unwrap();
-        let mut fix = ValidateFix::new();
+        let mut fix = ValidateFix::default();
 
         // Act
         let result = solp::parse_file(slnx_path.to_str().unwrap(), &mut fix);

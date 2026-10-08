@@ -9,6 +9,7 @@ use std::fmt::Display;
 
 use crate::error::Collector;
 use crate::{calculate_percent, ux};
+#[derive(Default)]
 pub struct Info {
     total_projects: BTreeMap<String, i32>,
     projects_in_solutions: BTreeMap<String, i32>,
@@ -115,16 +116,6 @@ impl Display for SolutionInfo {
 }
 
 impl Info {
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            total_projects: BTreeMap::new(),
-            projects_in_solutions: BTreeMap::new(),
-            solutions: 0,
-            errors: Collector::new(),
-        }
-    }
-
     /// Counts solution projects in totals and returns the solution report
     fn report(&mut self, solution: &Solution) -> SolutionInfo {
         self.solutions += 1;
@@ -134,12 +125,6 @@ impl Info {
             *self.projects_in_solutions.entry(key.clone()).or_insert(0) += 1;
         }
         info
-    }
-}
-
-impl Default for Info {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -219,7 +204,7 @@ mod tests {
   <Project Path="src/Lib/Lib.csproj" />
 </Solution>"#;
         let solution = solp::parse_str(slnx).unwrap();
-        let mut info = Info::new();
+        let mut info = Info::default();
 
         // Act
         let report = info.report(&solution);

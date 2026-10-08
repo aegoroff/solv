@@ -78,7 +78,7 @@ fn main() -> miette::Result<()> {
 
 fn validate(cmd: &ArgMatches) -> miette::Result<()> {
     if let Some((FIX_CMD, fix_cmd)) = cmd.subcommand() {
-        let consumer = ValidateFix::new();
+        let consumer = ValidateFix::default();
         scan_path(fix_cmd, consumer)?;
         return Ok(());
     }
@@ -91,7 +91,7 @@ fn validate(cmd: &ArgMatches) -> miette::Result<()> {
 }
 
 fn info(cmd: &ArgMatches) -> miette::Result<()> {
-    let consumer = Info::new();
+    let consumer = Info::default();
     scan_path_or_stdin(cmd, consumer)
 }
 

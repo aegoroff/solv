@@ -4,6 +4,7 @@ use miette::{IntoDiagnostic, WrapErr};
 use std::{fs::File, io::Read, path::Path};
 
 use serde::Deserialize;
+use serde::de::DeserializeOwned;
 
 /// Shows whether id specified is ID of
 /// solution folder type project
@@ -312,12 +313,7 @@ impl Project {
     }
 
     pub fn from_reader<R: Read>(reader: R) -> miette::Result<Project> {
-        let config = serde_xml_rs::SerdeXml::new().overlapping_sequences(true);
-        let mut de = serde_xml_rs::Deserializer::from_config(config, reader);
-        let project: Project = Project::deserialize(&mut de)
-            .into_diagnostic()
-            .wrap_err("Failed to deserialize project file")?;
-        Ok(project)
+        from_xml(reader, "Failed to deserialize project file")
     }
 
     #[must_use]
@@ -339,13 +335,18 @@ impl PackagesConfig {
     }
 
     pub fn from_reader<R: Read>(reader: R) -> miette::Result<PackagesConfig> {
-        let config = serde_xml_rs::SerdeXml::new().overlapping_sequences(true);
-        let mut de = serde_xml_rs::Deserializer::from_config(config, reader);
-        let config: PackagesConfig = PackagesConfig::deserialize(&mut de)
-            .into_diagnostic()
-            .wrap_err("Failed to deserialize packages.config")?;
-        Ok(config)
+        from_xml(reader, "Failed to deserialize packages.config")
     }
+}
+
+/// Deserializes MSBuild XML allowing elements of the same name to be interleaved with others
+pub(crate) fn from_xml<T: DeserializeOwned, R: Read>(
+    reader: R,
+    error: &'static str,
+) -> miette::Result<T> {
+    let config = serde_xml_rs::SerdeXml::new().overlapping_sequences(true);
+    let mut de = serde_xml_rs::Deserializer::from_config(config, reader);
+    T::deserialize(&mut de).into_diagnostic().wrap_err(error)
 }
 
 #[cfg(test)]

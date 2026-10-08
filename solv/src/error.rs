@@ -4,16 +4,12 @@ use crossterm::style::Stylize;
 
 use crate::ux;
 
+#[derive(Default)]
 pub struct Collector {
     paths: Vec<String>,
 }
 
 impl Collector {
-    #[must_use]
-    pub fn new() -> Self {
-        Self { paths: vec![] }
-    }
-
     pub fn add_path(&mut self, path: &str) {
         self.paths.push(path.to_owned());
     }
@@ -21,12 +17,6 @@ impl Collector {
     #[must_use]
     pub fn count(&self) -> u64 {
         self.paths.len() as u64
-    }
-}
-
-impl Default for Collector {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -57,7 +47,7 @@ mod tests {
     #[test]
     fn display_contains_header_and_paths() {
         // Arrange
-        let mut collector = Collector::new();
+        let mut collector = Collector::default();
         collector.add_path("/a/bad.sln");
 
         // Act

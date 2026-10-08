@@ -9,7 +9,6 @@ mod types;
 
 use std::borrow::Cow;
 
-use miette::{IntoDiagnostic, WrapErr};
 use serde::Deserialize;
 
 use crate::api::Solution;
@@ -324,12 +323,10 @@ pub fn parse_str(contents: &str) -> miette::Result<Solution<'_>> {
 }
 
 fn deserialize_xml(contents: &str) -> miette::Result<SlnxSolution> {
-    let config = serde_xml_rs::SerdeXml::new().overlapping_sequences(true);
-    let mut de =
-        serde_xml_rs::Deserializer::from_config(config, strip_utf8_bom(contents).0.as_bytes());
-    SlnxSolution::deserialize(&mut de)
-        .into_diagnostic()
-        .wrap_err("Failed to deserialize .slnx solution file")
+    crate::msbuild::from_xml(
+        strip_utf8_bom(contents).0.as_bytes(),
+        "Failed to deserialize .slnx solution file",
+    )
 }
 
 #[cfg(test)]

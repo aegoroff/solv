@@ -5,7 +5,6 @@ use std::{
 
 use comfy_table::{Attribute, Cell, Color};
 use crossterm::style::Stylize;
-use itertools::Itertools;
 use solp::{
     api::Solution,
     cpm::{PackageResolver, ProjectPackage},
@@ -26,7 +25,7 @@ impl Nuget {
     pub fn new(show_only_mismatched: bool) -> Self {
         Self {
             show_only_mismatched,
-            errors: Collector::new(),
+            errors: Collector::default(),
             mismatches_found: false,
         }
     }
@@ -231,15 +230,9 @@ fn load_packages(solution: &Solution) -> (Vec<ProjectPackage>, Vec<Package>) {
 
 fn normalize_versions(mut packages: Vec<ProjectPackage>) -> Vec<ProjectPackage> {
     for pack in &mut packages {
-        normalize_version_in_place(&mut pack.version);
+        pack.version = normalize_version(&pack.version);
     }
     packages
-}
-
-fn normalize_version_in_place(version: &mut String) {
-    if let Some(normalized) = normalize_version(version) {
-        *version = normalized;
-    }
 }
 
 /// Normalizes version like NuGet does so equal versions are displayed the same way:
@@ -248,8 +241,8 @@ fn normalize_version_in_place(version: &mut String) {
 /// * build metadata (`+abc`) is removed, prerelease label is kept
 ///
 /// Other ranges (e.g. `[1.0,2.0)`), floating versions (`1.*`) and anything that
-/// isn't a version are kept as is (only trimmed). Returns `None` if nothing changed.
-fn normalize_version(version: &str) -> Option<String> {
+/// isn't a version are kept as is (only trimmed).
+fn normalize_version(version: &str) -> String {
     let trimmed = version.trim();
     let exact = trimmed
         .strip_prefix('[')
@@ -258,10 +251,9 @@ fn normalize_version(version: &str) -> Option<String> {
         .map(str::trim)
         .filter(|v| !v.is_empty());
     let candidate = exact.unwrap_or(trimmed);
-    let normalized = normalize_semver(candidate)
+    normalize_semver(candidate)
         .or_else(|| exact.map(str::to_owned))
-        .unwrap_or_else(|| trimmed.to_owned());
-    (normalized != version).then_some(normalized)
+        .unwrap_or_else(|| trimmed.to_owned())
 }
 
 /// Normalizes `major[.minor[.patch[.revision]]][-prerelease][+metadata]`.
@@ -289,7 +281,11 @@ fn normalize_semver(version: &str) -> Option<String> {
     if parts.len() == 4 && parts[3] == 0 {
         parts.pop();
     }
-    let mut result = parts.iter().join(".");
+    let mut result = parts
+        .iter()
+        .map(u64::to_string)
+        .collect::<Vec<_>>()
+        .join(".");
     if let Some(prerelease) = prerelease {
         result.push('-');
         result.push_str(prerelease);
@@ -309,7 +305,7 @@ fn packages_config(file: &ProjectFile) -> Vec<Package> {
         .packages
         .into_iter()
         .map(|mut p| {
-            normalize_version_in_place(&mut p.version);
+            p.version = normalize_version(&p.version);
             p
         })
         .collect()
@@ -407,7 +403,7 @@ mod tests {
         let actual = normalize_version(version);
 
         // Assert
-        assert_eq!(expected, actual.as_deref());
+        assert_eq!(expected.unwrap_or(version), actual);
     }
 
     #[test]

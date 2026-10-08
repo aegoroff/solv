@@ -221,7 +221,7 @@ impl<'a> Visitor<'a> for AstVisitor<'a> {
 
     fn visit_version(&mut self, node: &Node<'a>) {
         if let Node::Version(name, val) = node {
-            let version = Ver::from(name, val);
+            let version = Ver { name, ver: val };
             self.solution.versions.push(version);
         }
     }

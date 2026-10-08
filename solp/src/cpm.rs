@@ -22,7 +22,6 @@ use std::{
     path::{Component, MAIN_SEPARATOR, Path, PathBuf},
 };
 
-use miette::{IntoDiagnostic, WrapErr};
 use serde::Deserialize;
 
 use crate::msbuild::{self, Import, ImportGroup, ItemGroup, PackageReference};
@@ -94,11 +93,7 @@ impl PackageItem {
 
 impl PropsFile {
     fn from_reader<R: Read>(reader: R) -> miette::Result<PropsFile> {
-        let config = serde_xml_rs::SerdeXml::new().overlapping_sequences(true);
-        let mut de = serde_xml_rs::Deserializer::from_config(config, reader);
-        PropsFile::deserialize(&mut de)
-            .into_diagnostic()
-            .wrap_err("Failed to deserialize MSBuild props file")
+        msbuild::from_xml(reader, "Failed to deserialize MSBuild props file")
     }
 }
 

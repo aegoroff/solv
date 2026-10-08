@@ -32,6 +32,20 @@ pub fn write_one_column_table<I: Iterator<Item = S>, S: ToString>(
     Ok(())
 }
 
+/// Writes yellow title line and table with bold headers
+pub fn write_titled_table<'a, const N: usize>(
+    f: &mut fmt::Formatter<'_>,
+    title: &str,
+    headers: [&str; N],
+    rows: impl Iterator<Item = [&'a str; N]>,
+) -> fmt::Result {
+    writeln!(f, "  {}", title.dark_yellow().bold())?;
+    let mut table = new_table();
+    table.set_header(headers.map(|h| Cell::new(h).add_attribute(Attribute::Bold)));
+    table.add_rows(rows);
+    writeln!(f, "{table}")
+}
+
 pub fn create_one_column_table<I: Iterator<Item = S>, S: ToString>(
     head: &str,
     head_color: Option<comfy_table::Color>,

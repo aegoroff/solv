@@ -80,36 +80,15 @@ pub struct Prj<'a> {
 
 impl<'a> Prj<'a> {
     #[must_use]
-    pub fn new(id: &'a str, type_id: &'a str) -> Self {
-        let type_descr = msbuild::describe_project(type_id);
-
+    pub fn from(project_type: &'a str, name: &'a str, path_or_uri: &'a str, id: &'a str) -> Self {
         Self {
-            type_id,
-            type_descr,
+            type_id: project_type,
+            type_descr: msbuild::describe_project(project_type),
             id,
+            name,
+            path_or_uri,
             ..Default::default()
         }
-    }
-
-    #[must_use]
-    pub fn from(project_type: &'a str, name: &'a str, path_or_uri: &'a str, id: &'a str) -> Self {
-        let mut prj = Prj::new(id, project_type);
-        prj.name = name;
-        prj.path_or_uri = path_or_uri;
-
-        prj
-    }
-}
-
-impl<'a> Ver<'a> {
-    #[must_use]
-    pub fn new(name: &'a str, ver: &'a str) -> Self {
-        Self { name, ver }
-    }
-
-    #[must_use]
-    pub fn from(name: &'a str, val: &'a str) -> Self {
-        Ver::new(name, val)
     }
 }
 

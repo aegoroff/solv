@@ -2,8 +2,6 @@
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use itertools::Itertools;
-
 use crate::api::{
     ConfigurationMappingTag, DuplicateProjectConfiguration, Project, ProjectConfiguration,
     Solution, SolutionConfiguration, SolutionKind, Tag, Version,
@@ -54,39 +52,31 @@ fn projects<'a>(solution: &Sol<'a>) -> Vec<Project<'a>> {
     // Configurations section may use different GUID case
     let mut project_configs: HashMap<String, BTreeSet<ProjectConfiguration>> = HashMap::new();
     for c in &solution.project_configs {
-        let configs = c
-            .configs
-            .iter()
-            .into_grouping_map_by(|pc| {
-                (
-                    pc.project_config,
-                    pc.solution_config,
-                    pc.platform,
-                    pc.project_platform,
-                )
-            })
-            .fold(
-                ProjectConfiguration::default(),
-                |mut pc, (p, s, plat, project_plat), val| {
-                    pc.configuration = p;
-                    pc.solution_configuration = s;
-                    pc.platform = plat;
-                    pc.project_platform = project_plat;
-                    match val.tag {
-                        ProjectConfigTag::ActiveCfg => {}
-                        ProjectConfigTag::Build => pc.tags.push(Tag::Build),
-                        ProjectConfigTag::Deploy => {
-                            pc.tags.push(Tag::Deploy);
-                        }
-                    }
-                    pc
-                },
-            )
-            .into_values();
+        let mut configs: HashMap<_, ProjectConfiguration> = HashMap::new();
+        for pc in &c.configs {
+            let key = (
+                pc.project_config,
+                pc.solution_config,
+                pc.platform,
+                pc.project_platform,
+            );
+            let config = configs.entry(key).or_insert_with(|| ProjectConfiguration {
+                configuration: pc.project_config,
+                solution_configuration: pc.solution_config,
+                platform: pc.platform,
+                project_platform: pc.project_platform,
+                tags: vec![],
+            });
+            match pc.tag {
+                ProjectConfigTag::ActiveCfg => {}
+                ProjectConfigTag::Build => config.tags.push(Tag::Build),
+                ProjectConfigTag::Deploy => config.tags.push(Tag::Deploy),
+            }
+        }
         project_configs
             .entry(c.project_id.to_uppercase())
             .or_default()
-            .extend(configs);
+            .extend(configs.into_values());
     }
     // NestedProjects section may use different GUID case
     let parents = solution

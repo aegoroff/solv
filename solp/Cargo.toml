@@ -19,7 +19,6 @@ lalrpop = { version = "=0.23.1", default-features = false }
 lalrpop-util = { version = "=0.23.1", default-features = false }
 dua-core = "=4.1.0"
 phf = { version = "=0.14.0", features = ["macros"] }
-itertools = "=0.15.0"
 num_cpus = "=1.17.0"
 winnow = "=1.0.4"
 serde = { version = "=1.0.229", features = ["derive"] }
