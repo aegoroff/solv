@@ -76,6 +76,14 @@ pub fn locate<'a>(
         })
 }
 
+/// Existing project files of all solution projects (see [`locate`]); missing ones are skipped
+pub fn found_files<'a>(solution: &'a Solution<'a>) -> impl Iterator<Item = ProjectFile> + 'a {
+    locate(solution).filter_map(|(_, location)| match location {
+        ProjectLocation::Found(file) => Some(file),
+        ProjectLocation::Missing(_) => None,
+    })
+}
+
 /// Canonical path of the existing file or directory. Solutions and projects are usually
 /// written on Windows where file names are case-insensitive, so if the path doesn't
 /// exist as is, its components are matched ignoring case (exact match is preferred).
@@ -118,16 +126,18 @@ fn find_ignoring_case(path: &Path) -> Option<PathBuf> {
     Some(found)
 }
 
+/// Joins MSBuild path that may use Windows separators to the directory
 #[cfg(not(target_os = "windows"))]
-fn make_path(dir: &Path, relative: &str) -> PathBuf {
+pub(crate) fn make_path(dir: &Path, relative: &str) -> PathBuf {
     // Converts all possible Windows paths into Unix ones
     relative
         .split('\\')
         .fold(dir.to_path_buf(), |pb, s| pb.join(s))
 }
 
+/// Joins MSBuild path that may use Windows separators to the directory
 #[cfg(target_os = "windows")]
-fn make_path(dir: &Path, relative: &str) -> PathBuf {
+pub(crate) fn make_path(dir: &Path, relative: &str) -> PathBuf {
     dir.join(relative)
 }
 

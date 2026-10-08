@@ -8,7 +8,7 @@ use petgraph::algo::DfsSpace;
 use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::prelude::DiGraphMap;
 use petgraph::visit::EdgeRef;
-use solp::api::{Solution, SolutionConfiguration, Tag};
+use solp::api::{Project, Solution, SolutionConfiguration, Tag};
 use solp::msbuild;
 use solp::project_files::{self, ProjectLocation};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
@@ -28,21 +28,48 @@ enum Problem {
     Cycles,
     /// Dangling project configuration ids
     Danglings(Vec<String>),
-    /// Project GUID to (name, path) pairs of projects with this GUID
-    DuplicateGuids(BTreeMap<String, Vec<(String, String)>>),
+    /// Project GUID to projects with this GUID
+    DuplicateGuids(BTreeMap<String, Vec<ProjectEntry>>),
     DuplicateConfigurations {
         /// Duplicate `configuration|platform` pairs of solution
         solution: Option<Vec<String>>,
-        /// Project id, `configuration|platform`, project configuration and tag
-        projects: Option<Vec<[String; 4]>>,
+        projects: Option<Vec<DuplicateProjectConfiguration>>,
     },
     /// Paths of project files that don't exist
     NotFound(BTreeSet<PathBuf>),
     /// Project id to `configuration|platform` pairs that are outside solution configurations
     Missings(BTreeMap<String, Vec<String>>),
-    /// (name, id, path) of projects that are not built in any configuration
-    Orphans(Vec<(String, String, String)>),
+    /// Projects that are not built in any configuration
+    Orphans(Vec<ProjectEntry>),
     Redundants(Vec<RedundantRef>),
+}
+
+/// Solution project in a problem report
+#[derive(Debug, PartialEq, Eq)]
+struct ProjectEntry {
+    name: String,
+    id: String,
+    path: String,
+}
+
+impl From<&Project<'_>> for ProjectEntry {
+    fn from(project: &Project<'_>) -> Self {
+        Self {
+            name: project.name.to_owned(),
+            id: project.id.to_owned(),
+            path: project.path_or_uri.to_owned(),
+        }
+    }
+}
+
+/// Project configuration mapping that is defined more than once
+#[derive(Debug, PartialEq, Eq)]
+struct DuplicateProjectConfiguration {
+    project_id: String,
+    /// Solution `configuration|platform` pair
+    solution_configuration: String,
+    project_configuration: String,
+    tag: String,
 }
 
 /// Problems of a solution
@@ -510,8 +537,12 @@ impl Display for Problem {
                     Cell::new("Path").add_attribute(Attribute::Bold),
                 ]);
                 for (id, projects) in duplicates {
-                    for (name, path) in projects {
-                        table.add_row([Cell::new(id), Cell::new(name), Cell::new(path)]);
+                    for project in projects {
+                        table.add_row([
+                            Cell::new(id),
+                            Cell::new(&project.name),
+                            Cell::new(&project.path),
+                        ]);
                     }
                 }
                 writeln!(f, "{table}")
@@ -549,8 +580,13 @@ impl Display for Problem {
                         Cell::new("Project configuration").add_attribute(Attribute::Bold),
                         Cell::new("Tag").add_attribute(Attribute::Bold),
                     ]);
-                    for row in configurations {
-                        table.add_row(row.iter().map(Cell::new));
+                    for c in configurations {
+                        table.add_row([
+                            Cell::new(&c.project_id),
+                            Cell::new(&c.solution_configuration),
+                            Cell::new(&c.project_configuration),
+                            Cell::new(&c.tag),
+                        ]);
                     }
                     writeln!(f, "{table}")?;
                 }
@@ -590,8 +626,12 @@ impl Display for Problem {
                     Cell::new("Project GUID").add_attribute(Attribute::Bold),
                     Cell::new("Path").add_attribute(Attribute::Bold),
                 ]);
-                for (name, id, path) in projects {
-                    table.add_row([Cell::new(name), Cell::new(id), Cell::new(path)]);
+                for project in projects {
+                    table.add_row([
+                        Cell::new(&project.name),
+                        Cell::new(&project.id),
+                        Cell::new(&project.path),
+                    ]);
                 }
                 writeln!(f, "{table}")
             }
@@ -622,24 +662,24 @@ fn write_redundants(f: &mut fmt::Formatter<'_>, redundants: &[RedundantRef]) -> 
 }
 
 struct DuplicateGuids<'a> {
-    duplicates: BTreeMap<String, Vec<(&'a str, &'a str)>>,
+    duplicates: BTreeMap<String, Vec<&'a Project<'a>>>,
 }
 
 impl<'a> DuplicateGuids<'a> {
     pub fn new(solution: &'a Solution<'a>) -> Self {
-        let mut by_id: HashMap<String, Vec<(&'a str, &'a str)>> = HashMap::new();
+        let mut by_id: HashMap<String, Vec<&'a Project<'a>>> = HashMap::new();
         for project in &solution.projects {
             by_id
                 .entry(project.id.to_ascii_uppercase())
                 .or_default()
-                .push((project.name, project.path_or_uri));
+                .push(project);
         }
 
         let duplicates = by_id
             .into_iter()
             .filter(|(_, projects)| projects.len() > 1)
             .map(|(id, mut projects)| {
-                projects.sort_unstable_by_key(|(name, path)| (*name, *path));
+                projects.sort_unstable_by_key(|p| (p.name, p.path_or_uri));
                 (id, projects)
             })
             .collect();
@@ -657,10 +697,7 @@ impl Validator for DuplicateGuids<'_> {
             .duplicates
             .iter()
             .map(|(id, projects)| {
-                let projects = projects
-                    .iter()
-                    .map(|(name, path)| ((*name).to_owned(), (*path).to_owned()))
-                    .collect();
+                let projects = projects.iter().map(|p| ProjectEntry::from(*p)).collect();
                 (id.clone(), projects)
             })
             .collect();
@@ -697,13 +734,14 @@ impl Validator for DuplicateConfigurations<'_> {
                 .map(|configurations| {
                     configurations
                         .iter()
-                        .map(|c| {
-                            [
-                                c.project_id.to_owned(),
-                                format!("{}|{}", c.solution_configuration, c.platform),
-                                c.project_configuration.to_owned(),
-                                c.tag.to_string(),
-                            ]
+                        .map(|c| DuplicateProjectConfiguration {
+                            project_id: c.project_id.to_owned(),
+                            solution_configuration: format!(
+                                "{}|{}",
+                                c.solution_configuration, c.platform
+                            ),
+                            project_configuration: c.project_configuration.to_owned(),
+                            tag: c.tag.to_string(),
                         })
                         .collect()
                 });
@@ -793,7 +831,7 @@ impl Validator for Missings<'_> {
 }
 
 struct Orphans<'a> {
-    projects: Vec<(&'a str, &'a str, &'a str)>,
+    projects: Vec<&'a Project<'a>>,
 }
 
 impl<'a> Orphans<'a> {
@@ -802,13 +840,12 @@ impl<'a> Orphans<'a> {
             .iterate_projects_without_web_sites()
             .filter(|project| !msbuild::is_shared_project(project.type_id, project.path_or_uri))
             .filter(|project| !Self::has_build_configuration(project))
-            .map(|project| (project.name, project.id, project.path_or_uri))
             .collect::<Vec<_>>();
-        projects.sort_unstable_by_key(|(name, id, path)| (*name, *id, *path));
+        projects.sort_unstable_by_key(|p| (p.name, p.id, p.path_or_uri));
         Self { projects }
     }
 
-    fn has_build_configuration(project: &solp::api::Project<'_>) -> bool {
+    fn has_build_configuration(project: &Project<'_>) -> bool {
         project
             .configurations
             .as_ref()
@@ -828,7 +865,7 @@ impl Validator for Orphans<'_> {
         let projects = self
             .projects
             .iter()
-            .map(|(name, id, path)| ((*name).to_owned(), (*id).to_owned(), (*path).to_owned()))
+            .map(|p| ProjectEntry::from(*p))
             .collect();
         Some(Problem::Orphans(projects))
     }
@@ -918,12 +955,7 @@ impl<'a> Redundants<'a> {
         let mut graph = DiGraph::<PathBuf, ProjectRef>::new();
         let mut nodes: HashMap<PathBuf, NodeIndex> = HashMap::new();
 
-        let files =
-            project_files::locate(self.solution).filter_map(|(_, location)| match location {
-                ProjectLocation::Found(file) => Some(file),
-                ProjectLocation::Missing(_) => None,
-            });
-        for file in files {
+        for file in project_files::found_files(self.solution) {
             let Ok(project) = file.load() else { continue };
             let to = Self::ensure_node(&mut graph, &mut nodes, file.path());
 

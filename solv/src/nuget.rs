@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet},
     fmt::{self, Display},
 };
 
@@ -10,7 +10,7 @@ use solp::{
     api::Solution,
     cpm::{PackageResolver, ProjectPackage},
     msbuild::{Package, PackagesConfig},
-    project_files::{self, ProjectFile, ProjectLocation},
+    project_files::{self, ProjectFile},
 };
 
 use crate::{Consume, error::Collector, ux};
@@ -38,15 +38,15 @@ impl Nuget {
     }
 
     /// Collects solution packages and returns the report to show if any
-    fn report(&mut self, solution: &solp::api::Solution) -> Option<SolutionPackages> {
+    fn report(&mut self, solution: &Solution) -> Option<SolutionPackages> {
         let (packages, packages_configs) = load_packages(solution);
-        let nugets = nugets(&packages, &packages_configs);
+        let versions = package_versions(&packages, &packages_configs);
 
-        if nugets.is_empty() {
+        if versions.is_empty() {
             return None;
         }
 
-        let report = SolutionPackages::new(solution.path, &nugets, self.show_only_mismatched);
+        let report = SolutionPackages::new(solution.path, versions, self.show_only_mismatched);
         let has_mismatches = report.has_mismatches();
         self.mismatches_found |= has_mismatches;
         if self.show_only_mismatched && !has_mismatches {
@@ -62,34 +62,34 @@ struct SolutionPackages {
     packages: Vec<PackageVersions>,
 }
 
-/// Package versions grouped by condition (sorted, no condition first)
+/// Versions of a package found in solution projects
+#[derive(Debug, PartialEq, Eq)]
 struct PackageVersions {
+    /// Package name as it's met first (NuGet package ids are case insensitive)
     name: String,
-    groups: Vec<(Option<String>, Vec<String>)>,
+    /// Versions grouped by condition (sorted, no condition first)
+    groups: Vec<ConditionalVersions>,
+}
+
+/// Distinct sorted package versions referenced under the same condition
+#[derive(Debug, PartialEq, Eq)]
+struct ConditionalVersions {
+    condition: Option<String>,
+    versions: Vec<String>,
+}
+
+impl PackageVersions {
+    /// Whether different versions of the package are referenced under the same condition
+    fn has_mismatches(&self) -> bool {
+        self.groups.iter().any(|group| group.versions.len() > 1)
+    }
 }
 
 impl SolutionPackages {
-    fn new(path: &str, nugets: &Nugets, show_only_mismatched: bool) -> Self {
-        let packages = nugets
-            .iter()
-            .filter(|(_, (_, versions))| !show_only_mismatched || has_mismatches(versions))
-            .sorted_unstable_by_key(|(key, _)| *key)
-            .map(|(_, (name, versions))| {
-                let groups = versions
-                    .iter()
-                    .into_group_map_by(|x| x.0)
-                    .into_iter()
-                    .sorted_unstable_by_key(|x| x.0)
-                    .map(|(condition, v)| {
-                        let versions = v.iter().map(|(_, v)| (*v).to_owned()).collect();
-                        (condition.map(str::to_owned), versions)
-                    })
-                    .collect();
-                PackageVersions {
-                    name: (*name).to_owned(),
-                    groups,
-                }
-            })
+    fn new(path: &str, packages: Vec<PackageVersions>, show_only_mismatched: bool) -> Self {
+        let packages = packages
+            .into_iter()
+            .filter(|package| !show_only_mismatched || package.has_mismatches())
             .collect();
         Self {
             path: path.to_owned(),
@@ -98,10 +98,7 @@ impl SolutionPackages {
     }
 
     fn has_mismatches(&self) -> bool {
-        self.packages
-            .iter()
-            .flat_map(|p| &p.groups)
-            .any(|(_, versions)| versions.len() > 1)
+        self.packages.iter().any(PackageVersions::has_mismatches)
     }
 }
 
@@ -113,14 +110,14 @@ impl Display for SolutionPackages {
             Cell::new("Version(s)").add_attribute(Attribute::Bold),
         ]);
         for package in &self.packages {
-            for (condition, versions) in &package.groups {
-                let comma_separated = versions.join(", ");
-                let line = match condition {
+            for group in &package.groups {
+                let comma_separated = group.versions.join(", ");
+                let line = match &group.condition {
                     Some(c) => format!("{comma_separated} if {c}"),
                     None => comma_separated,
                 };
                 let mut line = Cell::new(line).add_attribute(Attribute::Italic);
-                if versions.len() > 1 {
+                if group.versions.len() > 1 {
                     line = line.fg(Color::Red);
                 }
                 table.add_row([Cell::new(&package.name), line]);
@@ -132,22 +129,8 @@ impl Display for SolutionPackages {
     }
 }
 
-/// Package versions found in solution projects. Key is lowercased package name because
-/// NuGet package ids are case insensitive. Value is the package name as it's met first
-/// and (condition, version) pairs. Condition is optional.
-type Nugets<'a> = HashMap<String, (&'a str, Versions<'a>)>;
-type Versions<'a> = BTreeSet<(Option<&'a str>, &'a str)>;
-
-fn has_mismatches(versions: &Versions) -> bool {
-    versions
-        .iter()
-        .into_group_map_by(|x| x.0)
-        .iter()
-        .any(|(_, v)| v.len() > 1)
-}
-
 impl Consume for Nuget {
-    fn ok(&mut self, solution: &solp::api::Solution) {
+    fn ok(&mut self, solution: &Solution) {
         if let Some(report) = self.report(solution) {
             print!("{report}");
         }
@@ -178,8 +161,15 @@ impl Display for Nuget {
     }
 }
 
-/// Collects package versions from projects `PackageReference` items and `packages.config` packages
-fn nugets<'a>(packages: &'a [ProjectPackage], packages_configs: &'a [Package]) -> Nugets<'a> {
+/// Sorted distinct (condition, version) pairs of a package
+type ConditionVersionPairs<'a> = BTreeSet<(Option<&'a str>, &'a str)>;
+
+/// Collects versions of project packages and `packages.config` packages
+/// sorted by package name ignoring case
+fn package_versions(
+    packages: &[ProjectPackage],
+    packages_configs: &[Package],
+) -> Vec<PackageVersions> {
     let from_projects = packages
         .iter()
         .map(|p| (p.condition.as_deref(), p.name.as_str(), p.version.as_str()));
@@ -187,19 +177,40 @@ fn nugets<'a>(packages: &'a [ProjectPackage], packages_configs: &'a [Package]) -
         .iter()
         .map(|p| (None, p.name.as_str(), p.version.as_str()));
 
-    let mut result = Nugets::new();
+    // key is lowercased package name, value is the name as it's met first and its versions
+    let mut by_name: BTreeMap<String, (&str, ConditionVersionPairs)> = BTreeMap::new();
     for (condition, name, version) in from_projects.chain(from_packages_configs) {
         // `Update` items or items without name don't define packages
         if name.is_empty() {
             continue;
         }
-        result
+        by_name
             .entry(name.to_lowercase())
             .or_insert_with(|| (name, BTreeSet::new()))
             .1
             .insert((condition, version));
     }
-    result
+    by_name
+        .into_values()
+        .map(|(name, versions)| {
+            let mut groups: Vec<ConditionalVersions> = vec![];
+            for (condition, version) in versions {
+                match groups.last_mut() {
+                    Some(group) if group.condition.as_deref() == condition => {
+                        group.versions.push(version.to_owned());
+                    }
+                    _ => groups.push(ConditionalVersions {
+                        condition: condition.map(str::to_owned),
+                        versions: vec![version.to_owned()],
+                    }),
+                }
+            }
+            PackageVersions {
+                name: name.to_owned(),
+                groups,
+            }
+        })
+        .collect()
 }
 
 /// Loads packages of all solution projects found on disk and `packages.config` packages near
@@ -208,11 +219,7 @@ fn load_packages(solution: &Solution) -> (Vec<ProjectPackage>, Vec<Package>) {
     let mut resolver = PackageResolver::default();
     let mut packages = vec![];
     let mut packages_configs = vec![];
-    let files = project_files::locate(solution).filter_map(|(_, location)| match location {
-        ProjectLocation::Found(file) => Some(file),
-        ProjectLocation::Missing(_) => None,
-    });
-    for file in files {
+    for file in project_files::found_files(solution) {
         let Ok(project_packages) = resolver.packages(&file) else {
             continue;
         };
@@ -224,11 +231,15 @@ fn load_packages(solution: &Solution) -> (Vec<ProjectPackage>, Vec<Package>) {
 
 fn normalize_versions(mut packages: Vec<ProjectPackage>) -> Vec<ProjectPackage> {
     for pack in &mut packages {
-        if let Some(normalized) = normalize_version(&pack.version) {
-            pack.version = normalized;
-        }
+        normalize_version_in_place(&mut pack.version);
     }
     packages
+}
+
+fn normalize_version_in_place(version: &mut String) {
+    if let Some(normalized) = normalize_version(version) {
+        *version = normalized;
+    }
 }
 
 /// Normalizes version like NuGet does so equal versions are displayed the same way:
@@ -298,9 +309,7 @@ fn packages_config(file: &ProjectFile) -> Vec<Package> {
         .packages
         .into_iter()
         .map(|mut p| {
-            if let Some(normalized) = normalize_version(&p.version) {
-                p.version = normalized;
-            }
+            normalize_version_in_place(&mut p.version);
             p
         })
         .collect()
@@ -421,10 +430,12 @@ mod tests {
         let packages = normalize_versions(packages);
 
         // Assert
-        let actual = nugets(&packages, &[]);
-        let versions = &actual["a"].1;
-        assert_eq!(1, versions.len());
-        assert_eq!("1.6.2", versions.first().unwrap().1);
+        let actual = package_versions(&packages, &[]);
+        let expected = ConditionalVersions {
+            condition: None,
+            versions: vec!["1.6.2".to_owned()],
+        };
+        assert_eq!(vec![expected], actual[0].groups);
     }
     #[test]
     fn nugets_no_mismatches() {
@@ -463,11 +474,11 @@ mod tests {
 
         // act
         let packages = projects.concat();
-        let actual = nugets(&packages, &[]);
+        let actual = package_versions(&packages, &[]);
 
         // assert
         assert_eq!(4, actual.len());
-        let has_mismatches = actual.values().any(|(_, v)| has_mismatches(v));
+        let has_mismatches = actual.iter().any(PackageVersions::has_mismatches);
         assert!(!has_mismatches);
     }
 
@@ -508,11 +519,11 @@ mod tests {
 
         // act
         let packages = projects.concat();
-        let actual = nugets(&packages, &[]);
+        let actual = package_versions(&packages, &[]);
 
         // assert
         assert_eq!(3, actual.len());
-        let has_mismatches = actual.values().any(|(_, v)| has_mismatches(v));
+        let has_mismatches = actual.iter().any(PackageVersions::has_mismatches);
         assert!(!has_mismatches);
     }
 
@@ -553,11 +564,11 @@ mod tests {
 
         // act
         let packages = projects.concat();
-        let actual = nugets(&packages, &[]);
+        let actual = package_versions(&packages, &[]);
 
         // assert
         assert_eq!(3, actual.len());
-        let has_mismatches = actual.values().any(|(_, v)| has_mismatches(v));
+        let has_mismatches = actual.iter().any(PackageVersions::has_mismatches);
         assert!(has_mismatches);
     }
 
@@ -598,15 +609,14 @@ mod tests {
 
         // act
         let packages = projects.concat();
-        let actual = nugets(&packages, &[]);
+        let actual = package_versions(&packages, &[]);
 
         // assert
         assert_eq!(3, actual.len());
-        let has_mismatches = actual.values().any(|(_, v)| has_mismatches(v));
+        let has_mismatches = actual.iter().any(PackageVersions::has_mismatches);
         assert!(!has_mismatches);
-        let different_vers_key = "a".to_owned();
-        assert!(actual.contains_key(&different_vers_key));
-        assert_eq!(2, actual[&different_vers_key].1.len());
+        assert_eq!("a", actual[0].name);
+        assert_eq!(2, actual[0].groups.len());
     }
 
     #[test_case("Newtonsoft.Json", "newtonsoft.json", "2.0.0", true ; "different case different versions")]
@@ -625,13 +635,12 @@ mod tests {
 
         // Act
         let packages = projects.concat();
-        let actual = nugets(&packages, &[]);
+        let actual = package_versions(&packages, &[]);
 
         // Assert
         assert_eq!(1, actual.len());
-        let (display_name, versions) = &actual["newtonsoft.json"];
-        assert_eq!(name, *display_name);
-        assert_eq!(expected, has_mismatches(versions));
+        assert_eq!(name, actual[0].name);
+        assert_eq!(expected, actual[0].has_mismatches());
     }
 
     #[test_case("12.0.1", true ; "different versions")]
@@ -649,13 +658,13 @@ mod tests {
 
         // Act
         let packages = projects.concat();
-        let actual = nugets(&packages, &packages_configs);
+        let actual = package_versions(&packages, &packages_configs);
 
         // Assert
-        let versions = &actual["newtonsoft.json"].1;
-        assert!(versions.contains(&(None, "13.0.3")));
-        assert!(versions.contains(&(None, config_version)));
-        assert_eq!(expected, has_mismatches(versions));
+        let versions = &actual[0].groups[0].versions;
+        assert!(versions.iter().any(|v| v == "13.0.3"));
+        assert!(versions.iter().any(|v| v == config_version));
+        assert_eq!(expected, actual[0].has_mismatches());
     }
 
     #[test]
@@ -668,11 +677,11 @@ mod tests {
 
         // Act
         let packages = projects.concat();
-        let actual = nugets(&packages, &[]);
+        let actual = package_versions(&packages, &[]);
 
         // Assert
         assert_eq!(1, actual.len());
-        assert!(actual.contains_key("a"));
+        assert_eq!("a", actual[0].name);
     }
 
     fn pack(name: &str, version: &str) -> PackageReference {

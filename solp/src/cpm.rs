@@ -26,7 +26,7 @@ use miette::{IntoDiagnostic, WrapErr};
 use serde::Deserialize;
 
 use crate::msbuild::{self, Import, ImportGroup, ItemGroup, PackageReference};
-use crate::project_files::ProjectFile;
+use crate::project_files::{ProjectFile, make_path};
 
 /// Central Package Management file name
 const PACKAGES_PROPS: &str = "Directory.Packages.props";
@@ -365,15 +365,21 @@ struct RawValue {
     dir: PathBuf,
 }
 
-/// Package name (or updated names), version and version override
-type RawItem = (String, RawValue, Option<RawValue>);
+/// Not expanded package item
+#[derive(Debug)]
+struct RawItem {
+    /// Package name or `;` separated updated names
+    name: String,
+    version: RawValue,
+    version_override: Option<RawValue>,
+}
 
 #[derive(Debug, Default)]
 struct Evaluator {
     /// lowercased property name to its value map
     properties: HashMap<String, RawValue>,
-    versions: Vec<(String, RawValue)>,
-    global: Vec<(String, RawValue)>,
+    versions: Vec<RawItem>,
+    global: Vec<RawItem>,
     references_before: Vec<RawItem>,
     references_after: Vec<RawItem>,
     updates_before: Vec<RawItem>,
@@ -413,7 +419,7 @@ impl Evaluator {
             if project.is_empty() {
                 continue;
             }
-            let import_path = dir.join(to_path(project));
+            let import_path = make_path(&dir, project);
             if import_path.is_file() {
                 self.evaluate(&import_path, depth + 1);
             }
@@ -429,11 +435,6 @@ impl Evaluator {
                 .map(|p| raw_item(p, &dir));
             self.global.extend(global);
             for reference in &group.package_reference {
-                let (name, version) = raw_item(reference, &dir);
-                let version_override = reference.version_override.as_ref().map(|v| RawValue {
-                    value: v.clone(),
-                    dir: dir.clone(),
-                });
                 let items = match (reference.include.is_empty(), reference.update.is_empty()) {
                     (false, _) if self.after_project => &mut self.references_after,
                     (false, _) => &mut self.references_before,
@@ -441,7 +442,7 @@ impl Evaluator {
                     (true, false) if self.after_project => &mut self.updates_after,
                     (true, false) => &mut self.updates_before,
                 };
-                items.push((name, version, version_override));
+                items.push(raw_item(reference, &dir));
             }
         }
     }
@@ -467,26 +468,26 @@ impl Evaluator {
         let versions = self
             .versions
             .iter()
-            .map(|(name, raw)| (name.to_lowercase(), self.expand_raw(raw)))
+            .map(|item| (item.name.to_lowercase(), self.expand_raw(&item.version)))
             .collect();
         let global = self
             .global
             .iter()
-            .map(|(name, raw)| PackageReference {
-                name: name.clone(),
-                version: self.expand_raw(raw),
+            .map(|item| PackageReference {
+                name: item.name.clone(),
+                version: self.expand_raw(&item.version),
                 ..Default::default()
             })
             .collect();
-        let reference = |(name, version, version_override): &RawItem| PackageReference {
-            name: name.clone(),
-            version: self.expand_raw(version),
-            version_override: version_override.as_ref().map(|v| self.expand_raw(v)),
+        let reference = |item: &RawItem| PackageReference {
+            name: item.name.clone(),
+            version: self.expand_raw(&item.version),
+            version_override: item.version_override.as_ref().map(|v| self.expand_raw(v)),
             ..Default::default()
         };
         let update = |item: &RawItem| PackageReference {
             name: String::new(),
-            update: Some(item.0.clone()),
+            update: Some(item.name.clone()),
             ..reference(item)
         };
         CentralPackages {
@@ -553,11 +554,11 @@ impl Evaluator {
             let file = args.first()?;
             let start = args
                 .get(1)
-                .map_or_else(|| dir.to_path_buf(), |s| dir.join(to_path(s)));
+                .map_or_else(|| dir.to_path_buf(), |s| make_path(dir, s));
             find_file_above(&start, file)
         } else if name.eq_ignore_ascii_case("GetDirectoryNameOfFileAbove") {
             // GetDirectoryNameOfFileAbove(startingDirectory, file)
-            let start = dir.join(to_path(args.first()?));
+            let start = make_path(dir, args.first()?);
             find_file_above(&start, args.get(1)?).and_then(|p| p.parent().map(Path::to_path_buf))
         } else {
             return None;
@@ -571,12 +572,16 @@ impl Evaluator {
     }
 }
 
-fn raw_item(item: &PackageItem, dir: &Path) -> (String, RawValue) {
-    let raw = RawValue {
-        value: item.version.clone(),
+fn raw_item(item: &PackageItem, dir: &Path) -> RawItem {
+    let raw = |value: &String| RawValue {
+        value: value.clone(),
         dir: dir.to_path_buf(),
     };
-    (item.name().to_owned(), raw)
+    RawItem {
+        name: item.name().to_owned(),
+        version: raw(&item.version),
+        version_override: item.version_override.as_ref().map(raw),
+    }
 }
 
 /// Index of the closing paren that matches already opened one
@@ -619,11 +624,6 @@ fn unquote(s: &str) -> &str {
     s.strip_prefix('\'')
         .and_then(|s| s.strip_suffix('\''))
         .unwrap_or(s)
-}
-
-/// MSBuild paths may use Windows separators. Slash is a separator on all platforms
-fn to_path(s: &str) -> PathBuf {
-    PathBuf::from(s.replace('\\', "/"))
 }
 
 /// Lexically removes `.` and `..` path components
