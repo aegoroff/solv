@@ -108,7 +108,8 @@ struct CentralPackages {
     /// lowercased package name to version map
     versions: HashMap<String, String>,
     global: Vec<PackageReference>,
-    references: Vec<PackageReference>,
+    references_before: Vec<PackageReference>,
+    references_after: Vec<PackageReference>,
     updates_before: Vec<PackageReference>,
     updates_after: Vec<PackageReference>,
 }
@@ -142,11 +143,19 @@ impl CentralPackages {
         &self.global
     }
 
-    /// `PackageReference` items defined in props files i.e. referenced by every project below.
+    /// `PackageReference` items that are evaluated before project items
+    /// (defined in `Directory.Build.props` and `Directory.Packages.props`) i.e. referenced by every project below.
     /// Version is empty if it should be taken from `PackageVersion` (see [`CentralPackages::version`])
     #[must_use]
-    fn references(&self) -> &[PackageReference] {
-        &self.references
+    fn references_before_project(&self) -> &[PackageReference] {
+        &self.references_before
+    }
+
+    /// `PackageReference` items that are evaluated after project items
+    /// (defined in `Directory.Build.targets`) i.e. referenced by every project below
+    #[must_use]
+    fn references_after_project(&self) -> &[PackageReference] {
+        &self.references_after
     }
 
     /// `PackageReference Update` items that are evaluated before project items
@@ -188,8 +197,8 @@ impl PackageResolver {
     /// * `PackageReference` and `GlobalPackageReference` items from `Directory.*` files are
     ///   added to every project below
     /// * `PackageReference Update` items from these files and the project change versions of
-    ///   included packages (props files before project items, `Directory.Build.targets` after them).
-    ///   The last applied update wins.
+    ///   packages included before them like in MSBuild (props files before project items,
+    ///   `Directory.Build.targets` after them). The last applied update wins.
     /// * `VersionOverride` wins, otherwise if `Version` is not set the version is taken
     ///   from `PackageVersion` items (Central Package Management)
     ///
@@ -213,11 +222,30 @@ impl PackageResolver {
 }
 
 fn apply_central_packages(project: &mut msbuild::Project, central: Option<&CentralPackages>) {
+    // Update items change packages included before them and don't define packages themselves.
+    // Each project update is kept with the number of project packages included before it.
+    let mut own_updates = vec![];
+    let mut own_count = 0;
+    let groups = project.item_group.iter_mut().flatten();
+    for packs in groups.filter_map(|ig| ig.package_reference.as_mut()) {
+        for pack in std::mem::take(packs) {
+            if pack.name.is_empty() && pack.update.is_some() {
+                own_updates.push((own_count, pack));
+            } else {
+                own_count += 1;
+                packs.push(pack);
+            }
+        }
+    }
+    let inherited_before = central.map_or(0, |c| {
+        c.global_references().len() + c.references_before_project().len()
+    });
     if let Some(central) = central {
         let inherited: Vec<_> = central
             .global_references()
             .iter()
-            .chain(central.references())
+            .chain(central.references_before_project())
+            .chain(central.references_after_project())
             .cloned()
             .collect();
         if !inherited.is_empty() {
@@ -228,16 +256,8 @@ fn apply_central_packages(project: &mut msbuild::Project, central: Option<&Centr
             });
         }
     }
-    // Update items change already included packages and don't define packages themselves
-    let mut own_updates = vec![];
-    let groups = project.item_group.iter_mut().flatten();
-    for packs in groups.filter_map(|ig| ig.package_reference.as_mut()) {
-        let (updates, includes): (Vec<_>, Vec<_>) = std::mem::take(packs)
-            .into_iter()
-            .partition(|p| p.name.is_empty() && p.update.is_some());
-        *packs = includes;
-        own_updates.extend(updates);
-    }
+    // project packages go first, then inherited ones that are included before project items
+    // and finally ones that are included after them (Directory.Build.targets)
     let mut packs: Vec<&mut PackageReference> = project
         .item_group
         .iter_mut()
@@ -245,17 +265,23 @@ fn apply_central_packages(project: &mut msbuild::Project, central: Option<&Centr
         .filter_map(|ig| ig.package_reference.as_mut())
         .flatten()
         .collect();
-    let updates = central
+    let (own, inherited) = packs.split_at_mut(own_count);
+    let inherited = &mut inherited[..inherited_before];
+    // Directory.Build.props is imported before project items so its updates see inherited packages only
+    for update in central
         .map(CentralPackages::updates_before_project)
         .unwrap_or_default()
-        .iter()
-        .chain(&own_updates)
-        .chain(
-            central
-                .map(CentralPackages::updates_after_project)
-                .unwrap_or_default(),
-        );
-    for update in updates {
+    {
+        apply_update(inherited, update);
+    }
+    for (included_before, update) in &own_updates {
+        apply_update(&mut own[..*included_before], update);
+        apply_update(inherited, update);
+    }
+    for update in central
+        .map(CentralPackages::updates_after_project)
+        .unwrap_or_default()
+    {
         apply_update(&mut packs, update);
     }
     for pack in packs {
@@ -348,7 +374,8 @@ struct Evaluator {
     properties: HashMap<String, RawValue>,
     versions: Vec<(String, RawValue)>,
     global: Vec<(String, RawValue)>,
-    references: Vec<RawItem>,
+    references_before: Vec<RawItem>,
+    references_after: Vec<RawItem>,
     updates_before: Vec<RawItem>,
     updates_after: Vec<RawItem>,
     /// whether currently evaluated file is imported after project content
@@ -407,14 +434,12 @@ impl Evaluator {
                     value: v.clone(),
                     dir: dir.clone(),
                 });
-                let items = if !reference.include.is_empty() {
-                    &mut self.references
-                } else if reference.update.is_empty() {
-                    continue;
-                } else if self.after_project {
-                    &mut self.updates_after
-                } else {
-                    &mut self.updates_before
+                let items = match (reference.include.is_empty(), reference.update.is_empty()) {
+                    (false, _) if self.after_project => &mut self.references_after,
+                    (false, _) => &mut self.references_before,
+                    (true, true) => continue,
+                    (true, false) if self.after_project => &mut self.updates_after,
+                    (true, false) => &mut self.updates_before,
                 };
                 items.push((name, version, version_override));
             }
@@ -467,7 +492,8 @@ impl Evaluator {
         CentralPackages {
             versions,
             global,
-            references: self.references.iter().map(reference).collect(),
+            references_before: self.references_before.iter().map(reference).collect(),
+            references_after: self.references_after.iter().map(reference).collect(),
             updates_before: self.updates_before.iter().map(update).collect(),
             updates_after: self.updates_after.iter().map(update).collect(),
         }
@@ -857,7 +883,7 @@ mod tests {
         // Assert
         fs::remove_dir_all(&root).unwrap();
         let actual: Vec<_> = packages
-            .references()
+            .references_before_project()
             .iter()
             .map(|p| {
                 (
@@ -921,8 +947,9 @@ mod tests {
         // Assert
         fs::remove_dir_all(&root).unwrap();
         assert_eq!(Some("2.0.0"), packages.version("a"));
-        assert_eq!(1, packages.references().len());
-        assert_eq!("a", packages.references()[0].name);
+        assert!(packages.references_before_project().is_empty());
+        assert_eq!(1, packages.references_after_project().len());
+        assert_eq!("a", packages.references_after_project()[0].name);
     }
 
     #[test]
@@ -1009,7 +1036,8 @@ mod tests {
 
         // Assert
         fs::remove_dir_all(&root).unwrap();
-        assert!(packages.references().is_empty());
+        assert!(packages.references_before_project().is_empty());
+        assert!(packages.references_after_project().is_empty());
         let before = packages.updates_before_project();
         assert_eq!(1, before.len());
         assert_eq!(Some("a"), before[0].update.as_deref());
@@ -1224,6 +1252,91 @@ mod tests {
         let actual = actual.unwrap();
         assert_eq!(1, actual.len());
         assert_eq!(vec![expected], version_of(&actual, "Serilog"));
+    }
+
+    #[test_case(r#"<PackageReference Include="Serilog" Version="1.0.0" />"#, "1.0.0" ; "props update before project include")]
+    #[test_case(r#"<PackageReference Update="Serilog" Version="3.0.0" /><PackageReference Include="Serilog" Version="1.0.0" />"#, "1.0.0" ; "project update before include")]
+    #[test_case(r#"<PackageReference Include="Serilog" Version="1.0.0" /><PackageReference Update="Serilog" Version="3.0.0" />"#, "3.0.0" ; "project update after include")]
+    fn resolve_updates_change_only_packages_included_before(packages: &str, expected: &str) {
+        // Arrange
+        let root = create_tree(
+            "resolve-update-order",
+            &[(
+                BUILD_PROPS,
+                r#"<Project><ItemGroup><PackageReference Update="Serilog" Version="2.0.0" /></ItemGroup></Project>"#,
+            )],
+        );
+        let file = project_file(&root.join("App"), packages);
+        let mut resolver = PackageResolver::default();
+
+        // Act
+        let actual = resolver.packages(&file);
+
+        // Assert
+        fs::remove_dir_all(&root).unwrap();
+        assert_eq!(vec![expected], version_of(&actual.unwrap(), "Serilog"));
+    }
+
+    #[test_case(None, "1.0.0" ; "props and project updates don't change targets package")]
+    #[test_case(Some(r#"<PackageReference Update="Serilog" Version="4.0.0" />"#), "4.0.0" ; "targets update changes targets package")]
+    fn resolve_targets_package_is_included_after_project(
+        targets_update: Option<&str>,
+        expected: &str,
+    ) {
+        // Arrange
+        let targets = format!(
+            r#"<Project><ItemGroup><PackageReference Include="Serilog" Version="1.0.0" />{}</ItemGroup></Project>"#,
+            targets_update.unwrap_or_default()
+        );
+        let root = create_tree(
+            "resolve-targets-include",
+            &[
+                (
+                    BUILD_PROPS,
+                    r#"<Project><ItemGroup><PackageReference Update="Serilog" Version="2.0.0" /></ItemGroup></Project>"#,
+                ),
+                (BUILD_TARGETS, &targets),
+            ],
+        );
+        let file = project_file(
+            &root.join("App"),
+            r#"<PackageReference Update="Serilog" Version="3.0.0" />"#,
+        );
+        let mut resolver = PackageResolver::default();
+
+        // Act
+        let actual = resolver.packages(&file);
+
+        // Assert
+        fs::remove_dir_all(&root).unwrap();
+        assert_eq!(vec![expected], version_of(&actual.unwrap(), "Serilog"));
+    }
+
+    #[test]
+    fn resolve_project_update_changes_inherited_package() {
+        // Arrange
+        let root = create_tree(
+            "resolve-update-inherited",
+            &[(
+                BUILD_PROPS,
+                r#"<Project><ItemGroup><PackageReference Include="StyleCop.Analyzers" Version="1.1.118" /></ItemGroup></Project>"#,
+            )],
+        );
+        let file = project_file(
+            &root.join("App"),
+            r#"<PackageReference Update="StyleCop.Analyzers" Version="1.2.0" />"#,
+        );
+        let mut resolver = PackageResolver::default();
+
+        // Act
+        let actual = resolver.packages(&file);
+
+        // Assert
+        fs::remove_dir_all(&root).unwrap();
+        assert_eq!(
+            vec!["1.2.0"],
+            version_of(&actual.unwrap(), "StyleCop.Analyzers")
+        );
     }
 
     #[test]
