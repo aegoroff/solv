@@ -402,10 +402,12 @@ impl<'s> Resolver<'s> {
         } else {
             (None, Some(based_on))
         };
-        // Type can't be based on itself
+        // Type can't be based on itself. Like the reference implementation
+        // built-in type may also be referenced by its extension e.g. `.vcxproj`
         self.resolve_custom(type_id, type_name, None)
             .filter(|found| !matches!(found, TypeRef::Custom(f) if std::ptr::eq(*f, custom)))
             .or_else(|| Self::resolve_built_in(type_id, type_name, None).map(TypeRef::BuiltIn))
+            .or_else(|| Self::resolve_built_in(None, None, Some(based_on)).map(TypeRef::BuiltIn))
     }
 
     /// `BasedOn` chain from the most general type to the type itself
@@ -572,6 +574,21 @@ mod tests {
             resolver.type_id(derived),
             Some("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}")
         );
+    }
+
+    #[test_case(".vcxproj" ; "extension with dot")]
+    #[test_case("VCXPROJ" ; "extension ignores case and dot")]
+    fn based_on_built_in_type_by_extension(based_on: &str) {
+        // Arrange
+        let configs = configurations(vec![custom(None, None, Some("myproj"), Some(based_on))]);
+        let resolver = Resolver::new(Some(&configs));
+        let derived = resolver.resolve(None, Some("myproj")).unwrap();
+
+        // Act
+        let actual = resolver.type_id(derived);
+
+        // Assert
+        assert_eq!(actual, Some(VCXPROJ));
     }
 
     #[test]
