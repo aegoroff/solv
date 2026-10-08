@@ -903,10 +903,6 @@ impl<'a> Redundants<'a> {
             let Some(item_groups) = project.item_group else {
                 continue;
             };
-            let Some(parent) = file.path().parent() else {
-                continue;
-            };
-
             for ig in item_groups {
                 let Some(refs) = ig.project_reference else {
                     continue;
@@ -916,18 +912,11 @@ impl<'a> Redundants<'a> {
                         && reference.condition.is_none()
                         && reference.is_transitive();
                     let include = reference.include.as_str();
-                    #[cfg(target_os = "windows")]
-                    let normalized_include = include;
-                    #[cfg(not(target_os = "windows"))]
-                    let normalized_include = decorate_path(include);
-
-                    let joined = parent.join(normalized_include);
-                    let Some(reference_path) = project_files::canonicalize_ignoring_case(&joined)
-                    else {
+                    let Some(referenced) = file.reference(include) else {
                         continue;
                     };
 
-                    let from = Self::ensure_node(&mut graph, &mut nodes, &reference_path);
+                    let from = Self::ensure_node(&mut graph, &mut nodes, referenced.path());
                     // do not create self-loops
                     if from == to {
                         continue;
@@ -1341,11 +1330,6 @@ fn extract_include_value(line: &[u8]) -> Option<&str> {
         i += 1;
     }
     None
-}
-
-#[cfg(not(target_os = "windows"))]
-fn decorate_path(path: &str) -> String {
-    path.replace('\\', "/")
 }
 
 #[cfg(test)]

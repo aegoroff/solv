@@ -39,6 +39,16 @@ impl ProjectFile {
     pub fn load(&self) -> miette::Result<msbuild::Project> {
         msbuild::Project::from_path(&self.path)
     }
+
+    /// Project file that `ProjectReference` item of this project points to.
+    /// `include` is the item path relative to the project directory.
+    /// Returns `None` if the file doesn't exist.
+    #[must_use]
+    pub fn reference(&self, include: &str) -> Option<ProjectFile> {
+        let dir = self.path.parent()?;
+        let path = canonicalize_ignoring_case(&make_path(dir, include))?;
+        Some(ProjectFile { path })
+    }
 }
 
 /// Locates project files of all solution projects but solution folders, web sites and projects
@@ -70,7 +80,7 @@ pub fn locate<'a>(
 /// written on Windows where file names are case-insensitive, so if the path doesn't
 /// exist as is, its components are matched ignoring case (exact match is preferred).
 #[must_use]
-pub fn canonicalize_ignoring_case(path: &Path) -> Option<PathBuf> {
+fn canonicalize_ignoring_case(path: &Path) -> Option<PathBuf> {
     path.canonicalize()
         .ok()
         .or_else(|| find_ignoring_case(path)?.canonicalize().ok())
@@ -286,6 +296,33 @@ EndProject
             located,
             vec![ProjectLocation::Found(ProjectFile::new(expected.unwrap()))]
         );
+    }
+
+    #[test_case(r"..\lib\LIB.csproj", true ; "relative windows path ignoring case")]
+    #[test_case("../Lib/Lib.csproj", true ; "relative unix path")]
+    #[test_case(r"..\Lib\Missing.csproj", false ; "missing file")]
+    fn reference_is_resolved_relative_to_project(include: &str, expected_found: bool) {
+        // Arrange
+        static CASE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let case = CASE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!(
+            "solp_project_files_reference_{}_{case}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(dir.join("App")).unwrap();
+        fs::create_dir_all(dir.join("Lib")).unwrap();
+        fs::write(dir.join("App").join("App.csproj"), "").unwrap();
+        fs::write(dir.join("Lib").join("Lib.csproj"), "").unwrap();
+        let file = ProjectFile::new(dir.join("App").join("App.csproj").canonicalize().unwrap());
+
+        // Act
+        let actual = file.reference(include);
+
+        // Assert
+        let expected = dir.join("Lib").join("Lib.csproj").canonicalize().unwrap();
+        let _ = fs::remove_dir_all(&dir);
+        assert_eq!(actual, expected_found.then(|| ProjectFile::new(expected)));
     }
 
     #[test]
