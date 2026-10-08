@@ -113,7 +113,7 @@ fn projects<'a>(solution: &Sol<'a>) -> Vec<Project<'a>> {
         .collect()
 }
 
-fn danglings<'a>(solution: &Sol<'a>) -> Option<Vec<String>> {
+fn danglings(solution: &Sol<'_>) -> Option<Vec<String>> {
     let project_ids: HashSet<String> = solution
         .projects
         .iter()

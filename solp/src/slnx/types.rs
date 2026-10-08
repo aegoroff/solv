@@ -239,7 +239,7 @@ pub enum TypeRef<'s> {
     BuiltIn(&'static BuiltInType),
 }
 
-impl<'s> TypeRef<'s> {
+impl TypeRef<'_> {
     fn name(&self) -> Option<&str> {
         match self {
             TypeRef::Custom(t) => t.name.as_deref(),
