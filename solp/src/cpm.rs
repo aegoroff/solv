@@ -5,6 +5,7 @@
 //! package references. `PackageReference` items defined in these files are collected
 //! too because MSBuild adds them to every project below. This is a simplified MSBuild evaluation:
 //! * properties may reference other properties (`$(Name)`) and `$(MSBuildThisFileDirectory)`
+//! * package versions may use properties of these files and of the project itself
 //! * `[MSBuild]::GetPathOfFileAbove` and `[MSBuild]::GetDirectoryNameOfFileAbove`
 //!   property functions are supported (useful for imports)
 //! * imported files are evaluated before the importing file content so the importing
@@ -24,7 +25,7 @@ use std::{
 
 use serde::Deserialize;
 
-use crate::msbuild::{self, Import, ImportGroup, ItemGroup, PackageReference};
+use crate::msbuild::{self, Import, ImportGroup, ItemGroup, PackageReference, PropertyValue};
 use crate::project_files::{ProjectFile, make_path};
 
 /// Central Package Management file name
@@ -50,13 +51,6 @@ struct PropsFile {
     imports: Vec<Import>,
     #[serde(rename = "ImportGroup", default)]
     import_group: Vec<ImportGroup>,
-}
-
-/// MSBuild property value i.e. text of the property element.
-#[derive(Debug, Default, Deserialize)]
-struct PropertyValue {
-    #[serde(rename = "#text", default)]
-    value: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -107,6 +101,10 @@ struct CentralPackages {
     references_after: Vec<PackageReference>,
     updates_before: Vec<PackageReference>,
     updates_after: Vec<PackageReference>,
+    /// lowercased property name to its value map
+    properties: HashMap<String, RawValue>,
+    /// lowercased names of properties set in `Directory.Build.targets` (and files imported by it)
+    properties_after: HashSet<String>,
 }
 
 impl CentralPackages {
@@ -200,23 +198,50 @@ impl PackageResolver {
     /// Update items and items without name aren't returned.
     pub fn packages(&mut self, file: &ProjectFile) -> miette::Result<Vec<ProjectPackage>> {
         let mut project = file.load()?;
-        let central = file.path().parent().and_then(|dir| {
-            let files = find_implicit_imports(dir);
-            if files.is_empty() {
-                return None;
-            }
+        let dir = file.path().parent().unwrap_or_else(|| Path::new(""));
+        let files = find_implicit_imports(dir);
+        let central = if files.is_empty() {
+            None
+        } else {
             let central = self
                 .cache
                 .entry(files)
                 .or_insert_with_key(|files| CentralPackages::load(files));
             Some(&*central)
-        });
-        apply_central_packages(&mut project, central);
+        };
+        let scope = project_scope(&project, dir, central);
+        apply_central_packages(&mut project, central, &scope, dir);
         Ok(project_packages(project))
     }
 }
 
-fn apply_central_packages(project: &mut msbuild::Project, central: Option<&CentralPackages>) {
+/// Properties visible to project items. Project properties are evaluated after properties of
+/// `Directory.Build.props` and `Directory.Packages.props` and before `Directory.Build.targets` ones.
+fn project_scope(
+    project: &msbuild::Project,
+    dir: &Path,
+    central: Option<&CentralPackages>,
+) -> Evaluator {
+    let mut properties = central.map(|c| c.properties.clone()).unwrap_or_default();
+    for (name, raw, if_undefined) in raw_properties(project.property_group.iter().flatten(), dir) {
+        if central.is_none_or(|c| !c.properties_after.contains(&name)) {
+            set_property(&mut properties, name, raw, if_undefined);
+        }
+    }
+    Evaluator {
+        properties,
+        ..Default::default()
+    }
+}
+
+/// Applies inherited packages and update items to project packages and expands their versions
+/// using `scope` properties. `dir` is the project directory.
+fn apply_central_packages(
+    project: &mut msbuild::Project,
+    central: Option<&CentralPackages>,
+    scope: &Evaluator,
+    dir: &Path,
+) {
     // Update items change packages included before them and don't define packages themselves.
     // Each project update is kept with the number of project packages included before it.
     let mut own_updates = vec![];
@@ -287,6 +312,7 @@ fn apply_central_packages(project: &mut msbuild::Project, central: Option<&Centr
         {
             version.clone_into(&mut pack.version);
         }
+        pack.version = scope.expand(&pack.version, dir, 0);
     }
 }
 
@@ -354,7 +380,7 @@ fn find_file_above(dir: &Path, name: &str) -> Option<PathBuf> {
 
 /// Not expanded value with directory of the file where it was defined
 /// (to expand `$(MSBuildThisFileDirectory)` correctly)
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct RawValue {
     value: String,
     dir: PathBuf,
@@ -373,6 +399,8 @@ struct RawItem {
 struct Evaluator {
     /// lowercased property name to its value map
     properties: HashMap<String, RawValue>,
+    /// lowercased names of properties set in files imported after project content
+    properties_after: HashSet<String>,
     versions: Vec<RawItem>,
     global: Vec<RawItem>,
     references_before: Vec<RawItem>,
@@ -443,19 +471,12 @@ impl Evaluator {
     }
 
     fn set_properties(&mut self, props: &PropsFile, dir: &Path) {
-        let properties = props
-            .property_group
-            .iter()
-            .flatten()
-            .filter(|(name, _)| !name.starts_with('@'))
-            .map(|(name, value)| {
-                let raw = RawValue {
-                    value: value.value.clone(),
-                    dir: dir.to_path_buf(),
-                };
-                (name.to_lowercase(), raw)
-            });
-        self.properties.extend(properties);
+        for (name, raw, if_undefined) in raw_properties(props.property_group.iter(), dir) {
+            let after_name = self.after_project.then(|| name.clone());
+            if set_property(&mut self.properties, name, raw, if_undefined) {
+                self.properties_after.extend(after_name);
+            }
+        }
     }
 
     fn into_packages(self) -> CentralPackages {
@@ -485,13 +506,19 @@ impl Evaluator {
             update: Some(item.name.clone()),
             ..reference(item)
         };
+        let references_before = self.references_before.iter().map(reference).collect();
+        let references_after = self.references_after.iter().map(reference).collect();
+        let updates_before = self.updates_before.iter().map(update).collect();
+        let updates_after = self.updates_after.iter().map(update).collect();
         CentralPackages {
             versions,
             global,
-            references_before: self.references_before.iter().map(reference).collect(),
-            references_after: self.references_after.iter().map(reference).collect(),
-            updates_before: self.updates_before.iter().map(update).collect(),
-            updates_after: self.updates_after.iter().map(update).collect(),
+            references_before,
+            references_after,
+            updates_before,
+            updates_after,
+            properties: self.properties,
+            properties_after: self.properties_after,
         }
     }
 
@@ -565,6 +592,50 @@ impl Evaluator {
                 .unwrap_or_default(),
         )
     }
+}
+
+/// Properties of property groups with lowercased names (group attributes are skipped).
+/// The flag shows whether the property is set only if it's undefined (see [`set_property`]).
+fn raw_properties<'a>(
+    groups: impl Iterator<Item = &'a HashMap<String, PropertyValue>> + 'a,
+    dir: &'a Path,
+) -> impl Iterator<Item = (String, RawValue, bool)> + 'a {
+    groups
+        .flatten()
+        .filter(|(name, _)| !name.starts_with('@'))
+        .map(move |(name, value)| {
+            let raw = RawValue {
+                value: value.value.clone(),
+                dir: dir.to_path_buf(),
+            };
+            let if_undefined = value
+                .condition
+                .as_deref()
+                .is_some_and(|condition| is_undefined_check(condition, name));
+            (name.to_lowercase(), raw, if_undefined)
+        })
+}
+
+/// Sets the property. Property with `if_undefined` flag is the default value
+/// (`Condition="'$(Name)' == ''"`) so it doesn't change already defined not empty value.
+/// Returns whether the property is set.
+fn set_property(
+    properties: &mut HashMap<String, RawValue>,
+    name: String,
+    raw: RawValue,
+    if_undefined: bool,
+) -> bool {
+    if if_undefined && properties.get(&name).is_some_and(|v| !v.value.is_empty()) {
+        return false;
+    }
+    properties.insert(name, raw);
+    true
+}
+
+/// Whether the condition is `'$(Name)' == ''` (spaces and case are ignored)
+fn is_undefined_check(condition: &str, name: &str) -> bool {
+    let condition: String = condition.chars().filter(|c| !c.is_whitespace()).collect();
+    condition.eq_ignore_ascii_case(&format!("'$({name})'==''"))
 }
 
 fn raw_item(item: &PackageItem, dir: &Path) -> RawItem {
@@ -1363,6 +1434,91 @@ mod tests {
             condition: Some("'$(TargetFramework)' == 'net48'".to_string()),
         };
         assert_eq!(vec![expected], actual.unwrap());
+    }
+
+    #[test_case("", None, "13.0.3" ; "build props property")]
+    #[test_case("<JsonVersion>12.0.1</JsonVersion>", None, "12.0.1" ; "project property wins over build props")]
+    #[test_case("<Json>11.0.1</Json><JsonVersion>$(Json)</JsonVersion>", None, "11.0.1" ; "project property references other one")]
+    #[test_case("<JsonVersion>12.0.1</JsonVersion>", Some("<JsonVersion>10.0.1</JsonVersion>"), "10.0.1" ; "build targets property wins over project")]
+    #[test_case("<Other>12.0.1</Other>", Some("<Other>10.0.1</Other>"), "13.0.3" ; "other properties ignored")]
+    #[test_case("<JsonVersion Condition=\" '$(jsonversion)'=='' \">12.0.1</JsonVersion>", None, "13.0.3" ; "project default keeps build props property")]
+    #[test_case("<JsonVersion Condition=\"'$(Other)' == ''\">12.0.1</JsonVersion>", None, "12.0.1" ; "project property with other condition")]
+    #[test_case("", Some("<JsonVersion Condition=\"'$(JsonVersion)' == ''\">10.0.1</JsonVersion>"), "13.0.3" ; "build targets default keeps build props property")]
+    fn resolve_version_from_properties(
+        project_properties: &str,
+        targets_properties: Option<&str>,
+        expected: &str,
+    ) {
+        // Arrange
+        let targets = targets_properties
+            .map(|p| format!("<Project><PropertyGroup>{p}</PropertyGroup></Project>"));
+        let mut files = vec![(
+            BUILD_PROPS,
+            "<Project><PropertyGroup><JsonVersion>13.0.3</JsonVersion></PropertyGroup></Project>",
+        )];
+        if let Some(targets) = &targets {
+            files.push((BUILD_TARGETS, targets));
+        }
+        let root = create_tree("resolve-properties", &files);
+        let path = root.join("App").join("App.csproj");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(
+            &path,
+            format!(
+                r#"<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">{project_properties}</PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="$(JsonVersion)" />
+  </ItemGroup>
+</Project>"#
+            ),
+        )
+        .unwrap();
+        let file = ProjectFile::new(path);
+        let mut resolver = PackageResolver::default();
+
+        // Act
+        let actual = resolver.packages(&file);
+
+        // Assert
+        fs::remove_dir_all(&root).unwrap();
+        assert_eq!(
+            vec![expected],
+            version_of(&actual.unwrap(), "Newtonsoft.Json")
+        );
+    }
+
+    #[test_case("<JsonVersion>12.0.1</JsonVersion>", "12.0.1" ; "project property")]
+    #[test_case("", "$(JsonVersion)" ; "unknown property kept")]
+    #[test_case("<JsonVersion Condition=\"'$(JsonVersion)' == ''\">12.0.1</JsonVersion>", "12.0.1" ; "project default of undefined property")]
+    #[test_case("<JsonVersion></JsonVersion></PropertyGroup><PropertyGroup><JsonVersion Condition=\"'$(JsonVersion)' == ''\">12.0.1</JsonVersion>", "12.0.1" ; "project default of empty property")]
+    fn resolve_version_from_properties_without_directory_files(
+        project_properties: &str,
+        expected: &str,
+    ) {
+        // Arrange
+        let root = create_tree("resolve-properties-no-props", &[]);
+        let path = root.join("App.csproj");
+        fs::create_dir_all(&root).unwrap();
+        fs::write(
+            &path,
+            format!(
+                r#"<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup>{project_properties}</PropertyGroup><ItemGroup><PackageReference Include="Newtonsoft.Json" Version="$(JsonVersion)" /></ItemGroup></Project>"#
+            ),
+        )
+        .unwrap();
+        let file = ProjectFile::new(path);
+        let mut resolver = PackageResolver::default();
+
+        // Act
+        let actual = resolver.packages(&file);
+
+        // Assert
+        fs::remove_dir_all(&root).unwrap();
+        assert_eq!(
+            vec![expected],
+            version_of(&actual.unwrap(), "Newtonsoft.Json")
+        );
     }
 
     #[test]

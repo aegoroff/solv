@@ -1086,7 +1086,8 @@ fn expand_end_over_line_whitespace(input: &[u8], mut end: usize) -> usize {
 /// Scans the raw bytes of an MSBuild project file for `<ProjectReference ...>`
 /// elements (both self-closing and with an explicit `</ProjectReference>`
 /// closing tag, possibly spanning multiple lines as XML allows) whose
-/// `Include` attribute value is contained in `redundant_refs`. Returns the
+/// unescaped `Include` attribute value is contained in `redundant_refs`.
+/// Elements inside XML comments are skipped. Returns the
 /// byte ranges `[start, end)` of every such element occurrence, in input
 /// order, where `start` is the position of `<` and `end` is one past the
 /// final `>` of the element.
@@ -1099,7 +1100,7 @@ fn find_redundant_reference_spans(
     let mut spans: Vec<(usize, usize)> = vec![];
     let mut i = 0usize;
 
-    while let Some(pos) = find_bytes(&input[i..], TAG) {
+    while let Some(pos) = find_outside_comments(&input[i..], TAG) {
         let start = i + pos;
         let attrs_start = start + TAG.len();
         // The tag name must be terminated by whitespace, '/', or '>' to avoid
@@ -1140,7 +1141,7 @@ fn find_redundant_reference_spans(
         // forward scan for the closing tag is sufficient.
         let span_end = if attrs.trim_ascii_end().ends_with(b"/") {
             opening_tag_end
-        } else if let Some(p) = find_bytes(&input[opening_tag_end..], CLOSE_TAG) {
+        } else if let Some(p) = find_outside_comments(&input[opening_tag_end..], CLOSE_TAG) {
             opening_tag_end + p + CLOSE_TAG.len()
         } else {
             // malformed – skip this opening tag
@@ -1148,7 +1149,9 @@ fn find_redundant_reference_spans(
             continue;
         };
 
-        if extract_include_value(attrs).is_some_and(|include| redundant_refs.contains(include)) {
+        if extract_include_value(attrs)
+            .is_some_and(|include| redundant_refs.contains(msbuild::unescape_xml(include).as_ref()))
+        {
             spans.push((start, span_end));
         }
 
@@ -1159,6 +1162,22 @@ fn find_redundant_reference_spans(
 
 fn find_bytes(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     haystack.windows(needle.len()).position(|w| w == needle)
+}
+
+/// Position of the first `needle` occurrence that isn't inside an XML comment
+fn find_outside_comments(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    const COMMENT_START: &[u8] = b"<!--";
+    const COMMENT_END: &[u8] = b"-->";
+    let mut offset = 0usize;
+    loop {
+        let rest = &haystack[offset..];
+        let found = find_bytes(rest, needle)?;
+        let Some(comment) = find_bytes(&rest[..found], COMMENT_START) else {
+            return Some(offset + found);
+        };
+        let body = offset + comment + COMMENT_START.len();
+        offset = body + find_bytes(&haystack[body..], COMMENT_END)? + COMMENT_END.len();
+    }
 }
 
 /// Value of `Include="..."` (or single-quoted) attribute
@@ -1994,6 +2013,103 @@ EndGlobal
         assert_eq!(0, removed);
         assert_eq!(before, after);
         fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn remove_redundant_reference_lines_skips_commented_references() {
+        // Arrange: commented out element without close tag must not swallow the content
+        // up to the next real `</ProjectReference>`
+        let uniq = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("solv-fix-lines-comment-{uniq}"));
+        fs::create_dir_all(&root).unwrap();
+        let project_path = root.join("App.csproj");
+        let original = concat!(
+            "<Project>\n",
+            "  <!-- old: <ProjectReference Include=\"..\\A\\A.csproj\"> -->\n",
+            "  <!-- <ProjectReference Include=\"..\\A\\A.csproj\" /> -->\n",
+            "  <ItemGroup>\n",
+            "    <ProjectReference Include=\"..\\A\\A.csproj\" />\n",
+            "    <ProjectReference Include=\"..\\B\\B.csproj\">\n",
+            "      <Private>true</Private>\n",
+            "    </ProjectReference>\n",
+            "  </ItemGroup>\n",
+            "</Project>\n",
+        );
+        fs::write(&project_path, original).unwrap();
+        let mut refs = HashSet::new();
+        refs.insert("..\\A\\A.csproj".to_string());
+
+        // Act
+        let removed = remove_redundant_reference_lines(&project_path, &refs).unwrap();
+        let updated = fs::read(&project_path).unwrap();
+
+        // Assert
+        assert_eq!(1, removed);
+        assert_eq!(
+            updated,
+            concat!(
+                "<Project>\n",
+                "  <!-- old: <ProjectReference Include=\"..\\A\\A.csproj\"> -->\n",
+                "  <!-- <ProjectReference Include=\"..\\A\\A.csproj\" /> -->\n",
+                "  <ItemGroup>\n",
+                "    <ProjectReference Include=\"..\\B\\B.csproj\">\n",
+                "      <Private>true</Private>\n",
+                "    </ProjectReference>\n",
+                "  </ItemGroup>\n",
+                "</Project>\n",
+            )
+            .as_bytes()
+        );
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test_case("..\\R&amp;D\\A.csproj" ; "predefined entity")]
+    #[test_case("..\\R&#38;D\\A.csproj" ; "character reference")]
+    fn remove_redundant_reference_lines_matches_unescaped_include(include: &str) {
+        // Arrange: redundant references are unescaped by XML parser
+        let uniq = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("solv-fix-lines-entity-{uniq}"));
+        fs::create_dir_all(&root).unwrap();
+        let project_path = root.join("App.csproj");
+        let original = format!(
+            "<Project>\n  <ItemGroup>\n    <ProjectReference Include=\"{include}\" />\n    <ProjectReference Include=\"..\\B\\B.csproj\" />\n  </ItemGroup>\n</Project>\n"
+        );
+        fs::write(&project_path, original).unwrap();
+        let mut refs = HashSet::new();
+        refs.insert("..\\R&D\\A.csproj".to_string());
+
+        // Act
+        let removed = remove_redundant_reference_lines(&project_path, &refs).unwrap();
+        let updated = fs::read_to_string(&project_path).unwrap();
+
+        // Assert
+        fs::remove_dir_all(&root).unwrap();
+        assert_eq!(1, removed);
+        assert_eq!(
+            "<Project>\n  <ItemGroup>\n    <ProjectReference Include=\"..\\B\\B.csproj\" />\n  </ItemGroup>\n</Project>\n",
+            updated
+        );
+    }
+
+    #[test_case(b"<a/>", Some(0) ; "no comments")]
+    #[test_case(b"<!-- <a/> --><a/>", Some(13) ; "inside comment skipped")]
+    #[test_case(b"<!--<a/>--><!-- --><a/>", Some(19) ; "several comments")]
+    #[test_case(b"<!-- <a/> ", None ; "unclosed comment")]
+    #[test_case(b"<!-- x --> y", None ; "not found")]
+    fn find_outside_comments_tests(haystack: &[u8], expected: Option<usize>) {
+        // Arrange
+
+        // Act
+        let actual = find_outside_comments(haystack, b"<a/>");
+
+        // Assert
+        assert_eq!(expected, actual);
     }
 
     #[test]

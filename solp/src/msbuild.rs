@@ -1,10 +1,12 @@
 #![allow(clippy::doc_markdown)]
 
 use miette::{IntoDiagnostic, WrapErr};
-use std::{fs::File, io::Read, path::Path};
+use std::{collections::HashMap, fs::File, io::Read, path::Path};
 
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
+
+pub use crate::slnx::unescape_xml;
 
 /// Shows whether id specified is ID of
 /// solution folder type project
@@ -46,6 +48,11 @@ pub struct Project {
     #[serde(rename = "@Sdk", default)]
     pub sdk: Option<String>,
 
+    /// MSBuild project property groups: property name to its value.
+    /// Group attributes (e.g. `@Condition`) are keys that start with `@`
+    #[serde(rename = "PropertyGroup", default)]
+    pub property_group: Option<Vec<HashMap<String, PropertyValue>>>,
+
     /// MSBuild project item groups
     #[serde(rename = "ItemGroup", default)]
     pub item_group: Option<Vec<ItemGroup>>,
@@ -57,6 +64,15 @@ pub struct Project {
     /// MSBuild project imports
     #[serde(rename = "Import")]
     pub imports: Option<Vec<Import>>,
+}
+
+/// MSBuild property value i.e. text of the property element.
+#[derive(Debug, Default, Deserialize)]
+pub struct PropertyValue {
+    #[serde(rename = "#text", default)]
+    pub value: String,
+    #[serde(rename = "@Condition", default)]
+    pub condition: Option<String>,
 }
 
 /// Represents a group of items within an `MSBuild` project.
@@ -461,6 +477,7 @@ mod tests {
         // Arrange
         let p = Project {
             sdk: None,
+            property_group: None,
             item_group: None,
             imports: None,
             import_group: None,
@@ -478,6 +495,7 @@ mod tests {
         // Arrange
         let p = Project {
             sdk: Some("1".to_owned()),
+            property_group: None,
             item_group: None,
             imports: None,
             import_group: None,
@@ -495,6 +513,7 @@ mod tests {
         // Arrange
         let p = Project {
             sdk: None,
+            property_group: None,
             item_group: None,
             imports: Some(vec![Import {
                 project: "p1".to_owned(),
@@ -517,6 +536,7 @@ mod tests {
         // Arrange
         let p = Project {
             sdk: None,
+            property_group: None,
             item_group: None,
             imports: Some(vec![Import {
                 project: "p1".to_owned(),
