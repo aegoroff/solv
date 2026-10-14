@@ -847,13 +847,17 @@ struct ProjectRef {
     include: String,
     /// Whether the referencing project passes referenced one to its own consumers
     transitive: bool,
+    /// Whether the reference is an ordinary assembly reference, so it may be replaced by
+    /// a transitive one. Analyzer and build order references can't.
+    replaceable: bool,
 }
 
 impl ProjectRef {
-    fn new(include: &str, transitive: bool) -> Self {
+    fn new(include: &str, transitive: bool, replaceable: bool) -> Self {
         Self {
             include: include.to_owned(),
             transitive,
+            replaceable,
         }
     }
 }
@@ -902,6 +906,7 @@ impl<'a> Redundants<'a> {
                     let transitive = ig.condition.is_none()
                         && reference.condition.is_none()
                         && reference.is_transitive();
+                    let replaceable = reference.is_assembly_reference();
                     let include = reference.include.as_str();
                     let Some(referenced) = file.reference(include) else {
                         continue;
@@ -915,8 +920,9 @@ impl<'a> Redundants<'a> {
                     // the same project may be referenced several times (e.g. conditionally)
                     if let Some(edge) = graph.find_edge(from, to) {
                         graph[edge].transitive |= transitive;
+                        graph[edge].replaceable &= replaceable;
                     } else {
-                        graph.add_edge(from, to, ProjectRef::new(include, transitive));
+                        graph.add_edge(from, to, ProjectRef::new(include, transitive, replaceable));
                     }
                 }
             }
@@ -991,6 +997,9 @@ impl<'a> Redundants<'a> {
                     let Some(edge) = graph.find_edge(candidate, node) else {
                         continue;
                     };
+                    if !graph[edge].replaceable {
+                        continue;
+                    }
                     result.push(RedundantRef {
                         project: graph[node].clone(),
                         redundant_reference: graph[edge].include.clone(),
@@ -1645,7 +1654,7 @@ EndGlobal
         let mut graph = DiGraph::<PathBuf, ProjectRef>::new();
         let a = add_node(&mut graph, "a");
         let b = add_node(&mut graph, "b");
-        graph.add_edge(a, b, ProjectRef::new("a->b", true));
+        graph.add_edge(a, b, ProjectRef::new("a->b", true, true));
 
         // Act
         let redundants = Redundants::find_redundants(&graph);
@@ -1664,9 +1673,9 @@ EndGlobal
         let a = add_node(&mut graph, "a");
         let b = add_node(&mut graph, "b");
         let c = add_node(&mut graph, "c");
-        graph.add_edge(a, b, ProjectRef::new("a->b", true));
-        graph.add_edge(a, c, ProjectRef::new("..\\A\\A.csproj", true));
-        graph.add_edge(b, c, ProjectRef::new("..\\B\\B.csproj", true));
+        graph.add_edge(a, b, ProjectRef::new("a->b", true, true));
+        graph.add_edge(a, c, ProjectRef::new("..\\A\\A.csproj", true, true));
+        graph.add_edge(b, c, ProjectRef::new("..\\B\\B.csproj", true, true));
 
         // Act
         let redundants = Redundants::find_redundants(&graph);
@@ -1685,14 +1694,87 @@ EndGlobal
         let a = add_node(&mut graph, "a");
         let b = add_node(&mut graph, "b");
         let c = add_node(&mut graph, "c");
-        graph.add_edge(a, c, ProjectRef::new("a->c", true));
-        graph.add_edge(b, c, ProjectRef::new("b->c", true));
+        graph.add_edge(a, c, ProjectRef::new("a->c", true, true));
+        graph.add_edge(b, c, ProjectRef::new("b->c", true, true));
 
         // Act
         let redundants = Redundants::find_redundants(&graph);
 
         // Assert
         assert!(redundants.is_empty());
+    }
+
+    #[test]
+    fn redundants_not_replaceable_reference_is_not_redundant() {
+        // Arrange:
+        //   a -> b -> c, and a -> c (analyzer or build order reference)
+        let mut graph = DiGraph::<PathBuf, ProjectRef>::new();
+        let a = add_node(&mut graph, "a");
+        let b = add_node(&mut graph, "b");
+        let c = add_node(&mut graph, "c");
+        graph.add_edge(a, b, ProjectRef::new("a->b", true, true));
+        graph.add_edge(a, c, ProjectRef::new("a->c", false, false));
+        graph.add_edge(b, c, ProjectRef::new("b->c", true, true));
+
+        // Act
+        let redundants = Redundants::find_redundants(&graph);
+
+        // Assert
+        assert!(redundants.is_empty());
+    }
+
+    #[test_case(r#" OutputItemType="Analyzer" ReferenceOutputAssembly="false""#, 0 ; "analyzer attributes")]
+    #[test_case(" ReferenceOutputAssembly=\"false\"", 0 ; "build order only")]
+    #[test_case(" Private=\"false\"", 1 ; "plain reference with other metadata")]
+    fn fix_keeps_not_replaceable_reference(metadata: &str, expected: u64) {
+        // Arrange
+        static CASE: AtomicUsize = AtomicUsize::new(0);
+        let case = CASE.fetch_add(1, Ordering::Relaxed);
+        let root = std::env::temp_dir().join(format!(
+            "solv-fix-replaceable-{}-{case}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        for dir in ["App", "B", "Gen"] {
+            fs::create_dir_all(root.join(dir)).unwrap();
+        }
+        let sdk = "<Project Sdk=\"Microsoft.NET.Sdk\">";
+        fs::write(
+            root.join("Gen").join("Gen.csproj"),
+            format!("{sdk}</Project>"),
+        )
+        .unwrap();
+        fs::write(
+            root.join("B").join("B.csproj"),
+            format!(
+                "{sdk}<ItemGroup><ProjectReference Include=\"..\\Gen\\Gen.csproj\" /></ItemGroup></Project>"
+            ),
+        )
+        .unwrap();
+        fs::write(
+            root.join("App").join("App.csproj"),
+            format!(
+                "{sdk}\n  <ItemGroup>\n    <ProjectReference Include=\"..\\B\\B.csproj\" />\n    <ProjectReference Include=\"..\\Gen\\Gen.csproj\"{metadata} />\n  </ItemGroup>\n</Project>"
+            ),
+        )
+        .unwrap();
+        let slnx_path = root.join("test.slnx");
+        fs::write(
+            &slnx_path,
+            "<Solution><Project Path=\"App/App.csproj\" /><Project Path=\"B/B.csproj\" /><Project Path=\"Gen/Gen.csproj\" /></Solution>",
+        )
+        .unwrap();
+        let mut fix = ValidateFix::default();
+
+        // Act
+        let result = solp::parse_file(slnx_path.to_str().unwrap(), &mut fix);
+
+        // Assert
+        let app = fs::read_to_string(root.join("App").join("App.csproj")).unwrap();
+        fs::remove_dir_all(&root).unwrap();
+        assert!(result.is_ok());
+        assert_eq!(expected, fix.statistic.removed_refs);
+        assert_eq!(expected == 0, app.contains("Gen.csproj"));
     }
 
     #[test]
@@ -1705,10 +1787,10 @@ EndGlobal
         let b = add_node(&mut graph, "b");
         let c = add_node(&mut graph, "c");
         let d = add_node(&mut graph, "d");
-        graph.add_edge(a, b, ProjectRef::new("a->b", true));
-        graph.add_edge(b, c, ProjectRef::new("b->c", true));
-        graph.add_edge(c, d, ProjectRef::new("c->d", true));
-        graph.add_edge(a, d, ProjectRef::new("..\\A\\A.csproj", true));
+        graph.add_edge(a, b, ProjectRef::new("a->b", true, true));
+        graph.add_edge(b, c, ProjectRef::new("b->c", true, true));
+        graph.add_edge(c, d, ProjectRef::new("c->d", true, true));
+        graph.add_edge(a, d, ProjectRef::new("..\\A\\A.csproj", true, true));
 
         // Act
         let redundants = Redundants::find_redundants(&graph);
@@ -1729,9 +1811,9 @@ EndGlobal
         let a = add_node(&mut graph, "a");
         let b = add_node(&mut graph, "b");
         let n = add_node(&mut graph, "n");
-        graph.add_edge(a, n, ProjectRef::new("a->n", true));
-        graph.add_edge(b, n, ProjectRef::new("b->n", true));
-        graph.add_edge(n, b, ProjectRef::new("n->b", true));
+        graph.add_edge(a, n, ProjectRef::new("a->n", true, true));
+        graph.add_edge(b, n, ProjectRef::new("b->n", true, true));
+        graph.add_edge(n, b, ProjectRef::new("n->b", true, true));
 
         // Act
         let redundants = Redundants::find_redundants(&graph);
@@ -2390,8 +2472,8 @@ EndGlobal
         let mut graph = DiGraph::<PathBuf, ProjectRef>::new();
         let a = add_node(&mut graph, "a");
         let b = add_node(&mut graph, "b");
-        graph.add_edge(a, a, ProjectRef::new("a->a", true)); // self-reference
-        graph.add_edge(a, b, ProjectRef::new("a->b", true));
+        graph.add_edge(a, a, ProjectRef::new("a->a", true, true)); // self-reference
+        graph.add_edge(a, b, ProjectRef::new("a->b", true, true));
 
         // Act
         let redundants = Redundants::find_redundants(&graph);
@@ -2411,10 +2493,10 @@ EndGlobal
         let a = add_node(&mut graph, "a");
         let b = add_node(&mut graph, "b");
         let c = add_node(&mut graph, "c");
-        graph.add_edge(a, b, ProjectRef::new("a->b1", true));
-        graph.add_edge(a, b, ProjectRef::new("a->b2", true)); // duplicate with different label
-        graph.add_edge(b, c, ProjectRef::new("b->c", true));
-        graph.add_edge(a, c, ProjectRef::new("a->c", true)); // redundant because a->b->c
+        graph.add_edge(a, b, ProjectRef::new("a->b1", true, true));
+        graph.add_edge(a, b, ProjectRef::new("a->b2", true, true)); // duplicate with different label
+        graph.add_edge(b, c, ProjectRef::new("b->c", true, true));
+        graph.add_edge(a, c, ProjectRef::new("a->c", true, true)); // redundant because a->b->c
 
         // Act
         let redundants = Redundants::find_redundants(&graph);
@@ -3127,9 +3209,9 @@ EndGlobal
         let a = add_node(&mut graph, "a");
         let b = add_node(&mut graph, "b");
         let c = add_node(&mut graph, "c");
-        graph.add_edge(a, b, ProjectRef::new("a->b", false));
-        graph.add_edge(a, c, ProjectRef::new("a->c", true));
-        graph.add_edge(b, c, ProjectRef::new("b->c", true));
+        graph.add_edge(a, b, ProjectRef::new("a->b", false, true));
+        graph.add_edge(a, c, ProjectRef::new("a->c", true, true));
+        graph.add_edge(b, c, ProjectRef::new("b->c", true, true));
 
         // Act
         let redundants = Redundants::find_redundants(&graph);
@@ -3147,9 +3229,9 @@ EndGlobal
         let a = add_node(&mut graph, "a");
         let b = add_node(&mut graph, "b");
         let c = add_node(&mut graph, "c");
-        graph.add_edge(a, b, ProjectRef::new("a->b", true));
-        graph.add_edge(a, c, ProjectRef::new("a->c", true));
-        graph.add_edge(b, c, ProjectRef::new("b->c", false));
+        graph.add_edge(a, b, ProjectRef::new("a->b", true, true));
+        graph.add_edge(a, c, ProjectRef::new("a->c", true, true));
+        graph.add_edge(b, c, ProjectRef::new("b->c", false, true));
 
         // Act
         let redundants = Redundants::find_redundants(&graph);

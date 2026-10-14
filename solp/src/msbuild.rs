@@ -129,6 +129,10 @@ pub struct ProjectReference {
     pub reference_output_assembly_attribute: Option<String>,
     #[serde(rename = "ReferenceOutputAssembly", default)]
     pub reference_output_assembly: Option<String>,
+    #[serde(rename = "@OutputItemType", default)]
+    pub output_item_type_attribute: Option<String>,
+    #[serde(rename = "OutputItemType", default)]
+    pub output_item_type: Option<String>,
 }
 
 impl ProjectReference {
@@ -150,6 +154,24 @@ impl ProjectReference {
             .chain(&self.reference_output_assembly)
             .any(|v| v.trim().eq_ignore_ascii_case("false"));
         !private_assets && !no_output_assembly
+    }
+
+    /// Whether the referenced project output is used as an ordinary assembly reference.
+    /// It isn't if the reference is only for build order (`ReferenceOutputAssembly="false"`)
+    /// or the output is used as another item type (e.g. `OutputItemType="Analyzer"`).
+    #[must_use]
+    pub fn is_assembly_reference(&self) -> bool {
+        let no_output_assembly = self
+            .reference_output_assembly_attribute
+            .iter()
+            .chain(&self.reference_output_assembly)
+            .any(|v| v.trim().eq_ignore_ascii_case("false"));
+        let output_item_type = self
+            .output_item_type_attribute
+            .iter()
+            .chain(&self.output_item_type)
+            .any(|v| !v.trim().is_empty());
+        !no_output_assembly && !output_item_type
     }
 }
 
