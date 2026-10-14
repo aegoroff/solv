@@ -428,7 +428,7 @@ impl Evaluator {
 
         // own properties are set before imports so imports can use them
         // and set again after imports so the importing file wins
-        self.set_properties(&props, &dir);
+        self.set_properties(&props, &dir, false);
         let imports = props.imports.iter().chain(
             props
                 .import_group
@@ -447,7 +447,7 @@ impl Evaluator {
                 self.evaluate(&import_path, depth + 1);
             }
         }
-        self.set_properties(&props, &dir);
+        self.set_properties(&props, &dir, true);
 
         for group in &props.item_group {
             let versions = group.package_version.iter().map(|p| raw_item(p, &dir));
@@ -470,10 +470,26 @@ impl Evaluator {
         }
     }
 
-    fn set_properties(&mut self, props: &PropsFile, dir: &Path) {
-        for (name, raw, if_undefined) in raw_properties(props.property_group.iter(), dir) {
+    /// `again` is set for the second pass after imports: properties appended to
+    /// (`<V>$(V).2</V>`) are skipped there because they have been applied already
+    fn set_properties(&mut self, props: &PropsFile, dir: &Path, again: bool) {
+        let all: Vec<_> = raw_properties(props.property_group.iter(), dir).collect();
+        let appended: HashSet<&str> = all
+            .iter()
+            .filter(|(name, raw, _)| again && references_itself(&raw.value, name))
+            .map(|(name, ..)| name.as_str())
+            .collect();
+        for (name, raw, if_undefined) in &all {
+            if appended.contains(name.as_str()) {
+                continue;
+            }
             let after_name = self.after_project.then(|| name.clone());
-            if set_property(&mut self.properties, name, raw, if_undefined) {
+            if set_property(
+                &mut self.properties,
+                name.clone(),
+                raw.clone(),
+                *if_undefined,
+            ) {
                 self.properties_after.extend(after_name);
             }
         }
@@ -628,8 +644,43 @@ fn set_property(
     if if_undefined && properties.get(&name).is_some_and(|v| !v.value.is_empty()) {
         return false;
     }
+    let raw = if references_itself(&raw.value, &name) {
+        // `<V>$(V).2</V>` appends to the previous value (empty if undefined)
+        let previous = properties.get(&name).map_or("", |v| v.value.as_str());
+        RawValue {
+            value: replace_reference(&raw.value, &name, previous),
+            ..raw
+        }
+    } else {
+        raw
+    };
     properties.insert(name, raw);
     true
+}
+
+/// Whether the value contains `$(name)`; `name` is lowercased
+fn references_itself(value: &str, name: &str) -> bool {
+    value.to_lowercase().contains(&format!("$({name})"))
+}
+
+/// Replaces `$(name)` ignoring case; `name` is lowercased
+fn replace_reference(value: &str, name: &str, replacement: &str) -> String {
+    let pattern = format!("$({name})");
+    let lowercased = value.to_lowercase();
+    // lowercasing may change byte lengths of non-ASCII chars, so offsets are applied only
+    // when it doesn't
+    if lowercased.len() != value.len() {
+        return value.replace(&pattern, replacement);
+    }
+    let mut result = String::with_capacity(value.len());
+    let mut last = 0;
+    for (start, matched) in lowercased.match_indices(&pattern) {
+        result.push_str(&value[last..start]);
+        result.push_str(replacement);
+        last = start + matched.len();
+    }
+    result.push_str(&value[last..]);
+    result
 }
 
 /// Whether the condition is `'$(Name)' == ''` (spaces and case are ignored)
@@ -1472,6 +1523,40 @@ mod tests {
   </ItemGroup>
 </Project>"#
             ),
+        )
+        .unwrap();
+        let file = ProjectFile::new(path);
+        let mut resolver = PackageResolver::default();
+
+        // Act
+        let actual = resolver.packages(&file);
+
+        // Assert
+        fs::remove_dir_all(&root).unwrap();
+        assert_eq!(
+            vec![expected],
+            version_of(&actual.unwrap(), "Newtonsoft.Json")
+        );
+    }
+
+    #[test_case("<JsonVersion>13</JsonVersion>", "<JsonVersion>$(JsonVersion).0.3</JsonVersion>", "13.0.3" ; "append to previous value")]
+    #[test_case("<JsonVersion>13</JsonVersion>", "<JsonVersion>$(JSONVERSION).0.$(jsonversion)</JsonVersion>", "13.0.13" ; "case insensitive reference")]
+    #[test_case("<Other>1</Other>", "<JsonVersion>$(JsonVersion)13.0.3</JsonVersion>", "13.0.3" ; "append to undefined property")]
+    fn resolve_version_from_self_referencing_property(first: &str, second: &str, expected: &str) {
+        // Arrange
+        let props = format!(
+            "<Project><PropertyGroup>{first}</PropertyGroup><PropertyGroup>{second}</PropertyGroup></Project>"
+        );
+        let root = create_tree("self-reference", &[(BUILD_PROPS, &props)]);
+        let path = root.join("App").join("App.csproj");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(
+            &path,
+            r#"<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="$(JsonVersion)" />
+  </ItemGroup>
+</Project>"#,
         )
         .unwrap();
         let file = ProjectFile::new(path);

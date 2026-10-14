@@ -217,8 +217,8 @@ impl<'a> Lexer<'a> {
                     let val = &self.input[start..*j];
                     return Ok((start, Tok::Str(val), *j));
                 }
-                '{' => {
-                    // Guid start
+                '{' if *j == i + 1 => {
+                    // Guid start: only directly after the opening quote
                     let start = *j;
                     return self.guid(start);
                 }
@@ -303,7 +303,13 @@ impl<'a> Lexer<'a> {
 
     #[inline]
     fn is_close_element(val: &str) -> bool {
-        val.starts_with("End")
+        let word_end = val
+            .find(|c: char| !c.is_ascii_alphabetic())
+            .unwrap_or(val.len());
+        matches!(
+            &val[..word_end],
+            "EndProject" | "EndGlobal" | "EndProjectSection" | "EndGlobalSection"
+        )
     }
 
     #[inline]
@@ -413,6 +419,58 @@ mod tests {
         assert_eq!(actual[1], format!("Identifier({expected})"));
         assert_eq!(actual[2], "Eq");
         assert_eq!(actual.len(), 4);
+    }
+
+    #[test_case("EndProject", true ; "end project")]
+    #[test_case("EndGlobalSection\n", true ; "end global section")]
+    #[test_case("EndProjectSection\r\n", true ; "end project section")]
+    #[test_case("EndGlobal", true ; "end global")]
+    #[test_case("Endpoints.md = Endpoints.md", false ; "file name")]
+    #[test_case("EndToEnd|Any CPU = EndToEnd|Any CPU", false ; "configuration name")]
+    #[test_case("Debug", false ; "not end")]
+    fn is_close_element_tests(content: &str, expected: bool) {
+        // Act
+        let actual = Lexer::is_close_element(content);
+
+        // Assert
+        assert_eq!(actual, expected);
+    }
+
+    #[test_case("Endpoints.md = Endpoints.md" ; "file name in solution items")]
+    #[test_case("EndToEnd|Any CPU = EndToEnd|Any CPU" ; "configuration name")]
+    fn section_key_starting_with_end_is_not_close(entry: &str) {
+        // Arrange
+        let input =
+            format!("GlobalSection(Items) = preSolution\n\t\t{entry}\n\tEndGlobalSection\n");
+
+        // Act
+        let actual: Vec<String> = Lexer::new(&input)
+            .map(|t| t.unwrap().1.to_string())
+            .collect();
+
+        // Assert
+        assert!(
+            actual.iter().any(|t| t.starts_with("SectionKey(End")),
+            "{actual:?}"
+        );
+        assert!(
+            actual.contains(&"CloseElement(EndGlobalSection)".to_string()),
+            "{actual:?}"
+        );
+    }
+
+    #[test]
+    fn string_with_brace_inside_is_plain_string() {
+        // Arrange
+        let input = r#""My{App", "x""#;
+
+        // Act
+        let actual: Vec<String> = Lexer::new(input)
+            .map(|t| t.unwrap().1.to_string())
+            .collect();
+
+        // Assert
+        assert_eq!(actual[0], "String(My{App)");
     }
 
     #[test]
