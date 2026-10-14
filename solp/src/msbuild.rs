@@ -176,13 +176,26 @@ struct RawPackageReference {
     name: String,
     #[serde(rename = "@Update", default)]
     update: Option<String>,
-    #[serde(rename = "@Version", default)]
+    // item metadata names are case insensitive in MSBuild
+    #[serde(rename = "@Version", alias = "@version", alias = "@VERSION", default)]
     version_attribute: Option<String>,
-    #[serde(rename = "Version", default)]
+    #[serde(rename = "Version", alias = "version", alias = "VERSION", default)]
     version: Option<String>,
-    #[serde(rename = "@VersionOverride", default)]
+    #[serde(
+        rename = "@VersionOverride",
+        alias = "@versionOverride",
+        alias = "@versionoverride",
+        alias = "@VERSIONOVERRIDE",
+        default
+    )]
     version_override_attribute: Option<String>,
-    #[serde(rename = "VersionOverride", default)]
+    #[serde(
+        rename = "VersionOverride",
+        alias = "versionOverride",
+        alias = "versionoverride",
+        alias = "VERSIONOVERRIDE",
+        default
+    )]
     version_override: Option<String>,
 }
 
@@ -420,6 +433,10 @@ mod tests {
     #[test_case("<PackageReference Include=\"A\">\n  <Version> 1.0.0 </Version>\n</PackageReference>", "1.0.0", None ; "child element trimmed")]
     #[test_case(r#"<PackageReference Include="A" Version="1.0.0"><VersionOverride>2.0.0</VersionOverride></PackageReference>"#, "1.0.0", Some("2.0.0") ; "override child element")]
     #[test_case(r#"<PackageReference Include="A" VersionOverride="2.0.0" />"#, "", Some("2.0.0") ; "override attribute")]
+    #[test_case(r#"<PackageReference Include="A" version="1.0.0" />"#, "1.0.0", None ; "lowercase attribute")]
+    #[test_case(r#"<PackageReference Include="A"><version>1.0.0</version></PackageReference>"#, "1.0.0", None ; "lowercase child element")]
+    #[test_case(r#"<PackageReference Include="A" versionoverride="2.0.0" />"#, "", Some("2.0.0") ; "lowercase override attribute")]
+    #[test_case(r#"<PackageReference Include="A" Version="1.0.0"><versionOverride>2.0.0</versionOverride></PackageReference>"#, "1.0.0", Some("2.0.0") ; "camel case override child element")]
     fn package_reference_version_metadata(
         item: &str,
         version: &str,
