@@ -23,7 +23,7 @@ solp = { path = "../solp/", version = "0.23.0" }
 petgraph = "=0.8.3"
 num-format = "=0.4.4"
 exitcode = "=1.1.2"
-serde_json = "=1.0.151"
+serde_json = "=1.0.154"
 bugreport = "=0.6.0"
 miette = { version = "=7.6.0", features = ["fancy"] }
 
