@@ -116,7 +116,6 @@ impl Statistic {
 }
 
 impl Display for Statistic {
-    #[allow(clippy::cast_possible_truncation)]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "{}", " Statistic:".dark_red().bold())?;
 
@@ -128,20 +127,18 @@ impl Display for Statistic {
             Cell::new("%").add_attribute(Attribute::Bold),
         ]);
 
-        let cycles_percent = calculate_percent(self.cycles as i32, self.total as i32);
-        let missings_percent = calculate_percent(self.missings as i32, self.total as i32);
-        let danglings_percent = calculate_percent(self.danglings as i32, self.total as i32);
-        let not_found_percent = calculate_percent(self.not_found as i32, self.total as i32);
-        let duplicate_guids_percent =
-            calculate_percent(self.duplicate_guids as i32, self.total as i32);
+        let cycles_percent = calculate_percent(self.cycles, self.total);
+        let missings_percent = calculate_percent(self.missings, self.total);
+        let danglings_percent = calculate_percent(self.danglings, self.total);
+        let not_found_percent = calculate_percent(self.not_found, self.total);
+        let duplicate_guids_percent = calculate_percent(self.duplicate_guids, self.total);
         let duplicate_configurations_percent =
-            calculate_percent(self.duplicate_configurations as i32, self.total as i32);
-        let orphans_percent = calculate_percent(self.orphans as i32, self.total as i32);
-        let redundant_refs_percent =
-            calculate_percent(self.redundant_refs as i32, self.total as i32);
-        let parsed_percent = calculate_percent(self.parsed as i32, self.total as i32);
-        let not_parsed_percent = calculate_percent(self.not_parsed as i32, self.total as i32);
-        let total_percent = calculate_percent(self.total as i32, self.total as i32);
+            calculate_percent(self.duplicate_configurations, self.total);
+        let orphans_percent = calculate_percent(self.orphans, self.total);
+        let redundant_refs_percent = calculate_percent(self.redundant_refs, self.total);
+        let parsed_percent = calculate_percent(self.parsed, self.total);
+        let not_parsed_percent = calculate_percent(self.not_parsed, self.total);
+        let total_percent = calculate_percent(self.total, self.total);
 
         table.add_row([
             Cell::new("Successfully parsed"),
@@ -251,7 +248,6 @@ struct FixStatistic {
 }
 
 impl Display for FixStatistic {
-    #[allow(clippy::cast_possible_truncation)]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "{}", " Fix statistic:".dark_red().bold())?;
 
@@ -262,11 +258,10 @@ impl Display for FixStatistic {
             Cell::new("%").add_attribute(Attribute::Bold),
         ]);
 
-        let parsed_percent = calculate_percent(self.parsed as i32, self.total as i32);
-        let fixed_solutions_percent =
-            calculate_percent(self.fixed_solutions as i32, self.total as i32);
-        let not_parsed_percent = calculate_percent(self.not_parsed as i32, self.total as i32);
-        let total_percent = calculate_percent(self.total as i32, self.total as i32);
+        let parsed_percent = calculate_percent(self.parsed, self.total);
+        let fixed_solutions_percent = calculate_percent(self.fixed_solutions, self.total);
+        let not_parsed_percent = calculate_percent(self.not_parsed, self.total);
+        let total_percent = calculate_percent(self.total, self.total);
 
         table.add_row([
             Cell::new("Successfully parsed solutions"),

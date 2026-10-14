@@ -11,9 +11,9 @@ use crate::error::Collector;
 use crate::{calculate_percent, ux};
 #[derive(Default)]
 pub struct Info {
-    total_projects: BTreeMap<String, i32>,
-    projects_in_solutions: BTreeMap<String, i32>,
-    solutions: i32,
+    total_projects: BTreeMap<String, u64>,
+    projects_in_solutions: BTreeMap<String, u64>,
+    solutions: u64,
     errors: Collector,
 }
 
@@ -25,14 +25,14 @@ struct SolutionInfo {
     /// (name, version) pairs
     versions: Vec<(String, String)>,
     /// Project type description to number of projects of this type
-    projects_by_type: BTreeMap<String, i32>,
+    projects_by_type: BTreeMap<String, u64>,
     configurations: BTreeSet<String>,
     platforms: BTreeSet<String>,
 }
 
 impl SolutionInfo {
     fn new(solution: &Solution) -> Self {
-        let mut projects_by_type: BTreeMap<String, i32> = BTreeMap::new();
+        let mut projects_by_type: BTreeMap<String, u64> = BTreeMap::new();
         for prj in solution.iterate_projects() {
             *projects_by_type
                 .entry(prj.type_description.to_owned())
