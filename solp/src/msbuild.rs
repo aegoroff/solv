@@ -1,7 +1,7 @@
 #![allow(clippy::doc_markdown)]
 
 use miette::{IntoDiagnostic, WrapErr};
-use std::{collections::HashMap, fs::File, io::Read, path::Path};
+use std::{collections::HashMap, fs::File, io::Read, path::Path, sync::LazyLock};
 
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
@@ -12,14 +12,14 @@ pub use crate::slnx::unescape_xml;
 /// solution folder type project
 #[must_use]
 pub fn is_solution_folder(id: &str) -> bool {
-    id == ID_SOLUTION_FOLDER
+    id.eq_ignore_ascii_case(ID_SOLUTION_FOLDER)
 }
 
 /// Shows whether id specified is ID of
 /// Website type project
 #[must_use]
 pub fn is_web_site_project(id: &str) -> bool {
-    id == ID_WEB_SITE_PROJECT
+    id.eq_ignore_ascii_case(ID_WEB_SITE_PROJECT)
 }
 
 /// Shows whether project is a shared items project (`.shproj` or `.vcxitems`).
@@ -38,8 +38,20 @@ pub fn is_shared_project(id: &str, path: &str) -> bool {
 /// or id itself if it's not match any
 #[must_use]
 pub fn describe_project(id: &str) -> &str {
-    PROJECT_TYPES.get(id).unwrap_or(&id)
+    PROJECT_TYPES
+        .get(id)
+        .or_else(|| PROJECT_TYPES_BY_UPPERCASE_ID.get(&id.to_ascii_uppercase()))
+        .unwrap_or(&id)
 }
+
+/// Project types by uppercased id: ids in solutions may be written in any case
+static PROJECT_TYPES_BY_UPPERCASE_ID: LazyLock<HashMap<String, &'static str>> =
+    LazyLock::new(|| {
+        PROJECT_TYPES
+            .entries()
+            .map(|(id, description)| (id.to_ascii_uppercase(), *description))
+            .collect()
+    });
 
 /// `MSBuild` project structure
 #[derive(Debug, Deserialize)]
@@ -144,19 +156,52 @@ impl ProjectReference {
 /// A Package Reference represents a dependency on an external package.
 ///
 /// This structure contains the name and version of the referenced package.
+/// Metadata may be set both as attribute and as child element.
 #[derive(Debug, Clone, Default, Deserialize)]
+#[serde(from = "RawPackageReference")]
 pub struct PackageReference {
-    #[serde(rename = "@Include", default)]
     pub name: String,
     /// Name(s) of already included packages which metadata is changed by this item
     /// (`;` separated list). Such item doesn't add a package.
-    #[serde(rename = "@Update", default)]
     pub update: Option<String>,
-    #[serde(rename = "@Version", default)]
     pub version: String,
     /// Overrides centrally managed version (Central Package Management)
-    #[serde(rename = "@VersionOverride", default)]
     pub version_override: Option<String>,
+}
+
+/// `PackageReference` as it's written in XML: metadata as attributes or child elements
+#[derive(Debug, Default, Deserialize)]
+struct RawPackageReference {
+    #[serde(rename = "@Include", default)]
+    name: String,
+    #[serde(rename = "@Update", default)]
+    update: Option<String>,
+    #[serde(rename = "@Version", default)]
+    version_attribute: Option<String>,
+    #[serde(rename = "Version", default)]
+    version: Option<String>,
+    #[serde(rename = "@VersionOverride", default)]
+    version_override_attribute: Option<String>,
+    #[serde(rename = "VersionOverride", default)]
+    version_override: Option<String>,
+}
+
+impl From<RawPackageReference> for PackageReference {
+    fn from(raw: RawPackageReference) -> Self {
+        Self {
+            name: raw.name,
+            update: raw.update,
+            version: raw
+                .version_attribute
+                .or(raw.version)
+                .map(|v| v.trim().to_owned())
+                .unwrap_or_default(),
+            version_override: raw
+                .version_override_attribute
+                .or(raw.version_override)
+                .map(|v| v.trim().to_owned()),
+        }
+    }
 }
 
 /// Represents the configuration of packages used by a project.
@@ -369,6 +414,53 @@ pub(crate) fn from_xml<T: DeserializeOwned, R: Read>(
 mod tests {
     use super::*;
     use test_case::test_case;
+
+    #[test_case(r#"<PackageReference Include="A" Version="1.0.0" />"#, "1.0.0", None ; "attributes")]
+    #[test_case(r#"<PackageReference Include="A"><Version>1.0.0</Version></PackageReference>"#, "1.0.0", None ; "child element")]
+    #[test_case("<PackageReference Include=\"A\">\n  <Version> 1.0.0 </Version>\n</PackageReference>", "1.0.0", None ; "child element trimmed")]
+    #[test_case(r#"<PackageReference Include="A" Version="1.0.0"><VersionOverride>2.0.0</VersionOverride></PackageReference>"#, "1.0.0", Some("2.0.0") ; "override child element")]
+    #[test_case(r#"<PackageReference Include="A" VersionOverride="2.0.0" />"#, "", Some("2.0.0") ; "override attribute")]
+    fn package_reference_version_metadata(
+        item: &str,
+        version: &str,
+        version_override: Option<&str>,
+    ) {
+        // Arrange
+        let project = format!("<Project><ItemGroup>{item}</ItemGroup></Project>");
+
+        // Act
+        let actual = Project::from_reader(project.as_bytes()).unwrap();
+
+        // Assert
+        let groups = actual.item_group.unwrap();
+        let pack = &groups[0].package_reference.as_ref().unwrap()[0];
+        assert_eq!(pack.name, "A");
+        assert_eq!(pack.version, version);
+        assert_eq!(pack.version_override.as_deref(), version_override);
+    }
+
+    #[test_case("{fae04ec0-301f-11d3-bf4b-00c04f79efbc}", "C#" ; "lowercase")]
+    #[test_case("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}", "C#" ; "uppercase")]
+    #[test_case("{2150e333-8fdc-42a3-9474-1a3956d46de8}", "Solution Folder" ; "lowercase folder")]
+    #[test_case("{00000000-0000-0000-0000-000000000000}", "{00000000-0000-0000-0000-000000000000}" ; "unknown")]
+    fn describe_project_ignores_case(id: &str, expected: &str) {
+        // Act
+        let actual = describe_project(id);
+
+        // Assert
+        assert_eq!(actual, expected);
+    }
+
+    #[test_case("{2150e333-8fdc-42a3-9474-1a3956d46de8}", true ; "lowercase")]
+    #[test_case("{2150E333-8FDC-42A3-9474-1A3956D46DE8}", true ; "uppercase")]
+    #[test_case("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}", false ; "other type")]
+    fn is_solution_folder_ignores_case(id: &str, expected: bool) {
+        // Act
+        let actual = is_solution_folder(id);
+
+        // Assert
+        assert_eq!(actual, expected);
+    }
 
     #[test]
     fn read_packages_config_from_reader_test() {
