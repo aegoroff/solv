@@ -67,7 +67,9 @@ assert_eq!(tests.depends_from.as_deref(), Some(&["src/App.csproj"][..]));
 #![warn(unused_extern_crates)]
 #![allow(clippy::missing_errors_doc)]
 use std::fs;
+use std::num::NonZero;
 use std::path::Path;
+use std::thread;
 
 use api::Solution;
 use dua_core::{Options, Order, walk};
@@ -293,7 +295,7 @@ impl<'a, C: Consume> SolpWalker<'a, C> {
         let extensions = parse_extensions(self.extension);
         let root = decorate_path(path);
         let recursively = self.recursively;
-        let threads = num_cpus::get_physical().max(1);
+        let threads = thread::available_parallelism().map_or(1, NonZero::get);
 
         walk(
             Path::new(&root),
