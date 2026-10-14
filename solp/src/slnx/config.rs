@@ -146,13 +146,15 @@ pub fn project_setup<'a>(
     let resolved = resolver.resolve(explicit_type, extension);
 
     let mut rules = EffectiveRules::default();
+    // Like the reference implementation: project of unknown type gets only its own rules,
+    // neither type rules nor solution wide ones
     if let Some(project_type) = resolved {
         for project_type in resolver.chain(project_type) {
             append_type_rules(contents, project_type, &mut rules)?;
         }
-    }
-    for project_type in resolver.solution_defaults() {
-        append_custom_type_rules(contents, project_type, &mut rules)?;
+        for project_type in resolver.solution_defaults() {
+            append_custom_type_rules(contents, project_type, &mut rules)?;
+        }
     }
     rules.append(
         contents,

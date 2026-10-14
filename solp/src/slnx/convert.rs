@@ -329,6 +329,35 @@ mod tests {
             .expect("project")
     }
 
+    #[test_case("known/App.csproj", false ; "known type follows solution default rule")]
+    #[test_case("unknown/Thing.xyz", true ; "unknown type gets only project rules")]
+    fn solution_default_rules_apply_to_known_types_only(path: &str, has_build: bool) {
+        // Arrange
+        let slnx = r#"<Solution>
+  <Configurations>
+    <BuildType Name="Debug" />
+    <Platform Name="Any CPU" />
+    <ProjectType>
+      <Build Project="false" />
+    </ProjectType>
+  </Configurations>
+  <Project Path="known/App.csproj" />
+  <Project Path="unknown/Thing.xyz" />
+</Solution>"#;
+
+        // Act
+        let solution = crate::parse_str(slnx).unwrap();
+
+        // Assert
+        let configurations = find(&solution, path).configurations.as_ref().unwrap();
+        assert_eq!(
+            configurations
+                .iter()
+                .all(|c| c.tags.contains(&crate::api::Tag::Build)),
+            has_build
+        );
+    }
+
     #[test]
     fn nested_folders_keep_hierarchy() {
         // Arrange
